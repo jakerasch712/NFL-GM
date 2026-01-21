@@ -1,6 +1,14 @@
 import React, { useState } from 'react';
 import { Player } from '../types';
 import { X, Check, DollarSign, Briefcase, TrendingUp, AlertTriangle } from 'lucide-react';
+import {
+  calculateAPY,
+  calculateTotalValue,
+  getInterestScore as getInterestScoreUtil,
+  evaluateContractOffer,
+  createContractFromOffer,
+  ContractOffer
+} from '../utils/contractLogic';
 
 interface ContractNegotiationProps {
   player: Player;
@@ -18,47 +26,38 @@ const ContractNegotiation: React.FC<ContractNegotiationProps> = ({ player, onClo
   const [feedback, setFeedback] = useState<string | null>(null);
   const [dealStatus, setDealStatus] = useState<'OPEN' | 'ACCEPTED' | 'REJECTED'>('OPEN');
 
-  const totalValue = (offerSalary * offerYear) + offerBonus;
-  const apy = totalValue / offerYear;
-  
+  const totalValue = calculateTotalValue(offerSalary, offerYear, offerBonus);
+  const apy = calculateAPY(offerSalary, offerYear, offerBonus);
+
   const getInterestScore = () => {
     if (!player.contractDemand) return 0;
-    
-    const demandValue = (player.contractDemand.salary * player.contractDemand.years) + player.contractDemand.bonus;
-    const offerVal = totalValue;
-    
-    // Simple heuristic
-    let score = (offerVal / demandValue) * 100;
-    
-    // Adjust for years mismatch
-    if (offerYear !== player.contractDemand.years) {
-        score -= Math.abs(offerYear - player.contractDemand.years) * 10;
-    }
-    
-    return Math.min(100, Math.max(0, score));
+
+    const offer: ContractOffer = {
+      years: offerYear,
+      salary: offerSalary,
+      bonus: offerBonus
+    };
+
+    return getInterestScoreUtil(offer, player.contractDemand);
   };
 
   const handleOffer = () => {
     const score = getInterestScore();
-    
-    if (score >= 95) {
-        setDealStatus('ACCEPTED');
-        setFeedback("The client is thrilled. We have a deal!");
-        setTimeout(() => {
-            onSign(player.id, {
-                years: offerYear,
-                salary: parseFloat(offerSalary.toFixed(2)),
-                bonus: parseFloat(offerBonus.toFixed(2)),
-                yearsLeft: offerYear,
-                totalValue: parseFloat(totalValue.toFixed(2))
-            });
-        }, 1500);
-    } else if (score >= 85) {
-        setFeedback("We're close. Increase the guaranteed money (bonus) slightly and we'll sign.");
-    } else if (score >= 70) {
-        setFeedback("This is below market value. The years look okay, but the APY needs to come up significantly.");
-    } else {
-        setFeedback("This offer is insulting. We are far apart.");
+    const evaluation = evaluateContractOffer(score);
+
+    setDealStatus(evaluation.status);
+    setFeedback(evaluation.feedback);
+
+    if (evaluation.status === 'ACCEPTED') {
+      setTimeout(() => {
+        const offer: ContractOffer = {
+          years: offerYear,
+          salary: offerSalary,
+          bonus: offerBonus
+        };
+        const contract = createContractFromOffer(offer);
+        onSign(player.id, contract);
+      }, 1500);
     }
   };
 
