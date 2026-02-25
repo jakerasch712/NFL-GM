@@ -1,89 +1,28 @@
 import React, { useState } from 'react';
 import { Calendar, TrendingUp, AlertCircle, Activity, Trophy, ChevronDown, MapPin } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { TEAMS_DB } from '../constants';
 
-// Mock Data for Teams
-const TEAMS_DB: Record<string, any> = {
-  HOU: {
-    id: 'HOU',
-    city: 'Houston',
-    name: 'Texans',
-    record: '5-1-0',
-    division: 'AFC South',
-    stats: { off: 82, def: 88, st: 76 },
-    nextOpp: { name: 'KANSAS CITY', code: 'KC', record: '6-0', threat: 'EXTREME', winProb: 42.5, location: 'Arrowhead Stadium', date: 'Sunday 4:25 PM' },
-    standings: [
-      { team: 'HOU', w: 5, l: 1, diff: '+42' },
-      { team: 'JAX', w: 4, l: 2, diff: '+12' },
-      { team: 'IND', w: 2, l: 4, diff: '-15' },
-      { team: 'TEN', w: 1, l: 5, diff: '-38' },
-    ]
-  },
-  KC: {
-    id: 'KC',
-    city: 'Kansas City',
-    name: 'Chiefs',
-    record: '6-0-0',
-    division: 'AFC West',
-    stats: { off: 96, def: 92, st: 84 },
-    nextOpp: { name: 'HOUSTON', code: 'HOU', record: '5-1', threat: 'HIGH', winProb: 58.2, location: 'Arrowhead Stadium', date: 'Sunday 4:25 PM' },
-    standings: [
-      { team: 'KC', w: 6, l: 0, diff: '+56' },
-      { team: 'LAC', w: 3, l: 3, diff: '+5' },
-      { team: 'DEN', w: 2, l: 4, diff: '-22' },
-      { team: 'LV', w: 2, l: 4, diff: '-45' },
-    ]
-  },
-  BUF: {
-    id: 'BUF',
-    city: 'Buffalo',
-    name: 'Bills',
-    record: '4-2-0',
-    division: 'AFC East',
-    stats: { off: 91, def: 78, st: 82 },
-    nextOpp: { name: 'MIAMI', code: 'MIA', record: '3-3', threat: 'MEDIUM', winProb: 65.0, location: 'Highmark Stadium', date: 'Sunday 1:00 PM' },
-    standings: [
-      { team: 'BUF', w: 4, l: 2, diff: '+33' },
-      { team: 'MIA', w: 3, l: 3, diff: '-8' },
-      { team: 'NYJ', w: 2, l: 4, diff: '-12' },
-      { team: 'NE', w: 1, l: 5, diff: '-55' },
-    ]
-  },
-  PHI: {
-    id: 'PHI',
-    city: 'Philadelphia',
-    name: 'Eagles',
-    record: '5-1-0',
-    division: 'NFC East',
-    stats: { off: 88, def: 85, st: 81 },
-    nextOpp: { name: 'DALLAS', code: 'DAL', record: '3-3', threat: 'HIGH', winProb: 55.4, location: 'Lincoln Financial Field', date: 'Sunday 8:20 PM' },
-    standings: [
-      { team: 'PHI', w: 5, l: 1, diff: '+44' },
-      { team: 'DAL', w: 3, l: 3, diff: '+10' },
-      { team: 'WAS', w: 3, l: 3, diff: '-5' },
-      { team: 'NYG', w: 2, l: 4, diff: '-28' },
-    ]
-  },
-  SF: {
-    id: 'SF',
-    city: 'San Francisco',
-    name: '49ers',
-    record: '4-2-0',
-    division: 'NFC West',
-    stats: { off: 92, def: 90, st: 80 },
-    nextOpp: { name: 'SEATTLE', code: 'SEA', record: '3-3', threat: 'MEDIUM', winProb: 68.5, location: "Levi's Stadium", date: 'Sunday 4:05 PM' },
-    standings: [
-      { team: 'SF', w: 4, l: 2, diff: '+38' },
-      { team: 'SEA', w: 3, l: 3, diff: '-2' },
-      { team: 'LAR', w: 3, l: 3, diff: '-5' },
-      { team: 'ARI', w: 2, l: 4, diff: '-30' },
-    ]
-  }
+// Helper to get next opponent and standings (mocked for brevity in this step)
+const getTeamData = (teamId: string) => {
+  const team = TEAMS_DB[teamId];
+  const divisionTeams = Object.values(TEAMS_DB).filter((t: any) => t.division === team.division);
+  
+  return {
+    ...team,
+    nextOpp: { name: 'OPPONENT', code: 'OPP', record: '0-0', threat: 'MEDIUM', winProb: 50.0, location: 'Stadium', date: 'Sunday' },
+    standings: divisionTeams.map((t: any) => ({
+      team: t.id,
+      w: parseInt(t.record.split('-')[0]),
+      l: parseInt(t.record.split('-')[1]),
+      diff: '+0'
+    })).sort((a, b) => b.w - a.w)
+  };
 };
 
 const Dashboard: React.FC = () => {
   const [selectedTeamId, setSelectedTeamId] = useState('HOU');
-  const team = TEAMS_DB[selectedTeamId];
+  const team = getTeamData(selectedTeamId);
 
   const teamStats = [
     { name: 'OFF', val: team.stats.off, color: '#22d3ee' },

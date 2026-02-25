@@ -1,129 +1,143 @@
-import React from 'react';
-import { Target, FileText, ChevronRight, Brain } from 'lucide-react';
-import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts';
+import React, { useState } from 'react';
+import { Shield, Zap, Target, AlertCircle, Activity, ChevronRight, Clipboard, Flame } from 'lucide-react';
+import { MOCK_PLAYERS } from '../constants';
+import { Player } from '../types';
 
 const GamePlan: React.FC = () => {
-  const chartData = [
-    { subject: 'Run Def', A: 120, fullMark: 150 },
-    { subject: 'Pass Rush', A: 98, fullMark: 150 },
-    { subject: 'Coverage', A: 86, fullMark: 150 },
-    { subject: 'Turnovers', A: 99, fullMark: 150 },
-    { subject: 'Red Zone', A: 85, fullMark: 150 },
-    { subject: '3rd Down', A: 65, fullMark: 150 },
-  ];
+  const [players] = useState<Player[]>(MOCK_PLAYERS.filter(p => p.teamId === 'HOU'));
+  const [focus, setFocus] = useState<'OFFENSE' | 'DEFENSE' | 'BALANCED'>('BALANCED');
+  const [intensity, setIntensity] = useState(50);
 
   return (
-    <div className="p-8 h-full overflow-y-auto">
-        <header className="mb-8">
-            <h2 className="text-3xl font-bold text-white mb-2 header-font">WEEKLY GAMEPLAN</h2>
-            <div className="flex items-center gap-4">
-                <span className="bg-red-500/10 text-red-500 border border-red-500/20 px-3 py-1 rounded text-xs font-bold uppercase tracking-wider">vs Kansas City</span>
-                <span className="text-slate-500 text-sm">Defensive Coordinator: Steve Spagnuolo</span>
-            </div>
-        </header>
+    <div className="p-8 h-full overflow-hidden flex flex-col bg-slate-950">
+      <header className="mb-8">
+        <h2 className="text-4xl font-bold text-white header-font tracking-tight">GAME WEEK PREP</h2>
+        <p className="text-slate-500 text-sm mt-1 uppercase tracking-widest font-medium">Week 8 vs Indianapolis Colts</p>
+      </header>
 
-        <div className="grid grid-cols-12 gap-6">
-            {/* Analysis */}
-            <div className="col-span-12 md:col-span-5 bg-slate-900 border border-slate-800 rounded-xl p-6 relative">
-                 <div className="absolute top-4 right-4 text-slate-700">
-                    <Brain size={24} />
-                 </div>
-                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-6">Opponent DNA</h3>
-                
-                <div className="h-[300px] w-full flex items-center justify-center -ml-4">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <RadarChart cx="50%" cy="50%" outerRadius="70%" data={chartData}>
-                        <PolarGrid stroke="#334155" />
-                        <PolarAngleAxis dataKey="subject" tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 'bold' }} />
-                        <PolarRadiusAxis angle={30} domain={[0, 150]} tick={false} axisLine={false} />
-                        <Radar
-                            name="Chiefs"
-                            dataKey="A"
-                            stroke="#ef4444"
-                            strokeWidth={2}
-                            fill="#ef4444"
-                            fillOpacity={0.3}
-                        />
-                        </RadarChart>
-                    </ResponsiveContainer>
-                </div>
-                
-                <div className="space-y-4 mt-4">
-                    <div className="p-4 bg-slate-950 rounded border border-slate-800">
-                        <h4 className="text-white font-bold text-sm mb-1">Tendency: Blitz Heavy</h4>
-                        <p className="text-xs text-slate-400">KC blitzes DBs on 34% of 3rd downs. Recommend: Quick slant concepts.</p>
-                    </div>
-                    <div className="p-4 bg-slate-950 rounded border border-slate-800">
-                        <h4 className="text-white font-bold text-sm mb-1">Weakness: Slot Coverage</h4>
-                        <p className="text-xs text-slate-400">Their nickel corner allows 72% completion rate. T. Dell should be primary read.</p>
-                    </div>
-                </div>
-            </div>
-
-            {/* Strategy Selectors */}
-            <div className="col-span-12 md:col-span-7 space-y-6">
-                <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-                    <h3 className="text-sm font-bold text-cyan-400 uppercase tracking-widest mb-6 flex items-center gap-2">
-                        <Target size={16} /> Offensive Focus
-                    </h3>
-
-                    <div className="space-y-6">
-                        <div>
-                            <div className="flex justify-between text-sm mb-2">
-                                <span className="text-white font-medium">Run / Pass Ratio</span>
-                                <span className="text-slate-400 font-mono">40 / 60</span>
-                            </div>
-                            <input type="range" className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-500" />
-                            <div className="flex justify-between text-xs text-slate-500 mt-1 uppercase tracking-wider">
-                                <span>Heavy Run</span>
-                                <span>Heavy Pass</span>
-                            </div>
-                        </div>
-
-                        <div>
-                            <div className="flex justify-between text-sm mb-2">
-                                <span className="text-white font-medium">Tempo</span>
-                                <span className="text-slate-400 font-mono">No Huddle</span>
-                            </div>
-                            <div className="grid grid-cols-3 gap-2">
-                                <button className="p-2 border border-slate-700 rounded text-slate-400 hover:text-white hover:bg-slate-800 text-xs font-bold transition-colors">Chew Clock</button>
-                                <button className="p-2 border border-slate-700 rounded text-slate-400 hover:text-white hover:bg-slate-800 text-xs font-bold transition-colors">Normal</button>
-                                <button className="p-2 bg-cyan-600 border border-cyan-500 text-white rounded text-xs font-bold shadow-lg shadow-cyan-900/40">No Huddle</button>
-                            </div>
-                        </div>
-
-                         <div>
-                            <div className="flex justify-between text-sm mb-2">
-                                <span className="text-white font-medium">Primary Target</span>
-                                <span className="text-slate-400 font-mono">N. Collins</span>
-                            </div>
-                             <select className="w-full bg-slate-950 border border-slate-700 text-white text-sm rounded p-2 focus:border-cyan-500 outline-none">
-                                <option>Balanced Distribution</option>
-                                <option selected>Feed N. Collins (WR1)</option>
-                                <option>Establish J. Mixon (RB)</option>
-                                <option>Test Deep w/ T. Dell</option>
-                             </select>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 flex items-center justify-between group cursor-pointer hover:border-cyan-500/50 transition-colors">
-                    <div>
-                        <h3 className="text-white font-bold mb-1">Practice Script</h3>
-                        <p className="text-slate-400 text-xs">Manage weekly reps and install plays.</p>
-                    </div>
-                    <div className="w-10 h-10 bg-slate-800 rounded-full flex items-center justify-center group-hover:bg-cyan-500 group-hover:text-white transition-colors text-slate-400">
-                        <FileText size={20} />
-                    </div>
-                </div>
-
-                <div className="flex justify-end">
-                    <button className="bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-3 rounded font-bold tracking-wide uppercase text-sm shadow-lg shadow-emerald-900/20 flex items-center gap-2 transition-all">
-                        Finalize Plan <ChevronRight size={16} />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 flex-1 overflow-hidden">
+        {/* Left: Game Planning */}
+        <div className="lg:col-span-2 space-y-6 overflow-y-auto pr-2">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+            <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                <Clipboard size={24} className="text-cyan-400" />
+                Weekly Strategy
+            </h3>
+            
+            <div className="grid grid-cols-3 gap-4 mb-8">
+                {(['OFFENSE', 'DEFENSE', 'BALANCED'] as const).map(f => (
+                    <button 
+                        key={f}
+                        onClick={() => setFocus(f)}
+                        className={`p-4 rounded-xl border transition-all ${
+                            focus === f 
+                            ? 'bg-cyan-500/10 border-cyan-500 text-cyan-400 shadow-lg shadow-cyan-900/20' 
+                            : 'bg-slate-950 border-slate-800 text-slate-500 hover:border-slate-700'
+                        }`}
+                    >
+                        <div className="text-[10px] font-bold uppercase tracking-widest mb-1">{f}</div>
+                        <div className="text-xs font-medium">Focus Training</div>
                     </button>
+                ))}
+            </div>
+
+            <div className="space-y-6">
+                <div>
+                    <div className="flex justify-between mb-2">
+                        <label className="text-sm font-bold text-slate-300 uppercase tracking-wider">Practice Intensity</label>
+                        <span className={`text-sm font-mono font-bold ${intensity > 75 ? 'text-red-400' : 'text-cyan-400'}`}>{intensity}%</span>
+                    </div>
+                    <input 
+                        type="range" min="0" max="100" 
+                        value={intensity} 
+                        onChange={(e) => setIntensity(parseInt(e.target.value))}
+                        className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-500" 
+                    />
+                    <div className="flex justify-between text-[10px] text-slate-500 mt-2 uppercase font-bold">
+                        <span>Walkthrough</span>
+                        <span>Full Pads</span>
+                    </div>
+                </div>
+
+                <div className="bg-slate-950/50 border border-slate-800 rounded-xl p-4 flex items-start gap-4">
+                    <div className="p-2 bg-amber-500/10 rounded-lg">
+                        <AlertCircle size={20} className="text-amber-500" />
+                    </div>
+                    <div>
+                        <h4 className="text-sm font-bold text-white mb-1 uppercase tracking-wide">Injury Risk Warning</h4>
+                        <p className="text-xs text-slate-500 leading-relaxed">
+                            High intensity practice increases <span className="text-red-400">Fatigue</span> and <span className="text-red-400">Injury Risk</span>. 
+                            Current settings: <span className="text-amber-500 font-bold">+12% Fatigue</span> this week.
+                        </p>
+                    </div>
                 </div>
             </div>
+          </div>
+
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+            <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                <Target size={24} className="text-purple-400" />
+                Opponent Tendencies
+            </h3>
+            <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 bg-slate-950/50 border border-slate-800 rounded-xl">
+                    <div className="text-[10px] text-slate-500 uppercase font-bold mb-2">Offensive Style</div>
+                    <div className="text-sm text-white font-bold">Heavy Run / RPO</div>
+                </div>
+                <div className="p-4 bg-slate-950/50 border border-slate-800 rounded-xl">
+                    <div className="text-[10px] text-slate-500 uppercase font-bold mb-2">Defensive Weakness</div>
+                    <div className="text-sm text-white font-bold">Deep Passing / Slot</div>
+                </div>
+            </div>
+          </div>
         </div>
+
+        {/* Right: Roster Health & Wear and Tear */}
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl flex flex-col overflow-hidden shadow-2xl">
+          <div className="p-6 border-b border-slate-800 bg-slate-800/30">
+            <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                <Activity size={24} className="text-emerald-400" />
+                Roster Health
+            </h3>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {players.map(player => (
+                <div key={player.id} className="p-4 bg-slate-950 border border-slate-800 rounded-xl hover:border-slate-700 transition-colors">
+                    <div className="flex justify-between items-start mb-3">
+                        <div>
+                            <div className="font-bold text-white text-sm">{player.name}</div>
+                            <div className="text-[10px] text-slate-500 uppercase font-bold">{player.position}</div>
+                        </div>
+                        <div className={`text-xs font-mono font-bold ${player.fatigue < 80 ? 'text-red-400' : 'text-emerald-400'}`}>
+                            {player.fatigue}%
+                        </div>
+                    </div>
+                    <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                        <div 
+                            className={`h-full transition-all duration-500 ${player.fatigue < 80 ? 'bg-red-500' : 'bg-emerald-500'}`} 
+                            style={{width: `${player.fatigue}%`}}
+                        ></div>
+                    </div>
+                    <div className="mt-3 flex justify-between items-center">
+                        <div className="flex gap-1">
+                            {player.fatigue < 90 && (
+                                <span className="px-1.5 py-0.5 bg-red-500/10 text-red-500 rounded text-[8px] font-bold uppercase tracking-tighter">Wear & Tear</span>
+                            )}
+                        </div>
+                        <button className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest hover:text-cyan-300 transition-colors">
+                            Rest Player
+                        </button>
+                    </div>
+                </div>
+            ))}
+          </div>
+          <div className="p-4 bg-slate-800/20 border-t border-slate-800">
+            <button className="w-full py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold uppercase tracking-widest shadow-lg shadow-cyan-900/20 transition-all">
+                Finalize Game Plan
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

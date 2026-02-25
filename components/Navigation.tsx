@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, Users, ClipboardList, Play, Briefcase } from 'lucide-react';
+import { LayoutDashboard, Users, ClipboardList, Play, Briefcase, ShoppingBag, ArrowLeftRight, Shield, Zap, Microscope } from 'lucide-react';
 import { AppView } from '../types';
 
 interface NavigationProps {
@@ -11,9 +11,13 @@ const Navigation: React.FC<NavigationProps> = ({ currentView, setView }) => {
   const navItems = [
     { id: AppView.DASHBOARD, label: 'HQ Dashboard', icon: LayoutDashboard },
     { id: AppView.ROSTER, label: 'Roster & Depth', icon: Users },
+    { id: AppView.FREE_AGENCY, label: 'Free Agency', icon: ShoppingBag },
+    { id: AppView.TRADE_CENTER, label: 'Trade Center', icon: ArrowLeftRight },
     { id: AppView.GAMEPLAN, label: 'Gameplan', icon: ClipboardList },
     { id: AppView.MATCH, label: 'Match Sim', icon: Play },
-    { id: AppView.DRAFT, label: 'War Room', icon: Briefcase },
+    { id: AppView.DRAFT, label: 'War Room', icon: Shield },
+    { id: AppView.STAFF, label: 'Staff', icon: Zap },
+    { id: AppView.SCOUTING, label: 'Scouting', icon: Microscope },
   ];
 
   return (

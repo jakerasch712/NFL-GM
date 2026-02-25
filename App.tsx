@@ -2,9 +2,13 @@ import React, { useState } from 'react';
 import Navigation from './components/Navigation';
 import Dashboard from './components/Dashboard';
 import RosterView from './components/RosterView';
+import FreeAgency from './components/FreeAgency';
+import TradeCenter from './components/TradeCenter';
 import GamePlan from './components/GamePlan';
 import MatchSim from './components/MatchSim';
 import DraftRoom from './components/DraftRoom';
+import StaffView from './components/StaffView';
+import ScoutingView from './components/ScoutingView';
 import { AppView } from './types';
 
 const App: React.FC = () => {
@@ -16,12 +20,20 @@ const App: React.FC = () => {
         return <Dashboard />;
       case AppView.ROSTER:
         return <RosterView />;
+      case AppView.FREE_AGENCY:
+        return <FreeAgency />;
+      case AppView.TRADE_CENTER:
+        return <TradeCenter />;
       case AppView.GAMEPLAN:
         return <GamePlan />;
       case AppView.MATCH:
         return <MatchSim />;
       case AppView.DRAFT:
         return <DraftRoom />;
+      case AppView.STAFF:
+        return <StaffView />;
+      case AppView.SCOUTING:
+        return <ScoutingView />;
       default:
         return <Dashboard />;
     }

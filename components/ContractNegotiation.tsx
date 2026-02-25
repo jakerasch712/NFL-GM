@@ -49,14 +49,20 @@ const ContractNegotiation: React.FC<ContractNegotiationProps> = ({ player, onClo
                 years: offerYear,
                 salary: parseFloat(offerSalary.toFixed(2)),
                 bonus: parseFloat(offerBonus.toFixed(2)),
+                guaranteed: parseFloat((offerBonus + (offerSalary * offerYear * 0.4)).toFixed(2)),
                 yearsLeft: offerYear,
-                totalValue: parseFloat(totalValue.toFixed(2))
+                totalValue: parseFloat(totalValue.toFixed(2)),
+                capHit: parseFloat((offerSalary + (offerBonus / offerYear)).toFixed(2)),
+                deadCap: parseFloat(offerBonus.toFixed(2)),
+                voidYears: 0,
+                startYear: 2026,
+                totalLength: offerYear
             });
         }, 1500);
     } else if (score >= 85) {
         setFeedback("We're close. Increase the guaranteed money (bonus) slightly and we'll sign.");
     } else if (score >= 70) {
-        setFeedback("This is below market value. The years look okay, but the APY needs to come up significantly.");
+        setFeedback(`This is below market value ($${player.contractDemand?.marketValue}M APY). The years look okay, but the APY needs to come up significantly.`);
     } else {
         setFeedback("This offer is insulting. We are far apart.");
     }
