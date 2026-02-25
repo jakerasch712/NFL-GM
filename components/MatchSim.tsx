@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { OFFENSIVE_PLAYS } from '../constants';
 import { Play, GameEvent } from '../types';
 import { Play as PlayIcon, Clock, ShieldAlert, Wind, ChevronUp } from 'lucide-react';
-import { calculateOutcome, updateGameState as updateGameStateUtil, calculateWinProbability } from '../utils/gameLogic';
 
 const MatchSim: React.FC = () => {
   const [gameState, setGameState] = useState({
@@ -28,19 +27,91 @@ const MatchSim: React.FC = () => {
 
     // Simulate delay
     setTimeout(() => {
-      const outcome = calculateOutcome(play, gameState.ballOn);
+      const outcome = calculateOutcome(play);
       setLastEvent(outcome);
       setPlayHistory(prev => [outcome, ...prev]);
-
-      setGameState(prev => updateGameStateUtil(prev, outcome));
+      updateGameState(outcome);
       setIsSimulating(false);
-
-      // Update win probability based on outcome
-      setWinProb(prev => calculateWinProbability(prev, outcome));
+      
+      // Randomly fluctuate win prob for effect
+      setWinProb(prev => Math.min(99, Math.max(1, prev + (outcome.isScore ? 5 : outcome.yardage > 10 ? 2 : outcome.yardage < 0 ? -2 : 0))));
 
     }, 1500);
   };
 
+  const calculateOutcome = (play: Play): GameEvent => {
+    const roll = Math.random();
+    let yardage = 0;
+    let description = '';
+    let isScore = false;
+    let type: GameEvent['type'] = play.type;
+
+    // Simplified logic
+    if (roll < 0.05) {
+       // Turnover
+       type = 'Turnover';
+       description = `INTERCEPTED! The defender jumps the route on the ${play.name}.`;
+       yardage = 0;
+    } else if (roll < play.successRate) {
+        // Success
+        const bigPlay = Math.random() < (play.reward / 20); // 10 reward = 50% chance of big play? No, /20 = 50% max. Let's say reward 10 = 0.5. Too high. reward/20 -> 10/20 = 0.5.
+        const baseGain = Math.floor(Math.random() * 8) + 2; // 2-10 yards
+        yardage = bigPlay ? baseGain + Math.floor(Math.random() * 20) + 10 : baseGain;
+        description = `${play.type === 'Pass' ? 'Complete' : 'Run'} for ${yardage} yards using ${play.name}.`;
+    } else {
+        // Fail
+        const sack = play.type === 'Pass' && Math.random() < 0.2;
+        yardage = sack ? -Math.floor(Math.random() * 8) : 0;
+        description = sack ? `SACKED! Loss of ${Math.abs(yardage)} on the play.` : `Incomplete pass intended for Collins.`;
+        if (play.type === 'Run') description = `Stuffed at the line of scrimmage. No gain.`;
+    }
+
+    // TD Check
+    if (gameState.ballOn + yardage >= 100) {
+        isScore = true;
+        yardage = 100 - gameState.ballOn;
+        description = `TOUCHDOWN! Explosive play on the ${play.name}!`;
+    }
+
+    return { description, yardage, isScore, type };
+  };
+
+  const updateGameState = (event: GameEvent) => {
+    setGameState(prev => {
+        if (event.isScore) {
+            return {
+                ...prev,
+                homeScore: prev.homeScore + 7, // Auto PAT for demo
+                ballOn: 25,
+                down: 1,
+                distance: 10
+            };
+        }
+
+        let newBallOn = prev.ballOn + event.yardage;
+        let newDown = prev.down + 1;
+        let newDist = prev.distance - event.yardage;
+
+        if (newDist <= 0) {
+            newDown = 1;
+            newDist = 10;
+        }
+
+        if (newDown > 4) {
+            // Turnover on downs logic omitted for brevity, just reset
+            newDown = 1;
+            newDist = 10; 
+            // In real app, switch possession
+        }
+
+        return {
+            ...prev,
+            ballOn: newBallOn,
+            down: newDown,
+            distance: newDist
+        };
+    });
+  };
 
   return (
     <div className="h-full flex flex-col bg-slate-950 relative overflow-hidden">
