@@ -7,6 +7,7 @@ const ScoutingView: React.FC = () => {
   const [prospects, setProspects] = useState<DraftProspect[]>(DRAFT_CLASS);
   const [scoutingHours, setScoutingHours] = useState(100);
   const [scoutedIds, setScoutedIds] = useState<string[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const handleScout = (id: string) => {
     if (scoutingHours >= 10 && !scoutedIds.includes(id)) {
@@ -14,6 +15,12 @@ const ScoutingView: React.FC = () => {
       setScoutedIds(prev => [...prev, id]);
     }
   };
+
+  const filteredProspects = prospects.filter(p =>
+    p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    p.position.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    p.school.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <div className="p-8 h-full overflow-hidden flex flex-col bg-slate-950">
@@ -39,9 +46,11 @@ const ScoutingView: React.FC = () => {
           <div className="p-4 border-b border-slate-800 bg-slate-800/30 flex justify-between items-center">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
-              <input 
-                type="text" 
-                placeholder="Search prospects..." 
+              <input
+                type="text"
+                placeholder="Search prospects..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 className="bg-slate-950 border border-slate-800 rounded-lg pl-10 pr-4 py-2 text-sm text-white focus:outline-none focus:border-cyan-500 transition-colors w-64"
               />
             </div>
@@ -65,7 +74,7 @@ const ScoutingView: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/50">
-                {prospects.map(prospect => {
+                {filteredProspects.map(prospect => {
                   const isScouted = scoutedIds.includes(prospect.id);
                   return (
                     <tr key={prospect.id} className="hover:bg-slate-800/30 transition-colors group">

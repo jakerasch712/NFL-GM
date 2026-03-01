@@ -1,4 +1,4 @@
-import { Player, Position, Play, DraftProspect, DraftPick, Coach } from './types';
+import { Player, Position, Play, DraftProspect, DraftPick, Coach, ScheduleGame } from './types';
 
 export const TEAMS_DB: Record<string, any> = {
   ARI: { id: 'ARI', city: 'Arizona', name: 'Cardinals', record: '3-4-0', division: 'NFC West', stats: { off: 78, def: 74, st: 72 } },
@@ -179,11 +179,31 @@ export const DRAFT_CLASS: DraftProspect[] = [
 ];
 
 export const INITIAL_PICKS: DraftPick[] = [
-  { round: 1, pickNumber: 1, originalTeamId: 'HOU', currentTeamId: 'HOU', year: 2026, value: 1000 },
-  { round: 1, pickNumber: 2, originalTeamId: 'KC', currentTeamId: 'KC', year: 2026, value: 717 },
-  { round: 1, pickNumber: 3, originalTeamId: 'SF', currentTeamId: 'SF', year: 2026, value: 514 },
-  { round: 2, pickNumber: 33, originalTeamId: 'HOU', currentTeamId: 'HOU', year: 2026, value: 180 },
-  { round: 3, pickNumber: 65, originalTeamId: 'HOU', currentTeamId: 'HOU', year: 2026, value: 74 },
+  { id: 'pick-1-1', round: 1, pickNumber: 1, originalTeamId: 'HOU', currentTeamId: 'HOU', year: 2026, value: 1000 },
+  { id: 'pick-1-2', round: 1, pickNumber: 2, originalTeamId: 'KC', currentTeamId: 'KC', year: 2026, value: 717 },
+  { id: 'pick-1-3', round: 1, pickNumber: 3, originalTeamId: 'SF', currentTeamId: 'SF', year: 2026, value: 514 },
+  { id: 'pick-2-33', round: 2, pickNumber: 33, originalTeamId: 'HOU', currentTeamId: 'HOU', year: 2026, value: 180 },
+  { id: 'pick-3-65', round: 3, pickNumber: 65, originalTeamId: 'HOU', currentTeamId: 'HOU', year: 2026, value: 74 },
+];
+
+export const HOU_SCHEDULE: ScheduleGame[] = [
+  { week: 1, opponentId: 'IND', location: 'HOME', result: { userScore: 31, opponentScore: 17 } },
+  { week: 2, opponentId: 'JAX', location: 'AWAY', result: { userScore: 24, opponentScore: 20 } },
+  { week: 3, opponentId: 'TEN', location: 'HOME', result: { userScore: 38, opponentScore: 10 } },
+  { week: 4, opponentId: 'KC', location: 'AWAY', result: { userScore: 17, opponentScore: 27 } },
+  { week: 5, opponentId: 'BAL', location: 'HOME', result: { userScore: 35, opponentScore: 28 } },
+  { week: 6, opponentId: 'GB', location: 'AWAY', result: { userScore: 21, opponentScore: 14 } },
+  { week: 7, opponentId: 'MIA', location: 'HOME', result: { userScore: 28, opponentScore: 21 } },
+  { week: 8, opponentId: 'IND', location: 'AWAY' },
+  { week: 9, opponentId: 'CIN', location: 'HOME' },
+  { week: 10, opponentId: 'PIT', location: 'AWAY' },
+  { week: 11, opponentId: 'JAX', location: 'HOME' },
+  { week: 12, opponentId: 'NYJ', location: 'AWAY' },
+  { week: 13, opponentId: 'TEN', location: 'HOME' },
+  { week: 14, opponentId: 'MIN', location: 'AWAY' },
+  { week: 15, opponentId: 'LV', location: 'HOME' },
+  { week: 16, opponentId: 'KC', location: 'HOME' },
+  { week: 17, opponentId: 'IND', location: 'HOME' },
 ];
 
 export const OFFENSIVE_PLAYS: Play[] = [

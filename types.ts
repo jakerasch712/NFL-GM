@@ -114,12 +114,25 @@ export enum AppView {
 }
 
 export interface DraftPick {
+  id: string;
   round: number;
   pickNumber: number;
   originalTeamId: string;
   currentTeamId: string;
   year: number;
   value: number; // Rich Hill value
+}
+
+export interface GamePlanSettings {
+  focus: 'OFFENSE' | 'DEFENSE' | 'BALANCED';
+  intensity: number; // 0-100
+}
+
+export interface ScheduleGame {
+  week: number;
+  opponentId: string;
+  location: 'HOME' | 'AWAY';
+  result?: { userScore: number; opponentScore: number };
 }
 
 export interface DraftProspect {

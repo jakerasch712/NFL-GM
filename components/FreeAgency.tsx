@@ -1,28 +1,41 @@
 import React, { useState } from 'react';
-import { MOCK_PLAYERS } from '../constants';
-import { Search, Filter, DollarSign, TrendingUp, UserPlus, Info } from 'lucide-react';
+import { Search, Filter, DollarSign, TrendingUp, UserPlus, Info, CheckCircle } from 'lucide-react';
 import ContractNegotiation from './ContractNegotiation';
 import { Player } from '../types';
 
-const FreeAgency: React.FC = () => {
-  const [players, setPlayers] = useState(MOCK_PLAYERS.filter(p => p.teamId === 'FA'));
+interface FreeAgencyProps {
+  players: Player[]; // only FA players
+  capSpace: number;
+  onSignPlayer: (playerId: string, newContract: any) => void;
+}
+
+const FreeAgency: React.FC<FreeAgencyProps> = ({ players, capSpace, onSignPlayer }) => {
   const [negotiatingPlayerId, setNegotiatingPlayerId] = useState<string | null>(null);
-  const [capSpace, setCapSpace] = useState(14.2);
   const [searchTerm, setSearchTerm] = useState('');
+  const [recentSigns, setRecentSigns] = useState<string[]>([]);
 
   const activeNegotiationPlayer = players.find(p => p.id === negotiatingPlayerId);
 
   const handleSignContract = (playerId: string, newContract: any) => {
-    // In a real app, we'd move the player to the team
-    setPlayers(prev => prev.filter(p => p.id !== playerId));
-    setCapSpace(prev => parseFloat((prev - (newContract.totalValue / newContract.years)).toFixed(2)));
+    onSignPlayer(playerId, newContract);
+    setRecentSigns(prev => [...prev, playerId]);
     setNegotiatingPlayerId(null);
   };
 
-  const filteredPlayers = players.filter(p => 
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.position.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredPlayers = players.filter(p =>
+    !recentSigns.includes(p.id) && (
+      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.position.toLowerCase().includes(searchTerm.toLowerCase())
+    )
   );
+
+  const getInterestLevel = (player: Player) => {
+    const base = player.contractDemand?.interest === 'Loyalty' ? 80
+      : player.contractDemand?.interest === 'Championship' ? 70
+      : player.contractDemand?.interest === 'Security' ? 65
+      : 60;
+    return base;
+  };
 
   return (
     <div className="p-8 h-full flex flex-col bg-slate-950">
@@ -30,15 +43,15 @@ const FreeAgency: React.FC = () => {
         <div>
           <h2 className="text-3xl font-bold text-white mb-2 header-font tracking-tight">FREE AGENT TRACKER</h2>
           <p className="text-slate-400 text-sm font-mono flex items-center gap-2">
-            <DollarSign size={14} className="text-emerald-500" /> 
-            Available Cap: <span className="text-emerald-400 font-bold">${capSpace}M</span>
+            <DollarSign size={14} className="text-emerald-500" />
+            Available Cap: <span className={`font-bold ${capSpace < 5 ? 'text-red-400' : 'text-emerald-400'}`}>${capSpace.toFixed(1)}M</span>
           </p>
         </div>
         <div className="flex gap-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-            <input 
-              type="text" 
+            <input
+              type="text"
               placeholder="Search players..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -67,42 +80,53 @@ const FreeAgency: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800">
-                {filteredPlayers.map(player => (
-                  <tr key={player.id} className="hover:bg-slate-800/30 transition-colors group">
-                    <td className="p-4">
-                      <div className="font-bold text-white group-hover:text-cyan-400 transition-colors">{player.name}</div>
-                      <div className="text-xs text-slate-500 font-mono">{player.age} yrs • {player.archetype}</div>
-                    </td>
-                    <td className="p-4">
-                      <span className="bg-slate-800 text-slate-300 px-2 py-1 rounded text-xs font-bold">{player.position}</span>
-                    </td>
-                    <td className="p-4 text-center">
-                      <span className={`text-lg font-bold font-mono ${player.overall >= 90 ? 'text-amber-400' : 'text-emerald-400'}`}>
-                        {player.overall}
-                      </span>
-                    </td>
-                    <td className="p-4">
-                      <div className="text-sm text-white font-mono">${player.contractDemand?.marketValue}M / yr</div>
-                      <div className="text-xs text-slate-500">Expected: {player.contractDemand?.years} yrs</div>
-                    </td>
-                    <td className="p-4">
-                      <div className="flex items-center gap-2">
-                        <div className="w-16 h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                          <div className="bg-cyan-500 h-full w-[65%]"></div>
+                {filteredPlayers.map(player => {
+                  const interest = getInterestLevel(player);
+                  return (
+                    <tr key={player.id} className="hover:bg-slate-800/30 transition-colors group">
+                      <td className="p-4">
+                        <div className="font-bold text-white group-hover:text-cyan-400 transition-colors">{player.name}</div>
+                        <div className="text-xs text-slate-500 font-mono">{player.age} yrs • {player.archetype}</div>
+                      </td>
+                      <td className="p-4">
+                        <span className="bg-slate-800 text-slate-300 px-2 py-1 rounded text-xs font-bold">{player.position}</span>
+                      </td>
+                      <td className="p-4 text-center">
+                        <span className={`text-lg font-bold font-mono ${player.overall >= 90 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                          {player.overall}
+                        </span>
+                      </td>
+                      <td className="p-4">
+                        <div className="text-sm text-white font-mono">${player.contractDemand?.marketValue}M / yr</div>
+                        <div className="text-xs text-slate-500">Expected: {player.contractDemand?.years} yrs</div>
+                      </td>
+                      <td className="p-4">
+                        <div className="flex items-center gap-2">
+                          <div className="w-16 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                            <div className="bg-cyan-500 h-full" style={{ width: `${interest}%` }}></div>
+                          </div>
+                          <span className="text-xs text-slate-400 font-mono">{interest}%</span>
                         </div>
-                        <span className="text-xs text-slate-400 font-mono">65%</span>
-                      </div>
-                    </td>
-                    <td className="p-4 text-right">
-                      <button 
-                        onClick={() => setNegotiatingPlayerId(player.id)}
-                        className="inline-flex items-center gap-2 bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded text-xs font-bold transition-all shadow-lg shadow-cyan-900/20"
-                      >
-                        <UserPlus size={14} /> Make Offer
-                      </button>
+                        <div className="text-[9px] text-slate-500 mt-0.5 uppercase">{player.contractDemand?.interest}</div>
+                      </td>
+                      <td className="p-4 text-right">
+                        <button
+                          onClick={() => setNegotiatingPlayerId(player.id)}
+                          className="inline-flex items-center gap-2 bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded text-xs font-bold transition-all shadow-lg shadow-cyan-900/20"
+                        >
+                          <UserPlus size={14} /> Make Offer
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {filteredPlayers.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="p-8 text-center text-slate-600 text-sm italic">
+                      {searchTerm ? `No players match "${searchTerm}"` : 'No free agents available.'}
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
@@ -110,6 +134,14 @@ const FreeAgency: React.FC = () => {
 
         {/* Market Insights */}
         <div className="col-span-12 lg:col-span-3 flex flex-col gap-6">
+          {recentSigns.length > 0 && (
+            <div className="bg-emerald-900/20 border border-emerald-500/30 rounded-xl p-4">
+              <h3 className="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                <CheckCircle size={14} /> Recently Signed
+              </h3>
+              <div className="text-xs text-slate-400">{recentSigns.length} player(s) added to your roster.</div>
+            </div>
+          )}
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
             <h3 className="text-sm font-bold text-white uppercase tracking-widest mb-4 flex items-center gap-2">
               <TrendingUp size={16} className="text-cyan-500" />
@@ -135,24 +167,16 @@ const FreeAgency: React.FC = () => {
               GM Strategy
             </h3>
             <p className="text-xs text-slate-400 leading-relaxed">
-              Target players with high <span className="text-white">Loyalty</span> interest for better value. Avoid bidding wars on <span className="text-white">Money</span>-motivated stars unless you have surplus cap.
+              Target players with high <span className="text-white">Loyalty</span> interest for better value. Avoid bidding wars on{' '}
+              <span className="text-white">Money</span>-motivated stars unless you have surplus cap.
             </p>
-            <div className="mt-4 pt-4 border-t border-slate-800">
-              <div className="flex justify-between text-xs mb-2">
-                <span className="text-slate-500">Roster Spots</span>
-                <span className="text-white">51 / 53</span>
-              </div>
-              <div className="w-full bg-slate-800 h-1 rounded-full">
-                <div className="bg-cyan-500 h-full w-[96%]"></div>
-              </div>
-            </div>
           </div>
         </div>
       </div>
 
       {activeNegotiationPlayer && (
-        <ContractNegotiation 
-          player={activeNegotiationPlayer} 
+        <ContractNegotiation
+          player={activeNegotiationPlayer}
           onClose={() => setNegotiatingPlayerId(null)}
           onSign={handleSignContract}
           capSpace={capSpace}

@@ -5,9 +5,11 @@ import { AppView } from '../types';
 interface NavigationProps {
   currentView: AppView;
   setView: (view: AppView) => void;
+  capSpace: number;
+  trust: number;
 }
 
-const Navigation: React.FC<NavigationProps> = ({ currentView, setView }) => {
+const Navigation: React.FC<NavigationProps> = ({ currentView, setView, capSpace, trust }) => {
   const navItems = [
     { id: AppView.DASHBOARD, label: 'HQ Dashboard', icon: LayoutDashboard },
     { id: AppView.ROSTER, label: 'Roster & Depth', icon: Users },
@@ -53,14 +55,14 @@ const Navigation: React.FC<NavigationProps> = ({ currentView, setView }) => {
       <div className="p-6 border-t border-slate-800 bg-slate-950/50">
         <div className="flex justify-between items-end mb-2">
             <span className="text-xs text-slate-500 uppercase font-bold">Trust</span>
-            <span className="text-xs text-emerald-400 font-mono">88%</span>
+            <span className="text-xs text-emerald-400 font-mono">{trust}%</span>
         </div>
         <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-            <div className="bg-emerald-500 h-full w-[88%] shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
+            <div className="bg-emerald-500 h-full transition-all duration-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]" style={{ width: `${trust}%` }}></div>
         </div>
         <div className="mt-4 flex justify-between text-xs font-mono text-slate-400">
             <span>CAP SPACE</span>
-            <span className="text-white">$14.2M</span>
+            <span className={capSpace < 5 ? 'text-red-400' : capSpace < 10 ? 'text-amber-400' : 'text-white'}>${capSpace.toFixed(1)}M</span>
         </div>
       </div>
     </div>
