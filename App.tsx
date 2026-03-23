@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Navigation from './components/Navigation';
 import Dashboard from './components/Dashboard';
 import RosterView from './components/RosterView';
@@ -9,10 +9,17 @@ import MatchSim from './components/MatchSim';
 import DraftRoom from './components/DraftRoom';
 import StaffView from './components/StaffView';
 import ScoutingView from './components/ScoutingView';
-import { AppView } from './types';
+import { AppView, DraftProspect, DraftPick, Scout } from './types';
+import { DRAFT_CLASS, INITIAL_PICKS, MOCK_SCOUTS } from './constants';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<AppView>(AppView.DASHBOARD);
+  
+  // Global State
+  const [prospects, setProspects] = useState<DraftProspect[]>(DRAFT_CLASS);
+  const [scouts, setScouts] = useState<Scout[]>(MOCK_SCOUTS);
+  const [picks, setPicks] = useState<DraftPick[]>(INITIAL_PICKS);
+  const [teamBudget, setTeamBudget] = useState(255.4); // Cap space in millions
 
   const renderView = () => {
     switch (currentView) {
@@ -29,11 +36,25 @@ const App: React.FC = () => {
       case AppView.MATCH:
         return <MatchSim />;
       case AppView.DRAFT:
-        return <DraftRoom />;
+        return (
+          <DraftRoom 
+            prospects={prospects} 
+            setProspects={setProspects} 
+            picks={picks} 
+            setPicks={setPicks} 
+          />
+        );
       case AppView.STAFF:
         return <StaffView />;
       case AppView.SCOUTING:
-        return <ScoutingView />;
+        return (
+          <ScoutingView 
+            prospects={prospects} 
+            setProspects={setProspects} 
+            scouts={scouts} 
+            setScouts={setScouts} 
+          />
+        );
       default:
         return <Dashboard />;
     }

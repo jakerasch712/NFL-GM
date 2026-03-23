@@ -6,10 +6,11 @@ interface ContractNegotiationProps {
   player: Player;
   onClose: () => void;
   onSign: (playerId: string, newContract: any) => void;
+  onUpdateMorale: (playerId: string, moraleChange: number) => void;
   capSpace: number;
 }
 
-const ContractNegotiation: React.FC<ContractNegotiationProps> = ({ player, onClose, onSign, capSpace }) => {
+const ContractNegotiation: React.FC<ContractNegotiationProps> = ({ player, onClose, onSign, onUpdateMorale, capSpace }) => {
   // Initial offer state based on 80% of demand or current value
   const [offerYear, setOfferYear] = useState(player.contractDemand?.years || 1);
   const [offerSalary, setOfferSalary] = useState(player.contractDemand ? player.contractDemand.salary * 0.9 : 1);
@@ -61,11 +62,20 @@ const ContractNegotiation: React.FC<ContractNegotiationProps> = ({ player, onClo
         }, 1500);
     } else if (score >= 85) {
         setFeedback("We're close. Increase the guaranteed money (bonus) slightly and we'll sign.");
+        onUpdateMorale(player.id, -2);
     } else if (score >= 70) {
         setFeedback(`This is below market value ($${player.contractDemand?.marketValue}M APY). The years look okay, but the APY needs to come up significantly.`);
+        onUpdateMorale(player.id, -5);
     } else {
         setFeedback("This offer is insulting. We are far apart.");
+        setDealStatus('REJECTED');
+        onUpdateMorale(player.id, -15);
     }
+  };
+
+  const handleEndTalks = () => {
+    onUpdateMorale(player.id, -10);
+    onClose();
   };
 
   return (
@@ -219,14 +229,14 @@ const ContractNegotiation: React.FC<ContractNegotiationProps> = ({ player, onClo
                     ) : (
                         <div className="grid grid-cols-2 gap-4">
                             <button 
-                                onClick={onClose}
+                                onClick={handleEndTalks}
                                 className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-3 rounded-lg uppercase tracking-wider transition-colors"
                             >
-                                Withdraw
+                                End Talks
                             </button>
                             <button 
                                 onClick={handleOffer}
-                                disabled={apy > capSpace}
+                                disabled={apy > capSpace || dealStatus === 'REJECTED'}
                                 className="bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-lg uppercase tracking-wider shadow-lg shadow-cyan-900/20 transition-all"
                             >
                                 Submit Offer

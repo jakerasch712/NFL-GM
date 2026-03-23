@@ -99,14 +99,14 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* Team OVR Chart */}
-        <div className="col-span-12 lg:col-span-4 bg-slate-900 border border-slate-800 rounded-xl p-6 flex flex-col">
+        <div className="col-span-12 lg:col-span-4 bg-slate-900 border border-slate-800 rounded-xl p-6 flex flex-col min-h-[300px]">
             <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-bold text-white header-font">UNIT GRADES</h3>
                 <TrendingUp size={16} className="text-emerald-500" />
             </div>
-            <div className="flex-1 min-h-[150px]">
-                <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={teamStats}>
+            <div className="flex-1 w-full">
+                <ResponsiveContainer width="100%" height="100%" minHeight={200}>
+                    <BarChart data={teamStats} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                         <XAxis dataKey="name" tick={{fill: '#64748b', fontSize: 12}} axisLine={false} tickLine={false} />
                         <YAxis hide domain={[0, 100]} />
                         <Tooltip 

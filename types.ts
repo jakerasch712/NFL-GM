@@ -59,6 +59,7 @@ export interface Player {
   archetype: string;
   scheme: string; // e.g., 'Zone', 'Power', 'Man', 'Cover 2'
   developmentTrait: 'Normal' | 'Star' | 'Superstar' | 'X-Factor';
+  potential: 'Normal' | 'Star' | 'Superstar' | 'X-Factor';
   stats: PlayerStats;
   contract: Contract;
   contractDemand?: ContractDemand; 
@@ -113,7 +114,32 @@ export enum AppView {
   SCOUTING = 'SCOUTING'
 }
 
+export enum Region {
+  WEST = 'West',
+  MIDWEST = 'Midwest',
+  SOUTH = 'South',
+  NORTHEAST = 'Northeast',
+  INTERNATIONAL = 'International'
+}
+
+export interface Scout {
+  id: string;
+  name: string;
+  level: number; // 1-3
+  specialty: Position | 'General';
+  regionExpertise: Region;
+  salary: number;
+  assignment?: ScoutingAssignment;
+}
+
+export interface ScoutingAssignment {
+  region: Region;
+  focus: Position | 'General';
+  progress: number; // 0-100
+}
+
 export interface DraftPick {
+  id: string;
   round: number;
   pickNumber: number;
   originalTeamId: string;
@@ -127,9 +153,11 @@ export interface DraftProspect {
   name: string;
   position: Position;
   school: string;
+  region: Region;
   projectedRound: number;
   scoutingGrade: number; 
   overall?: number; 
+  potential: 'D' | 'C' | 'B' | 'A' | 'S'; // Hidden until scouted
   combineStats: {
     fortyYard: number;
     bench: number;
@@ -137,4 +165,6 @@ export interface DraftProspect {
     broadJump?: number;
   }
   traits: string[];
+  hiddenTraits: string[]; // Revealed by scouting
+  scoutingProgress: number; // 0-100
 }
