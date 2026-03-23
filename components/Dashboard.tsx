@@ -1,16 +1,19 @@
 import React, { useState } from 'react';
-import { Calendar, TrendingUp, AlertCircle, Activity, Trophy, ChevronDown, MapPin } from 'lucide-react';
+import { Calendar, TrendingUp, AlertCircle, Activity, Trophy, MapPin } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { TEAMS_DB } from '../constants';
+import { TEAMS_DB, WEEK_SCHEDULE } from '../constants';
+import { AppView } from '../types';
 
-// Helper to get next opponent and standings (mocked for brevity in this step)
-const getTeamData = (teamId: string) => {
+const getTeamData = (teamId: string, currentWeek: number) => {
   const team = TEAMS_DB[teamId];
   const divisionTeams = Object.values(TEAMS_DB).filter((t: any) => t.division === team.division);
-  
+  const schedule = WEEK_SCHEDULE[teamId] ?? {
+    opponent: 'TBD', opponentCode: 'TBD', location: 'TBD', date: 'TBD', threat: 'MEDIUM' as const, winProb: 50.0
+  };
+
   return {
     ...team,
-    nextOpp: { name: 'OPPONENT', code: 'OPP', record: '0-0', threat: 'MEDIUM', winProb: 50.0, location: 'Stadium', date: 'Sunday' },
+    nextOpp: { ...schedule, record: '0-0' },
     standings: divisionTeams.map((t: any) => ({
       team: t.id,
       w: parseInt(t.record.split('-')[0]),
@@ -22,10 +25,12 @@ const getTeamData = (teamId: string) => {
 
 interface DashboardProps {
   selectedTeamId: string;
+  onNavigate: (view: AppView) => void;
+  currentWeek: number;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId }) => {
-  const team = getTeamData(selectedTeamId);
+const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, onNavigate, currentWeek }) => {
+  const team = getTeamData(selectedTeamId, currentWeek);
 
   const teamStats = [
     { name: 'OFF', val: team.stats.off, color: '#22d3ee' },
@@ -39,7 +44,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId }) => {
         <div>
           <h2 className="text-3xl font-bold text-white mb-2 header-font">WAR ROOM DASHBOARD</h2>
           <p className="text-slate-400 flex items-center gap-2 text-sm">
-            <Calendar size={14} /> Week 7 - Regular Season
+            <Calendar size={14} /> Week {currentWeek} - Regular Season
           </p>
         </div>
         <div className="flex items-center gap-6">
@@ -59,21 +64,21 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId }) => {
             <div className="flex justify-between items-start relative z-10">
                 <div>
                     <span className="text-xs font-bold text-cyan-500 tracking-wider uppercase mb-2 block">Next Matchup</span>
-                    <h3 className="text-4xl font-bold text-white header-font mb-1">{team.nextOpp.name}</h3>
+                    <h3 className="text-4xl font-bold text-white header-font mb-1">{team.nextOpp.opponent}</h3>
                     <div className="text-slate-400 font-mono text-sm flex items-center gap-2">
                         <MapPin size={14} /> {team.nextOpp.location} • {team.nextOpp.date}
                     </div>
                 </div>
                 <div className="text-right">
-                    <div className="text-5xl font-bold text-slate-700 header-font">{team.nextOpp.code}</div>
+                    <div className="text-5xl font-bold text-slate-700 header-font">{team.nextOpp.opponentCode}</div>
                     <div className="text-sm text-slate-500 font-mono mt-1">{team.nextOpp.record} Record</div>
                 </div>
             </div>
-            
+
             <div className="mt-8 grid grid-cols-3 gap-4 relative z-10">
                 <div className="bg-slate-950/50 p-4 rounded border-l-2 border-red-500">
                     <div className="text-xs text-slate-500 uppercase mb-1">Threat Level</div>
-                    <div className={`text-lg font-bold ${team.nextOpp.threat === 'EXTREME' ? 'text-red-500' : team.nextOpp.threat === 'HIGH' ? 'text-amber-500' : 'text-emerald-500'}`}>
+                    <div className={`text-lg font-bold ${team.nextOpp.threat === 'EXTREME' ? 'text-red-500' : team.nextOpp.threat === 'HIGH' ? 'text-amber-500' : team.nextOpp.threat === 'MEDIUM' ? 'text-yellow-400' : 'text-emerald-500'}`}>
                         {team.nextOpp.threat}
                     </div>
                 </div>
@@ -99,8 +104,8 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId }) => {
                     <BarChart data={teamStats} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                         <XAxis dataKey="name" tick={{fill: '#64748b', fontSize: 12}} axisLine={false} tickLine={false} />
                         <YAxis hide domain={[0, 100]} />
-                        <Tooltip 
-                            contentStyle={{backgroundColor: '#0f172a', borderColor: '#1e293b', color: '#fff'}} 
+                        <Tooltip
+                            contentStyle={{backgroundColor: '#0f172a', borderColor: '#1e293b', color: '#fff'}}
                             cursor={{fill: 'rgba(255,255,255,0.05)'}}
                         />
                         <Bar dataKey="val" radius={[4, 4, 0, 0]}>
@@ -129,7 +134,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId }) => {
                     </tr>
                 </thead>
                 <tbody>
-                    {team.standings.map((row: any, i: number) => (
+                    {team.standings.map((row: any) => (
                         <tr key={row.team} className={`border-b border-slate-800/50 ${row.team === team.id ? 'bg-cyan-900/10 border-l-2 border-l-cyan-500' : ''}`}>
                             <td className={`px-4 py-3 font-bold ${row.team === team.id ? 'text-cyan-400' : 'text-white'}`}>{row.team}</td>
                             <td className="px-4 py-3 text-center text-slate-300">{row.w}</td>
@@ -156,9 +161,14 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId }) => {
                             <div className="text-xs text-slate-500">Agent is requesting a final offer before testing Free Agency.</div>
                         </div>
                     </div>
-                    <button className="text-xs bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded transition-colors">Manage</button>
+                    <button
+                      onClick={() => onNavigate(AppView.FREE_AGENCY)}
+                      className="text-xs bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded transition-colors"
+                    >
+                      Manage
+                    </button>
                 </div>
-                
+
                 <div className="flex items-center justify-between bg-slate-950 p-4 rounded-lg border border-slate-800 hover:border-slate-600 transition-colors cursor-pointer group">
                     <div className="flex items-center gap-4">
                         <div className="w-2 h-2 rounded-full bg-cyan-500"></div>
@@ -167,7 +177,12 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId }) => {
                             <div className="text-xs text-slate-500">Scout J. Doe has completed deep dive on 3 prospects.</div>
                         </div>
                     </div>
-                    <button className="text-xs bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded transition-colors">View</button>
+                    <button
+                      onClick={() => onNavigate(AppView.SCOUTING)}
+                      className="text-xs bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded transition-colors"
+                    >
+                      View
+                    </button>
                 </div>
             </div>
         </div>

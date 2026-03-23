@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { MOCK_PLAYERS, INITIAL_PICKS, TEAMS_DB } from '../constants';
-import { ArrowLeftRight, Plus, Trash2, TrendingUp, Shield, Info, AlertTriangle } from 'lucide-react';
+import { ArrowLeftRight, Plus, Trash2, TrendingUp, Shield, Info, AlertTriangle, CheckCircle2, AlertOctagon } from 'lucide-react';
 import { Player, DraftPick } from '../types';
 
 interface TradeCenterProps {
@@ -32,10 +32,25 @@ const TradeCenter: React.FC<TradeCenterProps> = ({ selectedTeamId }) => {
     }, 0);
   };
 
+  const [tradeStatus, setTradeStatus] = useState<'idle' | 'success' | 'error'>('idle');
+
   const myValue = calculateValue(myAssets);
   const theirValue = calculateValue(theirAssets);
   const diff = myValue - theirValue;
   const fairness = Math.abs(diff) < (Math.max(myValue, theirValue) * 0.15) ? 'FAIR' : diff > 0 ? 'OVERPAY' : 'UNDERPAY';
+
+  const handleProposeTrade = () => {
+    if (myAssets.length === 0 || theirAssets.length === 0) {
+      setTradeStatus('error');
+      setTimeout(() => setTradeStatus('idle'), 2500);
+      return;
+    }
+    // Execute the trade: clear both sides and show success
+    setMyAssets([]);
+    setTheirAssets([]);
+    setTradeStatus('success');
+    setTimeout(() => setTradeStatus('idle'), 3000);
+  };
 
   const addAsset = (side: 'mine' | 'theirs') => {
     // For demo, just add a random asset
@@ -128,8 +143,23 @@ const TradeCenter: React.FC<TradeCenterProps> = ({ selectedTeamId }) => {
             </div>
           </div>
 
-          <button className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-lg uppercase tracking-widest shadow-lg shadow-cyan-900/20 transition-all">
-            Propose
+          <button
+            onClick={handleProposeTrade}
+            className={`w-full font-bold py-3 rounded-lg uppercase tracking-widest shadow-lg transition-all flex items-center justify-center gap-2 ${
+              tradeStatus === 'success'
+                ? 'bg-emerald-600 text-white shadow-emerald-900/20'
+                : tradeStatus === 'error'
+                ? 'bg-red-600 text-white shadow-red-900/20'
+                : 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-cyan-900/20'
+            }`}
+          >
+            {tradeStatus === 'success' ? (
+              <><CheckCircle2 size={16} /> Trade Sent!</>
+            ) : tradeStatus === 'error' ? (
+              <><AlertOctagon size={16} /> Add Assets First</>
+            ) : (
+              'Propose'
+            )}
           </button>
         </div>
 

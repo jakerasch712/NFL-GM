@@ -1,22 +1,48 @@
 import React, { useState } from 'react';
-import { Shield, Zap, Target, AlertCircle, Activity, ChevronRight, Clipboard, Flame } from 'lucide-react';
-import { MOCK_PLAYERS } from '../constants';
+import { Shield, Zap, Target, AlertCircle, Activity, Clipboard, Flame, CheckCircle2 } from 'lucide-react';
+import { MOCK_PLAYERS, WEEK_SCHEDULE } from '../constants';
 import { Player } from '../types';
 
 interface GamePlanProps {
   selectedTeamId: string;
+  currentWeek: number;
 }
 
-const GamePlan: React.FC<GamePlanProps> = ({ selectedTeamId }) => {
-  const [players] = useState<Player[]>(MOCK_PLAYERS.filter(p => p.teamId === selectedTeamId));
+const GamePlan: React.FC<GamePlanProps> = ({ selectedTeamId, currentWeek }) => {
+  const [players, setPlayers] = useState<Player[]>(MOCK_PLAYERS.filter(p => p.teamId === selectedTeamId));
   const [focus, setFocus] = useState<'OFFENSE' | 'DEFENSE' | 'BALANCED'>('BALANCED');
   const [intensity, setIntensity] = useState(50);
+  const [isFinalized, setIsFinalized] = useState(false);
+
+  const schedule = WEEK_SCHEDULE[selectedTeamId];
+  const opponentName = schedule?.opponent ?? 'TBD';
+
+  const handleRestPlayer = (playerId: string) => {
+    setPlayers(prev => prev.map(p =>
+      p.id === playerId ? { ...p, fatigue: Math.min(100, p.fatigue + 20) } : p
+    ));
+  };
+
+  const handleFinalizeGamePlan = () => {
+    // Apply intensity effect: high intensity increases fatigue
+    if (intensity > 75) {
+      const fatigueHit = Math.round((intensity - 75) / 5);
+      setPlayers(prev => prev.map(p => ({
+        ...p,
+        fatigue: Math.max(0, p.fatigue - fatigueHit)
+      })));
+    }
+    setIsFinalized(true);
+    setTimeout(() => setIsFinalized(false), 3000);
+  };
 
   return (
     <div className="p-8 h-full overflow-hidden flex flex-col bg-slate-950">
       <header className="mb-8">
         <h2 className="text-4xl font-bold text-white header-font tracking-tight">GAME WEEK PREP</h2>
-        <p className="text-slate-500 text-sm mt-1 uppercase tracking-widest font-medium">Week 8 vs Indianapolis Colts</p>
+        <p className="text-slate-500 text-sm mt-1 uppercase tracking-widest font-medium">
+          Week {currentWeek} vs {opponentName}
+        </p>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 flex-1 overflow-hidden">
@@ -27,15 +53,15 @@ const GamePlan: React.FC<GamePlanProps> = ({ selectedTeamId }) => {
                 <Clipboard size={24} className="text-cyan-400" />
                 Weekly Strategy
             </h3>
-            
+
             <div className="grid grid-cols-3 gap-4 mb-8">
                 {(['OFFENSE', 'DEFENSE', 'BALANCED'] as const).map(f => (
-                    <button 
+                    <button
                         key={f}
                         onClick={() => setFocus(f)}
                         className={`p-4 rounded-xl border transition-all ${
-                            focus === f 
-                            ? 'bg-cyan-500/10 border-cyan-500 text-cyan-400 shadow-lg shadow-cyan-900/20' 
+                            focus === f
+                            ? 'bg-cyan-500/10 border-cyan-500 text-cyan-400 shadow-lg shadow-cyan-900/20'
                             : 'bg-slate-950 border-slate-800 text-slate-500 hover:border-slate-700'
                         }`}
                     >
@@ -51,11 +77,11 @@ const GamePlan: React.FC<GamePlanProps> = ({ selectedTeamId }) => {
                         <label className="text-sm font-bold text-slate-300 uppercase tracking-wider">Practice Intensity</label>
                         <span className={`text-sm font-mono font-bold ${intensity > 75 ? 'text-red-400' : 'text-cyan-400'}`}>{intensity}%</span>
                     </div>
-                    <input 
-                        type="range" min="0" max="100" 
-                        value={intensity} 
+                    <input
+                        type="range" min="0" max="100"
+                        value={intensity}
                         onChange={(e) => setIntensity(parseInt(e.target.value))}
-                        className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-500" 
+                        className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-500"
                     />
                     <div className="flex justify-between text-[10px] text-slate-500 mt-2 uppercase font-bold">
                         <span>Walkthrough</span>
@@ -70,8 +96,10 @@ const GamePlan: React.FC<GamePlanProps> = ({ selectedTeamId }) => {
                     <div>
                         <h4 className="text-sm font-bold text-white mb-1 uppercase tracking-wide">Injury Risk Warning</h4>
                         <p className="text-xs text-slate-500 leading-relaxed">
-                            High intensity practice increases <span className="text-red-400">Fatigue</span> and <span className="text-red-400">Injury Risk</span>. 
-                            Current settings: <span className="text-amber-500 font-bold">+12% Fatigue</span> this week.
+                            High intensity practice increases <span className="text-red-400">Fatigue</span> and <span className="text-red-400">Injury Risk</span>.
+                            Current settings: <span className={`font-bold ${intensity > 75 ? 'text-red-400' : 'text-amber-500'}`}>
+                              {intensity > 75 ? `+${Math.round((intensity - 75) / 5)} Fatigue` : 'Low Risk'}
+                            </span> this week.
                         </p>
                     </div>
                 </div>
@@ -96,7 +124,7 @@ const GamePlan: React.FC<GamePlanProps> = ({ selectedTeamId }) => {
           </div>
         </div>
 
-        {/* Right: Roster Health & Wear and Tear */}
+        {/* Right: Roster Health */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl flex flex-col overflow-hidden shadow-2xl">
           <div className="p-6 border-b border-slate-800 bg-slate-800/30">
             <h3 className="text-xl font-bold text-white flex items-center gap-2">
@@ -117,8 +145,8 @@ const GamePlan: React.FC<GamePlanProps> = ({ selectedTeamId }) => {
                         </div>
                     </div>
                     <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                        <div 
-                            className={`h-full transition-all duration-500 ${player.fatigue < 80 ? 'bg-red-500' : 'bg-emerald-500'}`} 
+                        <div
+                            className={`h-full transition-all duration-500 ${player.fatigue < 80 ? 'bg-red-500' : 'bg-emerald-500'}`}
                             style={{width: `${player.fatigue}%`}}
                         ></div>
                     </div>
@@ -128,16 +156,31 @@ const GamePlan: React.FC<GamePlanProps> = ({ selectedTeamId }) => {
                                 <span className="px-1.5 py-0.5 bg-red-500/10 text-red-500 rounded text-[8px] font-bold uppercase tracking-tighter">Wear & Tear</span>
                             )}
                         </div>
-                        <button className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest hover:text-cyan-300 transition-colors">
-                            Rest Player
+                        <button
+                          onClick={() => handleRestPlayer(player.id)}
+                          disabled={player.fatigue >= 100}
+                          className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest hover:text-cyan-300 transition-colors disabled:text-slate-600 disabled:cursor-not-allowed"
+                        >
+                            {player.fatigue >= 100 ? 'Rested' : 'Rest Player'}
                         </button>
                     </div>
                 </div>
             ))}
           </div>
           <div className="p-4 bg-slate-800/20 border-t border-slate-800">
-            <button className="w-full py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold uppercase tracking-widest shadow-lg shadow-cyan-900/20 transition-all">
-                Finalize Game Plan
+            <button
+              onClick={handleFinalizeGamePlan}
+              className={`w-full py-3 rounded-xl text-xs font-bold uppercase tracking-widest shadow-lg transition-all flex items-center justify-center gap-2 ${
+                isFinalized
+                  ? 'bg-emerald-600 text-white shadow-emerald-900/20'
+                  : 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-cyan-900/20'
+              }`}
+            >
+              {isFinalized ? (
+                <><CheckCircle2 size={16} /> Game Plan Set!</>
+              ) : (
+                'Finalize Game Plan'
+              )}
             </button>
           </div>
         </div>

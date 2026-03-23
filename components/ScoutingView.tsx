@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Filter, Target, Microscope, BarChart3, ChevronRight, AlertCircle, Sparkles, UserPlus, MapPin, Briefcase, Play } from 'lucide-react';
+import { Search, Target, Microscope, BarChart3, UserPlus, MapPin, Briefcase, Play, Sparkles, X } from 'lucide-react';
 import { DraftProspect, Scout, Region, Position } from '../types';
 
 interface ScoutingViewProps {
@@ -10,14 +10,22 @@ interface ScoutingViewProps {
   setScouts: React.Dispatch<React.SetStateAction<Scout[]>>;
 }
 
+const POSITIONS_WITH_GENERAL: (Position | 'General')[] = [
+  'General', Position.QB, Position.RB, Position.WR, Position.TE,
+  Position.OL, Position.DL, Position.LB, Position.CB, Position.S, Position.K
+];
+
 const ScoutingView: React.FC<ScoutingViewProps> = ({ selectedTeamId, prospects, setProspects, scouts, setScouts }) => {
   const [activeTab, setActiveTab] = useState<'prospects' | 'scouts' | 'assignments'>('prospects');
   const [selectedProspectId, setSelectedProspectId] = useState<string | null>(null);
+  const [isHiringScout, setIsHiringScout] = useState(false);
+  const [newScoutName, setNewScoutName] = useState('');
+  const [newScoutSpecialty, setNewScoutSpecialty] = useState<Position | 'General'>('General');
+  const [newScoutRegion, setNewScoutRegion] = useState<Region>(Region.SOUTH);
 
   const selectedProspect = prospects.find(p => p.id === selectedProspectId);
 
   const handleSimulateWeek = () => {
-    // Advance scouting progress for all assigned scouts
     setScouts(prevScouts => prevScouts.map(scout => {
       if (scout.assignment) {
         const newProgress = Math.min(100, scout.assignment.progress + 25);
@@ -26,11 +34,9 @@ const ScoutingView: React.FC<ScoutingViewProps> = ({ selectedTeamId, prospects, 
       return scout;
     }));
 
-    // Update prospect scouting progress based on scout assignments
     setProspects(prevProspects => prevProspects.map(prospect => {
       const assignedScout = scouts.find(s => s.assignment?.region === prospect.region);
       if (assignedScout) {
-        // If scout specialty matches position, double progress
         const bonus = assignedScout.specialty === prospect.position ? 15 : 10;
         const newProgress = Math.min(100, prospect.scoutingProgress + bonus);
         return { ...prospect, scoutingProgress: newProgress };
@@ -40,9 +46,26 @@ const ScoutingView: React.FC<ScoutingViewProps> = ({ selectedTeamId, prospects, 
   };
 
   const handleAssignScout = (scoutId: string, region: Region, focus: Position | 'General') => {
-    setScouts(prev => prev.map(s => 
+    setScouts(prev => prev.map(s =>
       s.id === scoutId ? { ...s, assignment: { region, focus, progress: 0 } } : s
     ));
+  };
+
+  const handleHireScout = () => {
+    if (!newScoutName.trim()) return;
+    const newScout: Scout = {
+      id: `s${Date.now()}`,
+      name: newScoutName.trim(),
+      level: 1,
+      specialty: newScoutSpecialty,
+      regionExpertise: newScoutRegion,
+      salary: 0.2,
+    };
+    setScouts(prev => [...prev, newScout]);
+    setNewScoutName('');
+    setNewScoutSpecialty('General');
+    setNewScoutRegion(Region.SOUTH);
+    setIsHiringScout(false);
   };
 
   return (
@@ -64,7 +87,7 @@ const ScoutingView: React.FC<ScoutingViewProps> = ({ selectedTeamId, prospects, 
             ))}
           </div>
         </div>
-        <button 
+        <button
           onClick={handleSimulateWeek}
           className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-xl flex items-center gap-2 font-bold text-xs uppercase tracking-widest transition-all shadow-lg shadow-emerald-900/20"
         >
@@ -81,9 +104,9 @@ const ScoutingView: React.FC<ScoutingViewProps> = ({ selectedTeamId, prospects, 
               <div className="p-4 border-b border-slate-800 bg-slate-800/30 flex justify-between items-center">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
-                  <input 
-                    type="text" 
-                    placeholder="Search prospects..." 
+                  <input
+                    type="text"
+                    placeholder="Search prospects..."
                     className="bg-slate-950 border border-slate-800 rounded-lg pl-10 pr-4 py-2 text-sm text-white focus:outline-none focus:border-cyan-500 transition-colors w-64"
                   />
                 </div>
@@ -101,8 +124,8 @@ const ScoutingView: React.FC<ScoutingViewProps> = ({ selectedTeamId, prospects, 
                   </thead>
                   <tbody className="divide-y divide-slate-800/50">
                     {prospects.map(prospect => (
-                      <tr 
-                        key={prospect.id} 
+                      <tr
+                        key={prospect.id}
                         onClick={() => setSelectedProspectId(prospect.id)}
                         className={`hover:bg-slate-800/30 transition-colors cursor-pointer ${selectedProspectId === prospect.id ? 'bg-cyan-900/10 border-l-4 border-cyan-500' : ''}`}
                       >
@@ -123,7 +146,7 @@ const ScoutingView: React.FC<ScoutingViewProps> = ({ selectedTeamId, prospects, 
                         <td className="p-4">
                           {prospect.scoutingProgress >= 50 ? (
                             <span className={`text-lg font-bold ${
-                              prospect.potential === 'S' ? 'text-yellow-400' : 
+                              prospect.potential === 'S' ? 'text-yellow-400' :
                               prospect.potential === 'A' ? 'text-emerald-400' : 'text-slate-300'
                             }`}>{prospect.potential}</span>
                           ) : (
@@ -167,7 +190,10 @@ const ScoutingView: React.FC<ScoutingViewProps> = ({ selectedTeamId, prospects, 
                   </div>
                 </div>
               ))}
-              <button className="border-2 border-dashed border-slate-800 rounded-xl flex flex-col items-center justify-center p-8 text-slate-500 hover:text-cyan-400 hover:border-cyan-400 transition-all group">
+              <button
+                onClick={() => setIsHiringScout(true)}
+                className="border-2 border-dashed border-slate-800 rounded-xl flex flex-col items-center justify-center p-8 text-slate-500 hover:text-cyan-400 hover:border-cyan-400 transition-all group"
+              >
                 <UserPlus size={32} className="mb-2 opacity-20 group-hover:opacity-100" />
                 <span className="text-xs font-bold uppercase tracking-widest">Hire New Scout</span>
               </button>
@@ -188,15 +214,15 @@ const ScoutingView: React.FC<ScoutingViewProps> = ({ selectedTeamId, prospects, 
                         <div className="text-xs text-slate-500">{scout.specialty} Specialist</div>
                       </div>
                     </div>
-                    
+
                     <div className="flex gap-4">
                       {Object.values(Region).map(region => (
                         <button
                           key={region}
                           onClick={() => handleAssignScout(scout.id, region, 'General')}
                           className={`px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-tighter transition-all ${
-                            scout.assignment?.region === region 
-                            ? 'bg-cyan-500 text-white' 
+                            scout.assignment?.region === region
+                            ? 'bg-cyan-500 text-white'
                             : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
                           }`}
                         >
@@ -269,7 +295,7 @@ const ScoutingView: React.FC<ScoutingViewProps> = ({ selectedTeamId, prospects, 
                     <span className="text-[10px] text-white font-bold uppercase tracking-wider">Scout Analysis</span>
                   </div>
                   <p className="text-xs text-slate-400 leading-relaxed">
-                    {selectedProspect.scoutingProgress < 30 
+                    {selectedProspect.scoutingProgress < 30
                       ? "Initial reports are limited. Assign a scout to the " + selectedProspect.region + " region to learn more."
                       : selectedProspect.scoutingProgress < 70
                       ? "Showing flashes of " + selectedProspect.potential + " potential. Combine numbers are solid, but need more tape study."
@@ -308,6 +334,79 @@ const ScoutingView: React.FC<ScoutingViewProps> = ({ selectedTeamId, prospects, 
           </div>
         </div>
       </div>
+
+      {/* Hire Scout Modal */}
+      {isHiringScout && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 w-full max-w-md shadow-2xl">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-bold text-white header-font uppercase">Hire New Scout</h3>
+              <button onClick={() => setIsHiringScout(false)} className="text-slate-500 hover:text-white transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Scout Name</label>
+                <input
+                  type="text"
+                  value={newScoutName}
+                  onChange={(e) => setNewScoutName(e.target.value)}
+                  placeholder="Enter scout name..."
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-cyan-500 transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Specialty</label>
+                <select
+                  value={newScoutSpecialty}
+                  onChange={(e) => setNewScoutSpecialty(e.target.value as Position | 'General')}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-cyan-500 transition-colors"
+                >
+                  {POSITIONS_WITH_GENERAL.map(p => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Region Expertise</label>
+                <select
+                  value={newScoutRegion}
+                  onChange={(e) => setNewScoutRegion(e.target.value as Region)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-cyan-500 transition-colors"
+                >
+                  {Object.values(Region).map(r => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="bg-slate-950/50 border border-slate-800 rounded-lg p-3 text-xs text-slate-500">
+                Level 1 scout • Salary: $0.2M/yr
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setIsHiringScout(false)}
+                className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold text-xs uppercase tracking-widest transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleHireScout}
+                disabled={!newScoutName.trim()}
+                className="flex-1 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Hire Scout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

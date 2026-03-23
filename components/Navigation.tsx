@@ -7,9 +7,11 @@ interface NavigationProps {
   currentView: AppView;
   setView: (view: AppView) => void;
   selectedTeamId: string;
+  capSpace: number;
+  trustRating: number;
 }
 
-const Navigation: React.FC<NavigationProps> = ({ currentView, setView, selectedTeamId }) => {
+const Navigation: React.FC<NavigationProps> = ({ currentView, setView, selectedTeamId, capSpace, trustRating }) => {
   const team = TEAMS_DB[selectedTeamId];
   const navItems = [
     { id: AppView.DASHBOARD, label: 'HQ Dashboard', icon: LayoutDashboard },
@@ -23,6 +25,10 @@ const Navigation: React.FC<NavigationProps> = ({ currentView, setView, selectedT
     { id: AppView.SCOUTING, label: 'Scouting', icon: Microscope },
   ];
 
+  const trustColor = trustRating >= 80 ? 'text-emerald-400' : trustRating >= 60 ? 'text-amber-400' : 'text-red-400';
+  const trustBarColor = trustRating >= 80 ? 'bg-emerald-500' : trustRating >= 60 ? 'bg-amber-500' : 'bg-red-500';
+  const capColor = capSpace >= 10 ? 'text-white' : capSpace >= 5 ? 'text-amber-400' : 'text-red-400';
+
   return (
     <div className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col h-full shrink-0 z-20">
       <div className="p-6 border-b border-slate-800 flex items-center gap-3">
@@ -34,15 +40,15 @@ const Navigation: React.FC<NavigationProps> = ({ currentView, setView, selectedT
             <span className="text-[10px] text-cyan-500 font-mono tracking-widest uppercase">{team.city}</span>
         </div>
       </div>
-      
+
       <div className="flex-1 py-6 space-y-2 px-3">
         {navItems.map((item) => (
           <button
             key={item.id}
             onClick={() => setView(item.id)}
             className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200 group ${
-              currentView === item.id 
-                ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' 
+              currentView === item.id
+                ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
                 : 'text-slate-400 hover:bg-slate-800 hover:text-white'
             }`}
           >
@@ -58,17 +64,20 @@ const Navigation: React.FC<NavigationProps> = ({ currentView, setView, selectedT
       <div className="p-6 border-t border-slate-800 bg-slate-950/50">
         <div className="flex justify-between items-end mb-2">
             <span className="text-xs text-slate-500 uppercase font-bold">Trust</span>
-            <span className="text-xs text-emerald-400 font-mono">88%</span>
+            <span className={`text-xs font-mono ${trustColor}`}>{trustRating}%</span>
         </div>
         <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-            <div className="bg-emerald-500 h-full w-[88%] shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
+            <div
+              className={`${trustBarColor} h-full transition-all duration-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]`}
+              style={{ width: `${trustRating}%` }}
+            ></div>
         </div>
         <div className="mt-4 flex justify-between text-xs font-mono text-slate-400">
             <span>CAP SPACE</span>
-            <span className="text-white">$14.2M</span>
+            <span className={capColor}>${capSpace.toFixed(1)}M</span>
         </div>
-        <button 
-          onClick={() => window.location.reload()} 
+        <button
+          onClick={() => window.location.reload()}
           className="mt-6 w-full flex items-center justify-center gap-2 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 hover:text-red-400 transition-colors border border-slate-800 rounded-lg hover:border-red-500/30"
         >
           <LogOut size={12} />

@@ -199,6 +199,42 @@ export const INITIAL_PICKS: DraftPick[] = [
   { id: 'p3-65', round: 3, pickNumber: 65, originalTeamId: 'HOU', currentTeamId: 'HOU', year: 2026, value: 74 },
 ];
 
+// Week 8 schedule - maps teamId to next opponent info
+export const WEEK_SCHEDULE: Record<string, { opponent: string; opponentCode: string; location: string; date: string; threat: 'LOW' | 'MEDIUM' | 'HIGH' | 'EXTREME'; winProb: number }> = {
+  ARI: { opponent: 'Los Angeles Rams',      opponentCode: 'LAR', location: 'State Farm Stadium',      date: 'Sun, Oct 26', threat: 'HIGH',    winProb: 42.0 },
+  ATL: { opponent: 'Tampa Bay Buccaneers',  opponentCode: 'TB',  location: 'Mercedes-Benz Stadium',   date: 'Sun, Oct 26', threat: 'HIGH',    winProb: 55.0 },
+  BAL: { opponent: 'Cleveland Browns',      opponentCode: 'CLE', location: 'M&T Bank Stadium',        date: 'Sun, Oct 26', threat: 'LOW',     winProb: 78.0 },
+  BUF: { opponent: 'Miami Dolphins',        opponentCode: 'MIA', location: 'Highmark Stadium',        date: 'Sun, Oct 26', threat: 'HIGH',    winProb: 58.0 },
+  CAR: { opponent: 'Washington Commanders', opponentCode: 'WAS', location: 'Bank of America Stadium', date: 'Sun, Oct 26', threat: 'HIGH',    winProb: 38.0 },
+  CHI: { opponent: 'Green Bay Packers',     opponentCode: 'GB',  location: 'Soldier Field',           date: 'Sun, Oct 26', threat: 'HIGH',    winProb: 48.0 },
+  CIN: { opponent: 'Pittsburgh Steelers',   opponentCode: 'PIT', location: 'Paycor Stadium',          date: 'Sun, Oct 26', threat: 'EXTREME', winProb: 44.0 },
+  CLE: { opponent: 'Baltimore Ravens',      opponentCode: 'BAL', location: 'Huntington Bank Field',   date: 'Sun, Oct 26', threat: 'EXTREME', winProb: 28.0 },
+  DAL: { opponent: 'Philadelphia Eagles',   opponentCode: 'PHI', location: 'AT&T Stadium',            date: 'Sun, Oct 26', threat: 'EXTREME', winProb: 45.0 },
+  DEN: { opponent: 'Kansas City Chiefs',    opponentCode: 'KC',  location: 'Empower Field',           date: 'Sun, Oct 26', threat: 'EXTREME', winProb: 28.0 },
+  DET: { opponent: 'Green Bay Packers',     opponentCode: 'GB',  location: 'Ford Field',              date: 'Sun, Oct 26', threat: 'HIGH',    winProb: 62.0 },
+  GB:  { opponent: 'Detroit Lions',         opponentCode: 'DET', location: 'Lambeau Field',           date: 'Sun, Oct 26', threat: 'EXTREME', winProb: 44.0 },
+  HOU: { opponent: 'Indianapolis Colts',    opponentCode: 'IND', location: 'NRG Stadium',             date: 'Sun, Oct 26', threat: 'MEDIUM',  winProb: 65.0 },
+  IND: { opponent: 'Houston Texans',        opponentCode: 'HOU', location: 'Lucas Oil Stadium',       date: 'Sun, Oct 26', threat: 'HIGH',    winProb: 38.0 },
+  JAX: { opponent: 'Tennessee Titans',      opponentCode: 'TEN', location: 'EverBank Stadium',        date: 'Sun, Oct 26', threat: 'LOW',     winProb: 72.0 },
+  KC:  { opponent: 'Baltimore Ravens',      opponentCode: 'BAL', location: 'GEHA Field',              date: 'Sun, Oct 26', threat: 'EXTREME', winProb: 52.0 },
+  LV:  { opponent: 'Kansas City Chiefs',    opponentCode: 'KC',  location: 'Allegiant Stadium',       date: 'Sun, Oct 26', threat: 'EXTREME', winProb: 22.0 },
+  LAC: { opponent: 'Las Vegas Raiders',     opponentCode: 'LV',  location: 'SoFi Stadium',            date: 'Sun, Oct 26', threat: 'MEDIUM',  winProb: 65.0 },
+  LAR: { opponent: 'Arizona Cardinals',     opponentCode: 'ARI', location: 'SoFi Stadium',            date: 'Sun, Oct 26', threat: 'MEDIUM',  winProb: 62.0 },
+  MIA: { opponent: 'Buffalo Bills',         opponentCode: 'BUF', location: 'Hard Rock Stadium',       date: 'Sun, Oct 26', threat: 'HIGH',    winProb: 45.0 },
+  MIN: { opponent: 'Chicago Bears',         opponentCode: 'CHI', location: 'U.S. Bank Stadium',       date: 'Sun, Oct 26', threat: 'MEDIUM',  winProb: 68.0 },
+  NE:  { opponent: 'New York Jets',         opponentCode: 'NYJ', location: 'Gillette Stadium',        date: 'Sun, Oct 26', threat: 'HIGH',    winProb: 38.0 },
+  NO:  { opponent: 'Carolina Panthers',     opponentCode: 'CAR', location: 'Caesars Superdome',       date: 'Sun, Oct 26', threat: 'LOW',     winProb: 68.0 },
+  NYG: { opponent: 'Dallas Cowboys',        opponentCode: 'DAL', location: 'MetLife Stadium',         date: 'Sun, Oct 26', threat: 'HIGH',    winProb: 42.0 },
+  NYJ: { opponent: 'New England Patriots',  opponentCode: 'NE',  location: 'MetLife Stadium',         date: 'Sun, Oct 26', threat: 'LOW',     winProb: 68.0 },
+  PHI: { opponent: 'Dallas Cowboys',        opponentCode: 'DAL', location: 'Lincoln Financial Field', date: 'Sun, Oct 26', threat: 'HIGH',    winProb: 62.0 },
+  PIT: { opponent: 'Cincinnati Bengals',    opponentCode: 'CIN', location: 'Acrisure Stadium',        date: 'Sun, Oct 26', threat: 'HIGH',    winProb: 58.0 },
+  SF:  { opponent: 'Seattle Seahawks',      opponentCode: 'SEA', location: "Levi's Stadium",          date: 'Sun, Oct 26', threat: 'MEDIUM',  winProb: 68.0 },
+  SEA: { opponent: 'San Francisco 49ers',   opponentCode: 'SF',  location: 'Lumen Field',             date: 'Sun, Oct 26', threat: 'EXTREME', winProb: 38.0 },
+  TB:  { opponent: 'Atlanta Falcons',       opponentCode: 'ATL', location: 'Raymond James Stadium',   date: 'Sun, Oct 26', threat: 'MEDIUM',  winProb: 52.0 },
+  TEN: { opponent: 'Jacksonville Jaguars',  opponentCode: 'JAX', location: 'Nissan Stadium',          date: 'Sun, Oct 26', threat: 'HIGH',    winProb: 32.0 },
+  WAS: { opponent: 'Carolina Panthers',     opponentCode: 'CAR', location: 'Northwest Stadium',       date: 'Sun, Oct 26', threat: 'LOW',     winProb: 72.0 },
+};
+
 export const OFFENSIVE_PLAYS: Play[] = [
   { id: 'p1', name: 'Inside Zone', type: 'Run', formation: 'Shotgun', risk: 2, reward: 4, successRate: 0.65 },
   { id: 'p2', name: 'Stretch Right', type: 'Run', formation: 'Singleback', risk: 3, reward: 5, successRate: 0.55 },

@@ -9,13 +9,15 @@ import { motion, AnimatePresence } from 'motion/react';
 
 interface RosterViewProps {
   selectedTeamId: string;
+  capSpace: number;
+  setCapSpace: React.Dispatch<React.SetStateAction<number>>;
 }
 
-const RosterView: React.FC<RosterViewProps> = ({ selectedTeamId }) => {
+const RosterView: React.FC<RosterViewProps> = ({ selectedTeamId, capSpace, setCapSpace }) => {
   const [players, setPlayers] = useState<Player[]>(MOCK_PLAYERS.filter(p => p.teamId === selectedTeamId));
   const team = TEAMS_DB[selectedTeamId];
-  const [capSpace, setCapSpace] = useState(14.2);
   const [deadCap, setDeadCap] = useState(12.8);
+  const [searchQuery, setSearchQuery] = useState('');
   const [negotiatingPlayerId, setNegotiatingPlayerId] = useState<string | null>(null);
   const [restructuringPlayerId, setRestructuringPlayerId] = useState<string | null>(null);
   const [releasingPlayerId, setReleasingPlayerId] = useState<string | null>(null);
@@ -147,9 +149,11 @@ const RosterView: React.FC<RosterViewProps> = ({ selectedTeamId }) => {
           <div className="flex gap-4 items-center">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
-              <input 
-                type="text" 
-                placeholder="Search players..." 
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search players..."
                 className="bg-slate-950 border border-slate-800 rounded-lg pl-10 pr-4 py-2 text-sm text-white focus:outline-none focus:border-cyan-500 transition-colors w-64"
               />
             </div>
@@ -203,7 +207,7 @@ const RosterView: React.FC<RosterViewProps> = ({ selectedTeamId }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/50">
-              {players.map(player => (
+              {players.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase())).map(player => (
                 <tr key={player.id} className="hover:bg-slate-800/30 transition-colors group">
                   <td className="p-4">
                     <div className="flex items-center gap-3">
