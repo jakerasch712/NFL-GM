@@ -90,7 +90,9 @@ const TradeCenter: React.FC<TradeCenterProps> = ({ selectedTeamId }) => {
                     {'position' in asset ? asset.position : `R${asset.round}`}
                   </div>
                   <div>
-                    <div className="text-sm font-bold text-white">{asset.name}</div>
+                    <div className="text-sm font-bold text-white">
+                      {'name' in asset ? asset.name : `Round ${asset.round} Pick ${asset.pickNumber}`}
+                    </div>
                     <div className="text-[10px] text-slate-500 font-mono">
                       {'overall' in asset ? `${asset.overall} OVR • ${asset.age} yrs` : `Pick #${asset.pickNumber}`}
                     </div>
@@ -145,7 +147,9 @@ const TradeCenter: React.FC<TradeCenterProps> = ({ selectedTeamId }) => {
                     {'position' in asset ? asset.position : `R${asset.round}`}
                   </div>
                   <div>
-                    <div className="text-sm font-bold text-white">{asset.name}</div>
+                    <div className="text-sm font-bold text-white">
+                      {'name' in asset ? asset.name : `Round ${asset.round} Pick ${asset.pickNumber}`}
+                    </div>
                     <div className="text-[10px] text-slate-500 font-mono">
                       {'overall' in asset ? `${asset.overall} OVR • ${asset.age} yrs` : `Pick #${asset.pickNumber}`}
                     </div>

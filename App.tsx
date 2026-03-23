@@ -64,7 +64,7 @@ const App: React.FC = () => {
           />
         );
       default:
-        return <Dashboard />;
+        return <Dashboard selectedTeamId={selectedTeamId} />;
     }
   };
 

@@ -16,6 +16,15 @@ const FreeAgency: React.FC<FreeAgencyProps> = ({ selectedTeamId }) => {
 
   const activeNegotiationPlayer = players.find(p => p.id === negotiatingPlayerId);
 
+  const handleUpdateMorale = (playerId: string, moraleChange: number) => {
+    setPlayers(prev => prev.map(p => {
+      if (p.id === playerId) {
+        return { ...p, morale: Math.min(100, Math.max(0, p.morale + moraleChange)) };
+      }
+      return p;
+    }));
+  };
+
   const handleSignContract = (playerId: string, newContract: any) => {
     // In a real app, we'd move the player to the team
     setPlayers(prev => prev.filter(p => p.id !== playerId));
@@ -159,6 +168,7 @@ const FreeAgency: React.FC<FreeAgencyProps> = ({ selectedTeamId }) => {
           player={activeNegotiationPlayer} 
           onClose={() => setNegotiatingPlayerId(null)}
           onSign={handleSignContract}
+          onUpdateMorale={handleUpdateMorale}
           capSpace={capSpace}
         />
       )}

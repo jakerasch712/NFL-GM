@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
-import { Timer, Search, Filter, Star, ArrowRight, History, TrendingUp, RefreshCcw, X, Sparkles } from 'lucide-react';
+import { Timer, Search, Filter, Star, ArrowRight, History, TrendingUp, RefreshCcw, X, Sparkles, Brain, Loader2 } from 'lucide-react';
 import { DraftProspect, DraftPick } from '../types';
 import { TEAMS_DB } from '../constants';
+import { getDraftStrategy } from '../services/geminiService';
+import Markdown from 'react-markdown';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface DraftRoomProps {
   selectedTeamId: string;
@@ -21,6 +24,9 @@ const DraftRoom: React.FC<DraftRoomProps> = ({ selectedTeamId, prospects, setPro
   const [tradeTargetTeam, setTradeTargetTeam] = useState(selectedTeamId === 'KC' ? 'BAL' : 'KC');
   const [userTradePicks, setUserTradePicks] = useState<string[]>([]);
   const [targetTradePicks, setTargetTradePicks] = useState<string[]>([]);
+  const [isAiAnalyzing, setIsAiAnalyzing] = useState(false);
+  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
 
   const currentPick = picks[currentPickIndex];
   const selectedProspect = prospects.find(p => p.id === selectedProspectId);
@@ -50,6 +56,20 @@ const DraftRoom: React.FC<DraftRoomProps> = ({ selectedTeamId, prospects, setPro
     setTargetTradePicks([]);
   };
 
+  const handleAiAnalysis = async () => {
+    setIsAiAnalyzing(true);
+    setIsAiModalOpen(true);
+    try {
+      const strategy = await getDraftStrategy(selectedTeamId, prospects, picks);
+      setAiAnalysis(strategy);
+    } catch (error) {
+      console.error("AI Analysis failed", error);
+      setAiAnalysis("Failed to generate strategy analysis.");
+    } finally {
+      setIsAiAnalyzing(false);
+    }
+  };
+
   return (
     <div className="p-8 h-full overflow-hidden flex flex-col bg-slate-950 relative">
         <header className="mb-6 flex justify-between items-start">
@@ -61,6 +81,15 @@ const DraftRoom: React.FC<DraftRoomProps> = ({ selectedTeamId, prospects, setPro
                 <h2 className="text-4xl font-bold text-white header-font uppercase">War Room</h2>
             </div>
             <div className="flex flex-col items-end">
+                <div className="flex gap-3 mb-2">
+                  <button 
+                    onClick={handleAiAnalysis}
+                    className="flex items-center gap-2 px-4 py-2 bg-fuchsia-600 hover:bg-fuchsia-500 text-white rounded-lg text-xs font-bold uppercase tracking-widest transition-all shadow-lg shadow-fuchsia-500/20"
+                  >
+                    <Brain size={14} />
+                    AI Strategy
+                  </button>
+                </div>
                 <div className="text-6xl font-mono font-bold text-cyan-400 tabular-nums tracking-tighter">04:32</div>
                 <div className="text-slate-500 text-xs uppercase tracking-widest mt-1">
                     {currentPick ? (
@@ -321,6 +350,59 @@ const DraftRoom: React.FC<DraftRoomProps> = ({ selectedTeamId, prospects, setPro
             </div>
           </div>
         )}
+
+        {/* AI Strategy Modal */}
+        <AnimatePresence>
+          {isAiModalOpen && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 z-[60] flex items-center justify-center bg-slate-950/90 backdrop-blur-md p-8"
+            >
+              <motion.div 
+                initial={{ scale: 0.9, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.9, y: 20 }}
+                className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-3xl max-h-[80vh] flex flex-col shadow-2xl overflow-hidden"
+              >
+                <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-fuchsia-900/10">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-fuchsia-500/20 rounded-lg">
+                      <Brain className="text-fuchsia-400" size={24} />
+                    </div>
+                    <h3 className="text-2xl font-bold text-white header-font uppercase tracking-tight">AI War Room Analysis</h3>
+                  </div>
+                  <button onClick={() => setIsAiModalOpen(false)} className="text-slate-500 hover:text-white transition-colors">
+                    <X size={24} />
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-8 prose prose-invert max-w-none">
+                  {isAiAnalyzing ? (
+                    <div className="flex flex-col items-center justify-center py-20 gap-4">
+                      <Loader2 className="text-fuchsia-500 animate-spin" size={48} />
+                      <p className="text-fuchsia-400 font-bold animate-pulse uppercase tracking-widest text-sm">Deep Thinking in Progress...</p>
+                    </div>
+                  ) : (
+                    <div className="markdown-body">
+                      <Markdown>{aiAnalysis}</Markdown>
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-6 border-t border-slate-800 bg-slate-800/30 flex justify-end">
+                  <button 
+                    onClick={() => setIsAiModalOpen(false)}
+                    className="bg-slate-800 hover:bg-slate-700 text-white px-8 py-3 rounded-xl font-bold text-sm uppercase tracking-widest transition-all"
+                  >
+                    Close Analysis
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
     </div>
   );
 };

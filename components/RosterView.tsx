@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { TEAMS_DB, MOCK_PLAYERS } from '../constants';
-import { Shield, TrendingUp, Battery, AlertCircle, Briefcase, Search, Filter, UserMinus, DollarSign } from 'lucide-react';
+import { Shield, TrendingUp, Battery, AlertCircle, Briefcase, Search, Filter, UserMinus, DollarSign, RefreshCw, CheckCircle2, Loader2 } from 'lucide-react';
 import ContractNegotiation from './ContractNegotiation';
 import { RestructureModal, ReleasePlayerModal } from './CapModals';
 import { Player } from '../types';
+import { syncTeamRoster } from '../services/geminiService';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface RosterViewProps {
   selectedTeamId: string;
@@ -18,6 +20,8 @@ const RosterView: React.FC<RosterViewProps> = ({ selectedTeamId }) => {
   const [restructuringPlayerId, setRestructuringPlayerId] = useState<string | null>(null);
   const [releasingPlayerId, setReleasingPlayerId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'standard' | 'financial'>('standard');
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncSuccess, setSyncSuccess] = useState(false);
 
   const activeNegotiationPlayer = players.find(p => p.id === negotiatingPlayerId);
   const activeRestructurePlayer = players.find(p => p.id === restructuringPlayerId);
@@ -83,6 +87,24 @@ const RosterView: React.FC<RosterViewProps> = ({ selectedTeamId }) => {
     setRestructuringPlayerId(null);
   };
 
+  const handleSyncRoster = async () => {
+    setIsSyncing(true);
+    setSyncSuccess(false);
+    try {
+      const syncedPlayers = await syncTeamRoster(`${team.city} ${team.name}`);
+      if (syncedPlayers.length > 0) {
+        const updatedPlayers = syncedPlayers.map(p => ({ ...p, teamId: selectedTeamId }));
+        setPlayers(updatedPlayers);
+        setSyncSuccess(true);
+        setTimeout(() => setSyncSuccess(false), 3000);
+      }
+    } catch (error) {
+      console.error("Sync failed", error);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   return (
     <div className="p-8 h-full overflow-hidden flex flex-col bg-slate-950">
       <header className="mb-8 flex justify-between items-end">
@@ -91,6 +113,24 @@ const RosterView: React.FC<RosterViewProps> = ({ selectedTeamId }) => {
           <p className="text-slate-500 text-sm mt-1 uppercase tracking-widest font-medium">{team.city} {team.name} • 53-Man Limit</p>
         </div>
         <div className="flex gap-4">
+          <button 
+            onClick={handleSyncRoster}
+            disabled={isSyncing}
+            className={`flex items-center gap-2 px-6 py-4 rounded-xl border transition-all font-bold uppercase tracking-widest text-xs ${
+              syncSuccess 
+                ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400' 
+                : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:border-cyan-500 hover:text-white'
+            }`}
+          >
+            {isSyncing ? (
+              <Loader2 size={18} className="animate-spin" />
+            ) : syncSuccess ? (
+              <CheckCircle2 size={18} />
+            ) : (
+              <RefreshCw size={18} />
+            )}
+            {isSyncing ? 'Syncing...' : syncSuccess ? 'Roster Updated' : 'Sync Real Roster'}
+          </button>
           <div className="bg-slate-900/50 border border-slate-800 p-4 rounded-xl min-w-[160px] backdrop-blur-sm">
             <div className="text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-1">Cap Space</div>
             <div className="text-2xl font-mono font-bold text-emerald-400">${capSpace.toFixed(1)}M</div>
