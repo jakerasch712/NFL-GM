@@ -4,7 +4,11 @@ import { Search, Filter, DollarSign, TrendingUp, UserPlus, Info } from 'lucide-r
 import ContractNegotiation from './ContractNegotiation';
 import { Player } from '../types';
 
-const FreeAgency: React.FC = () => {
+interface FreeAgencyProps {
+  selectedTeamId: string;
+}
+
+const FreeAgency: React.FC<FreeAgencyProps> = ({ selectedTeamId }) => {
   const [players, setPlayers] = useState(MOCK_PLAYERS.filter(p => p.teamId === 'FA'));
   const [negotiatingPlayerId, setNegotiatingPlayerId] = useState<string | null>(null);
   const [capSpace, setCapSpace] = useState(14.2);

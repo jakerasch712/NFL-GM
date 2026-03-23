@@ -83,12 +83,13 @@ export interface Coach {
   traits: StaffTrait[];
   experience: number;
   scheme: string;
+  teamId: string;
 }
 
 export interface Play {
   id: string;
   name: string;
-  type: 'Pass' | 'Run';
+  type: 'Pass' | 'Run' | 'Special';
   formation: string;
   risk: number; // 1-10
   reward: number; // 1-10
@@ -103,6 +104,7 @@ export interface GameEvent {
 }
 
 export enum AppView {
+  TEAM_SELECTION = 'TEAM_SELECTION',
   DASHBOARD = 'DASHBOARD',
   ROSTER = 'ROSTER',
   FREE_AGENCY = 'FREE_AGENCY',

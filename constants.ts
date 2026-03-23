@@ -127,13 +127,13 @@ export const MOCK_PLAYERS: Player[] = [
 
 export const MOCK_COACHES: Coach[] = [
   {
-    id: 'c1', name: 'DeMeco Ryans', role: 'HC', specialty: 'Defense', experience: 3, scheme: '4-3 Under',
+    id: 'c1', name: 'DeMeco Ryans', role: 'HC', specialty: 'Defense', experience: 3, scheme: '4-3 Under', teamId: 'HOU',
     traits: [
       { name: 'Leader of Men', description: 'Boosts morale for the entire team', bonus: { stat: 'overall', value: 1 } }
     ]
   },
   {
-    id: 'c2', name: 'Bobby Slowik', role: 'OC', specialty: 'Passing', experience: 2, scheme: 'West Coast',
+    id: 'c2', name: 'Bobby Slowik', role: 'OC', specialty: 'Passing', experience: 2, scheme: 'West Coast', teamId: 'HOU',
     traits: [
       { name: 'QB Whisperer', description: 'Boosts QB accuracy and rating', bonus: { stat: 'rating', value: 5 } }
     ]
@@ -206,4 +206,6 @@ export const OFFENSIVE_PLAYS: Play[] = [
   { id: 'p4', name: 'PA Crossers', type: 'Pass', formation: 'I-Form', risk: 5, reward: 8, successRate: 0.50 },
   { id: 'p5', name: 'Four Verticals', type: 'Pass', formation: 'Empty', risk: 8, reward: 10, successRate: 0.35 },
   { id: 'p6', name: 'HB Screen', type: 'Pass', formation: 'Shotgun', risk: 6, reward: 7, successRate: 0.45 },
+  { id: 'p7', name: 'Field Goal', type: 'Special', formation: 'Kicking', risk: 2, reward: 3, successRate: 0.85 },
+  { id: 'p8', name: 'Punt', type: 'Special', formation: 'Punting', risk: 1, reward: 0, successRate: 0.95 },
 ];

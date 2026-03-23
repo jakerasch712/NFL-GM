@@ -9,10 +9,12 @@ import MatchSim from './components/MatchSim';
 import DraftRoom from './components/DraftRoom';
 import StaffView from './components/StaffView';
 import ScoutingView from './components/ScoutingView';
+import TeamSelection from './components/TeamSelection';
 import { AppView, DraftProspect, DraftPick, Scout } from './types';
-import { DRAFT_CLASS, INITIAL_PICKS, MOCK_SCOUTS } from './constants';
+import { DRAFT_CLASS, INITIAL_PICKS, MOCK_SCOUTS, TEAMS_DB } from './constants';
 
 const App: React.FC = () => {
+  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   const [currentView, setCurrentView] = useState<AppView>(AppView.DASHBOARD);
   
   // Global State
@@ -22,22 +24,27 @@ const App: React.FC = () => {
   const [teamBudget, setTeamBudget] = useState(255.4); // Cap space in millions
 
   const renderView = () => {
+    if (!selectedTeamId) {
+      return <TeamSelection onSelect={setSelectedTeamId} />;
+    }
+
     switch (currentView) {
       case AppView.DASHBOARD:
-        return <Dashboard />;
+        return <Dashboard selectedTeamId={selectedTeamId} />;
       case AppView.ROSTER:
-        return <RosterView />;
+        return <RosterView selectedTeamId={selectedTeamId} />;
       case AppView.FREE_AGENCY:
-        return <FreeAgency />;
+        return <FreeAgency selectedTeamId={selectedTeamId} />;
       case AppView.TRADE_CENTER:
-        return <TradeCenter />;
+        return <TradeCenter selectedTeamId={selectedTeamId} />;
       case AppView.GAMEPLAN:
-        return <GamePlan />;
+        return <GamePlan selectedTeamId={selectedTeamId} />;
       case AppView.MATCH:
-        return <MatchSim />;
+        return <MatchSim selectedTeamId={selectedTeamId} />;
       case AppView.DRAFT:
         return (
           <DraftRoom 
+            selectedTeamId={selectedTeamId}
             prospects={prospects} 
             setProspects={setProspects} 
             picks={picks} 
@@ -45,10 +52,11 @@ const App: React.FC = () => {
           />
         );
       case AppView.STAFF:
-        return <StaffView />;
+        return <StaffView selectedTeamId={selectedTeamId} />;
       case AppView.SCOUTING:
         return (
           <ScoutingView 
+            selectedTeamId={selectedTeamId}
             prospects={prospects} 
             setProspects={setProspects} 
             scouts={scouts} 
@@ -62,7 +70,7 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-slate-950 text-slate-200 overflow-hidden font-sans selection:bg-cyan-500/30">
-      <Navigation currentView={currentView} setView={setCurrentView} />
+      {selectedTeamId && <Navigation currentView={currentView} setView={setCurrentView} selectedTeamId={selectedTeamId} />}
       <main className="flex-1 relative overflow-hidden">
         {/* Abstract Background pattern */}
         <div className="absolute inset-0 pointer-events-none opacity-[0.03]" 

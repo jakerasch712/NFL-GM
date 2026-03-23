@@ -4,20 +4,21 @@ import { DraftProspect, DraftPick } from '../types';
 import { TEAMS_DB } from '../constants';
 
 interface DraftRoomProps {
+  selectedTeamId: string;
   prospects: DraftProspect[];
   setProspects: React.Dispatch<React.SetStateAction<DraftProspect[]>>;
   picks: DraftPick[];
   setPicks: React.Dispatch<React.SetStateAction<DraftPick[]>>;
 }
 
-const DraftRoom: React.FC<DraftRoomProps> = ({ prospects, setProspects, picks, setPicks }) => {
+const DraftRoom: React.FC<DraftRoomProps> = ({ selectedTeamId, prospects, setProspects, picks, setPicks }) => {
   const [currentPickIndex, setCurrentPickIndex] = useState(0);
   const [selectedProspectId, setSelectedProspectId] = useState<string | null>(null);
   const [draftHistory, setDraftHistory] = useState<{pick: DraftPick, prospect: DraftProspect}[]>([]);
   const [isTradeModalOpen, setIsTradeModalOpen] = useState(false);
   
   // Trade State
-  const [tradeTargetTeam, setTradeTargetTeam] = useState('KC');
+  const [tradeTargetTeam, setTradeTargetTeam] = useState(selectedTeamId === 'KC' ? 'BAL' : 'KC');
   const [userTradePicks, setUserTradePicks] = useState<string[]>([]);
   const [targetTradePicks, setTargetTradePicks] = useState<string[]>([]);
 
@@ -40,7 +41,7 @@ const DraftRoom: React.FC<DraftRoomProps> = ({ prospects, setProspects, picks, s
         return { ...pick, currentTeamId: tradeTargetTeam };
       }
       if (targetTradePicks.includes(pick.id)) {
-        return { ...pick, currentTeamId: 'HOU' }; // Assuming user is HOU
+        return { ...pick, currentTeamId: selectedTeamId };
       }
       return pick;
     }));
@@ -167,7 +168,7 @@ const DraftRoom: React.FC<DraftRoomProps> = ({ prospects, setProspects, picks, s
 
                             <button 
                                 onClick={handleDraftPlayer}
-                                disabled={!currentPick || currentPick.currentTeamId !== 'HOU'}
+                                disabled={!currentPick || currentPick.currentTeamId !== selectedTeamId}
                                 className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-4 rounded-lg uppercase tracking-wider shadow-lg transition-all hover:scale-[1.02] active:scale-95 mb-3 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 <ArrowRight size={20} /> Submit Pick
@@ -234,14 +235,14 @@ const DraftRoom: React.FC<DraftRoomProps> = ({ prospects, setProspects, picks, s
                 {/* User Side */}
                 <div className="p-6 flex flex-col overflow-hidden">
                   <div className="flex items-center gap-3 mb-6">
-                    <div className="w-10 h-10 bg-blue-900/20 rounded-lg flex items-center justify-center text-blue-400 font-bold">HOU</div>
+                    <div className="w-10 h-10 bg-blue-900/20 rounded-lg flex items-center justify-center text-blue-400 font-bold">{selectedTeamId}</div>
                     <div>
-                      <h4 className="text-white font-bold">Houston Texans</h4>
+                      <h4 className="text-white font-bold">{TEAMS_DB[selectedTeamId]?.name}</h4>
                       <p className="text-[10px] text-slate-500 uppercase font-bold">Your Assets</p>
                     </div>
                   </div>
                   <div className="flex-1 overflow-y-auto space-y-2">
-                    {picks.filter(p => p.currentTeamId === 'HOU').map(pick => (
+                    {picks.filter(p => p.currentTeamId === selectedTeamId).map(pick => (
                       <button
                         key={pick.id}
                         onClick={() => setUserTradePicks(prev => prev.includes(pick.id) ? prev.filter(id => id !== pick.id) : [...prev, pick.id])}
@@ -266,7 +267,7 @@ const DraftRoom: React.FC<DraftRoomProps> = ({ prospects, setProspects, picks, s
                       onChange={(e) => setTradeTargetTeam(e.target.value)}
                       className="bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-cyan-500"
                     >
-                      {Object.keys(TEAMS_DB).filter(id => id !== 'HOU' && id !== 'FA').map(id => (
+                      {Object.keys(TEAMS_DB).filter(id => id !== selectedTeamId && id !== 'FA').map(id => (
                         <option key={id} value={id}>{id}</option>
                       ))}
                     </select>

@@ -3,8 +3,12 @@ import { MOCK_COACHES } from '../constants';
 import { Shield, Zap, Award, Users, ChevronRight, Star } from 'lucide-react';
 import { Coach } from '../types';
 
-const StaffView: React.FC = () => {
-  const [coaches] = useState<Coach[]>(MOCK_COACHES);
+interface StaffViewProps {
+  selectedTeamId: string;
+}
+
+const StaffView: React.FC<StaffViewProps> = ({ selectedTeamId }) => {
+  const [coaches] = useState<Coach[]>(MOCK_COACHES.filter(c => c.teamId === selectedTeamId));
 
   return (
     <div className="p-8 h-full overflow-hidden flex flex-col bg-slate-950">

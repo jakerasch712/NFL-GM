@@ -1,12 +1,17 @@
 import React, { useState } from 'react';
-import { MOCK_PLAYERS } from '../constants';
+import { TEAMS_DB, MOCK_PLAYERS } from '../constants';
 import { Shield, TrendingUp, Battery, AlertCircle, Briefcase, Search, Filter, UserMinus, DollarSign } from 'lucide-react';
 import ContractNegotiation from './ContractNegotiation';
 import { RestructureModal, ReleasePlayerModal } from './CapModals';
 import { Player } from '../types';
 
-const RosterView: React.FC = () => {
-  const [players, setPlayers] = useState<Player[]>(MOCK_PLAYERS.filter(p => p.teamId === 'HOU'));
+interface RosterViewProps {
+  selectedTeamId: string;
+}
+
+const RosterView: React.FC<RosterViewProps> = ({ selectedTeamId }) => {
+  const [players, setPlayers] = useState<Player[]>(MOCK_PLAYERS.filter(p => p.teamId === selectedTeamId));
+  const team = TEAMS_DB[selectedTeamId];
   const [capSpace, setCapSpace] = useState(14.2);
   const [deadCap, setDeadCap] = useState(12.8);
   const [negotiatingPlayerId, setNegotiatingPlayerId] = useState<string | null>(null);
@@ -83,7 +88,7 @@ const RosterView: React.FC = () => {
       <header className="mb-8 flex justify-between items-end">
         <div>
           <h2 className="text-4xl font-bold text-white header-font tracking-tight">ACTIVE ROSTER</h2>
-          <p className="text-slate-500 text-sm mt-1 uppercase tracking-widest font-medium">Houston Texans • 53-Man Limit</p>
+          <p className="text-slate-500 text-sm mt-1 uppercase tracking-widest font-medium">{team.city} {team.name} • 53-Man Limit</p>
         </div>
         <div className="flex gap-4">
           <div className="bg-slate-900/50 border border-slate-800 p-4 rounded-xl min-w-[160px] backdrop-blur-sm">

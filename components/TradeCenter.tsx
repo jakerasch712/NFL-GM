@@ -3,12 +3,17 @@ import { MOCK_PLAYERS, INITIAL_PICKS, TEAMS_DB } from '../constants';
 import { ArrowLeftRight, Plus, Trash2, TrendingUp, Shield, Info, AlertTriangle } from 'lucide-react';
 import { Player, DraftPick } from '../types';
 
-const TradeCenter: React.FC = () => {
+interface TradeCenterProps {
+  selectedTeamId: string;
+}
+
+const TradeCenter: React.FC<TradeCenterProps> = ({ selectedTeamId }) => {
   const [myAssets, setMyAssets] = useState<(Player | DraftPick)[]>([]);
   const [theirAssets, setTheirAssets] = useState<(Player | DraftPick)[]>([]);
-  const [selectedTeam, setSelectedTeam] = useState('KC');
+  const [selectedTeam, setSelectedTeam] = useState(selectedTeamId === 'KC' ? 'BAL' : 'KC');
 
-  const teams = Object.values(TEAMS_DB).map(t => ({
+  const myTeam = TEAMS_DB[selectedTeamId];
+  const teams = Object.values(TEAMS_DB).filter(t => t.id !== selectedTeamId).map(t => ({
     id: t.id,
     name: t.name,
     needs: ['WR', 'CB'] // Mocked needs for now
@@ -35,10 +40,10 @@ const TradeCenter: React.FC = () => {
   const addAsset = (side: 'mine' | 'theirs') => {
     // For demo, just add a random asset
     if (side === 'mine') {
-      const available = MOCK_PLAYERS.filter(p => p.teamId === 'HOU' && !myAssets.find(a => a.id === p.id));
+      const available = MOCK_PLAYERS.filter(p => p.teamId === selectedTeamId && !myAssets.find(a => a.id === p.id));
       if (available.length > 0) setMyAssets([...myAssets, available[0]]);
     } else {
-      const available = MOCK_PLAYERS.filter(p => p.teamId !== 'HOU' && p.teamId !== 'FA' && !theirAssets.find(a => a.id === p.id));
+      const available = MOCK_PLAYERS.filter(p => p.teamId === selectedTeam && !theirAssets.find(a => a.id === p.id));
       if (available.length > 0) setTheirAssets([...theirAssets, available[0]]);
     }
   };
@@ -74,7 +79,7 @@ const TradeCenter: React.FC = () => {
         {/* My Side */}
         <div className="col-span-5 flex flex-col gap-4">
           <div className="flex justify-between items-center">
-            <h3 className="text-white font-bold uppercase tracking-wider text-sm">Houston Texans</h3>
+            <h3 className="text-white font-bold uppercase tracking-wider text-sm">{myTeam.city} {myTeam.name}</h3>
             <span className="text-cyan-400 font-mono font-bold">{myValue.toFixed(0)} pts</span>
           </div>
           <div className="bg-slate-900 border border-slate-800 rounded-xl flex-1 p-4 overflow-y-auto space-y-3">

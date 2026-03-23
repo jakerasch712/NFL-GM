@@ -3,13 +3,16 @@ import { OFFENSIVE_PLAYS } from '../constants';
 import { Play, GameEvent } from '../types';
 import { Play as PlayIcon, Clock, ShieldAlert, Wind, ChevronUp } from 'lucide-react';
 
-const MatchSim: React.FC = () => {
+interface MatchSimProps {
+  selectedTeamId: string;
+}
+
+const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId }) => {
   const [gameState, setGameState] = useState({
     down: 1,
     distance: 10,
     ballOn: 25, // Own 25
     quarter: 1,
-    time: '12:45',
     homeScore: 0,
     awayScore: 0,
     possession: 'HOME' // User is HOME
@@ -22,7 +25,16 @@ const MatchSim: React.FC = () => {
 
   const [playHistory, setPlayHistory] = useState<GameEvent[]>([]);
 
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const [timeRemaining, setTimeRemaining] = useState(12 * 60 + 45); // 12:45 in seconds
+
   const handlePlayCall = (play: Play) => {
+    if (isSimulating) return;
     setIsSimulating(true);
 
     // Simulate delay
@@ -33,8 +45,20 @@ const MatchSim: React.FC = () => {
       updateGameState(outcome);
       setIsSimulating(false);
       
+      // Time decay
+      const playTime = Math.floor(Math.random() * 25) + 15; // 15-40 seconds
+      setTimeRemaining(prev => Math.max(0, prev - playTime));
+
       // Randomly fluctuate win prob for effect
-      setWinProb(prev => Math.min(99, Math.max(1, prev + (outcome.isScore ? 5 : outcome.yardage > 10 ? 2 : outcome.yardage < 0 ? -2 : 0))));
+      setWinProb(prev => {
+          let change = 0;
+          if (outcome.isScore) change = 5;
+          else if (outcome.yardage > 15) change = 3;
+          else if (outcome.yardage < 0) change = -2;
+          else if (outcome.type === 'Turnover') change = -10;
+          
+          return Math.min(99, Math.max(1, prev + (gameState.possession === 'HOME' ? change : -change)));
+      });
 
     }, 1500);
   };
@@ -46,31 +70,58 @@ const MatchSim: React.FC = () => {
     let isScore = false;
     let type: GameEvent['type'] = play.type;
 
-    // Simplified logic
-    if (roll < 0.05) {
-       // Turnover
+    if (play.type === 'Special') {
+        if (play.name === 'Field Goal') {
+            const distance = 100 - gameState.ballOn + 17;
+            const successProb = distance < 40 ? 0.95 : distance < 50 ? 0.75 : 0.45;
+            if (Math.random() < successProb) {
+                isScore = true;
+                description = `FIELD GOAL GOOD! A ${distance}-yard kick splits the uprights.`;
+                yardage = 0;
+            } else {
+                description = `MISSED FIELD GOAL! The ${distance}-yard attempt is wide.`;
+                type = 'Turnover';
+                yardage = 0;
+            }
+        } else if (play.name === 'Punt') {
+            yardage = Math.floor(Math.random() * 15) + 35; // 35-50 yards
+            description = `PUNT! A high spiraling kick for ${yardage} yards.`;
+            type = 'Turnover';
+        }
+        return { description, yardage, isScore, type };
+    }
+
+    // Standard Play Logic
+    if (roll < 0.03) {
        type = 'Turnover';
-       description = `INTERCEPTED! The defender jumps the route on the ${play.name}.`;
+       description = `TURNOVER! Fumble on the play, recovered by the defense.`;
+       yardage = Math.floor(Math.random() * 5);
+    } else if (roll < 0.06 && play.type === 'Pass') {
+       type = 'Turnover';
+       description = `INTERCEPTED! The QB misread the coverage.`;
        yardage = 0;
     } else if (roll < play.successRate) {
         // Success
-        const bigPlay = Math.random() < (play.reward / 20); // 10 reward = 50% chance of big play? No, /20 = 50% max. Let's say reward 10 = 0.5. Too high. reward/20 -> 10/20 = 0.5.
-        const baseGain = Math.floor(Math.random() * 8) + 2; // 2-10 yards
-        yardage = bigPlay ? baseGain + Math.floor(Math.random() * 20) + 10 : baseGain;
-        description = `${play.type === 'Pass' ? 'Complete' : 'Run'} for ${yardage} yards using ${play.name}.`;
+        const isBigPlay = Math.random() < (play.reward / 25);
+        const baseGain = Math.floor(Math.random() * play.reward) + 1;
+        yardage = isBigPlay ? baseGain + Math.floor(Math.random() * 20) + 10 : baseGain;
+        description = `${play.type === 'Pass' ? 'Complete' : 'Run'} for ${yardage} yards.`;
     } else {
         // Fail
-        const sack = play.type === 'Pass' && Math.random() < 0.2;
-        yardage = sack ? -Math.floor(Math.random() * 8) : 0;
-        description = sack ? `SACKED! Loss of ${Math.abs(yardage)} on the play.` : `Incomplete pass intended for Collins.`;
-        if (play.type === 'Run') description = `Stuffed at the line of scrimmage. No gain.`;
+        const sack = play.type === 'Pass' && Math.random() < 0.15;
+        yardage = sack ? -Math.floor(Math.random() * 7) - 2 : 0;
+        description = sack ? `SACK! The pocket collapsed quickly.` : `Incomplete pass.`;
+        if (play.type === 'Run') {
+            yardage = -Math.floor(Math.random() * 3);
+            description = yardage < 0 ? `Tackled for a loss of ${Math.abs(yardage)}.` : `No gain on the run.`;
+        }
     }
 
     // TD Check
-    if (gameState.ballOn + yardage >= 100) {
+    if (gameState.ballOn + yardage >= 100 && type !== 'Turnover') {
         isScore = true;
         yardage = 100 - gameState.ballOn;
-        description = `TOUCHDOWN! Explosive play on the ${play.name}!`;
+        description = `TOUCHDOWN! ${play.name} goes all the way!`;
     }
 
     return { description, yardage, isScore, type };
@@ -78,14 +129,26 @@ const MatchSim: React.FC = () => {
 
   const updateGameState = (event: GameEvent) => {
     setGameState(prev => {
+        let nextState = { ...prev };
+
         if (event.isScore) {
-            return {
-                ...prev,
-                homeScore: prev.homeScore + 7, // Auto PAT for demo
-                ballOn: 25,
-                down: 1,
-                distance: 10
-            };
+            if (prev.possession === 'HOME') nextState.homeScore += event.description.includes('FIELD GOAL') ? 3 : 7;
+            else nextState.awayScore += event.description.includes('FIELD GOAL') ? 3 : 7;
+            
+            // Switch possession after score
+            nextState.possession = prev.possession === 'HOME' ? 'AWAY' : 'HOME';
+            nextState.ballOn = 25;
+            nextState.down = 1;
+            nextState.distance = 10;
+            return nextState;
+        }
+
+        if (event.type === 'Turnover') {
+            nextState.possession = prev.possession === 'HOME' ? 'AWAY' : 'HOME';
+            nextState.ballOn = 100 - (prev.ballOn + event.yardage);
+            nextState.down = 1;
+            nextState.distance = 10;
+            return nextState;
         }
 
         let newBallOn = prev.ballOn + event.yardage;
@@ -95,13 +158,17 @@ const MatchSim: React.FC = () => {
         if (newDist <= 0) {
             newDown = 1;
             newDist = 10;
+            // Goal to go check
+            if (newBallOn > 90) newDist = 100 - newBallOn;
         }
 
         if (newDown > 4) {
-            // Turnover on downs logic omitted for brevity, just reset
-            newDown = 1;
-            newDist = 10; 
-            // In real app, switch possession
+            // Turnover on downs
+            nextState.possession = prev.possession === 'HOME' ? 'AWAY' : 'HOME';
+            nextState.ballOn = 100 - newBallOn;
+            nextState.down = 1;
+            nextState.distance = 10;
+            return nextState;
         }
 
         return {
@@ -113,37 +180,52 @@ const MatchSim: React.FC = () => {
     });
   };
 
+  // Auto-simulate opponent turn
+  useEffect(() => {
+    if (gameState.possession === 'AWAY' && !isSimulating) {
+        const timer = setTimeout(() => {
+            const randomPlay = OFFENSIVE_PLAYS[Math.floor(Math.random() * (OFFENSIVE_PLAYS.length - 2))]; // No special teams for AI yet
+            handlePlayCall(randomPlay);
+        }, 2000);
+        return () => clearTimeout(timer);
+    }
+  }, [gameState.possession, isSimulating]);
+
   return (
     <div className="h-full flex flex-col bg-slate-950 relative overflow-hidden">
         {/* Top Scoreboard */}
         <div className="bg-slate-900 border-b border-slate-800 p-4 flex justify-between items-center shadow-2xl z-20">
             <div className="flex items-center gap-8">
                 <div className="text-center">
-                    <div className="text-3xl font-bold text-white header-font tracking-wider">HOU</div>
+                    <div className="text-3xl font-bold text-white header-font tracking-wider">{selectedTeamId}</div>
                     <div className="text-cyan-400 font-mono font-bold text-2xl">{gameState.homeScore}</div>
                 </div>
                 <div className="text-slate-600 font-bold text-xl">VS</div>
                 <div className="text-center">
-                    <div className="text-3xl font-bold text-slate-400 header-font tracking-wider">KC</div>
+                    <div className="text-3xl font-bold text-slate-400 header-font tracking-wider">{selectedTeamId === 'KC' ? 'BAL' : 'KC'}</div>
                     <div className="text-red-500 font-mono font-bold text-2xl">{gameState.awayScore}</div>
                 </div>
             </div>
 
             <div className="flex flex-col items-center">
                 <div className="bg-black border border-slate-700 px-6 py-2 rounded mb-1 text-amber-500 font-mono text-2xl font-bold shadow-[0_0_15px_rgba(245,158,11,0.2)]">
-                    {gameState.time}
+                    {formatTime(timeRemaining)}
                 </div>
-                <div className="text-xs text-slate-500 font-bold uppercase tracking-widest">Q{gameState.quarter} • Regular Season</div>
+                <div className="text-xs text-slate-500 font-bold uppercase tracking-widest">Q{gameState.quarter} • {gameState.possession === 'HOME' ? 'OFFENSE' : 'DEFENSE'}</div>
             </div>
 
             <div className="flex items-center gap-6 text-right">
                 <div>
                     <div className="text-xs text-slate-500 uppercase font-bold">Down & Dist</div>
-                    <div className="text-xl text-white font-mono font-bold">{gameState.down} & {gameState.distance}</div>
+                    <div className="text-xl text-white font-mono font-bold">
+                        {gameState.down === 1 ? '1st' : gameState.down === 2 ? '2nd' : gameState.down === 3 ? '3rd' : '4th'} & {gameState.distance <= 0 ? 'Goal' : gameState.distance}
+                    </div>
                 </div>
                 <div>
                     <div className="text-xs text-slate-500 uppercase font-bold">Ball On</div>
-                    <div className="text-xl text-white font-mono font-bold">OWN {gameState.ballOn}</div>
+                    <div className="text-xl text-white font-mono font-bold">
+                        {gameState.ballOn < 50 ? `Own ${gameState.ballOn}` : gameState.ballOn === 50 ? '50' : `Opp ${100 - gameState.ballOn}`}
+                    </div>
                 </div>
             </div>
         </div>
@@ -206,12 +288,20 @@ const MatchSim: React.FC = () => {
 
             {/* Play History Sidebar */}
             <div className="w-80 bg-slate-900 border-l border-slate-800 flex flex-col">
-                <div className="p-4 border-b border-slate-800 font-bold text-slate-400 text-xs uppercase tracking-widest">Drive Log</div>
+                <div className="p-4 border-b border-slate-800 font-bold text-slate-400 text-xs uppercase tracking-widest flex justify-between items-center">
+                    <span>Drive Log</span>
+                    {isSimulating && gameState.possession === 'AWAY' && (
+                        <span className="text-red-400 animate-pulse text-[10px]">Opponent Turn...</span>
+                    )}
+                </div>
                 <div className="flex-1 overflow-y-auto p-4 space-y-3" ref={scrollRef}>
                     {playHistory.map((play, idx) => (
-                        <div key={idx} className="bg-slate-950 p-3 rounded border border-slate-800 text-sm">
-                            <div className={`font-bold mb-1 ${play.yardage > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                {play.yardage > 0 ? `+${play.yardage}` : play.yardage} Yards
+                        <div key={idx} className={`p-3 rounded border text-sm ${play.isScore ? 'bg-emerald-900/20 border-emerald-500/30' : play.type === 'Turnover' ? 'bg-red-900/20 border-red-500/30' : 'bg-slate-950 border-slate-800'}`}>
+                            <div className="flex justify-between items-start mb-1">
+                                <span className={`font-bold ${play.yardage > 0 ? 'text-emerald-400' : play.yardage < 0 ? 'text-red-400' : 'text-slate-400'}`}>
+                                    {play.yardage > 0 ? `+${play.yardage}` : play.yardage} Yards
+                                </span>
+                                <span className="text-[10px] text-slate-500 uppercase font-bold">{play.type}</span>
                             </div>
                             <div className="text-slate-400 text-xs leading-relaxed">{play.description}</div>
                         </div>
@@ -234,17 +324,21 @@ const MatchSim: React.FC = () => {
                 </div>
             </div>
             
-            <div className="grid grid-cols-3 gap-4 h-full pb-8">
+            <div className="grid grid-cols-4 gap-4 h-full pb-8">
                 {OFFENSIVE_PLAYS.map((play) => (
                     <button 
                         key={play.id}
-                        disabled={isSimulating}
+                        disabled={isSimulating || gameState.possession === 'AWAY'}
                         onClick={() => handlePlayCall(play)}
                         className="bg-slate-950 border border-slate-700 hover:border-cyan-500 hover:bg-slate-800 p-4 rounded-lg text-left transition-all group relative overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         <div className="flex justify-between items-start mb-2">
                             <span className="font-bold text-white group-hover:text-cyan-400">{play.name}</span>
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${play.type === 'Pass' ? 'bg-cyan-900/30 text-cyan-400' : 'bg-emerald-900/30 text-emerald-400'}`}>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${
+                                play.type === 'Pass' ? 'bg-cyan-900/30 text-cyan-400' : 
+                                play.type === 'Run' ? 'bg-emerald-900/30 text-emerald-400' :
+                                'bg-purple-900/30 text-purple-400'
+                            }`}>
                                 {play.type}
                             </span>
                         </div>

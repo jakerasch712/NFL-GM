@@ -1,13 +1,16 @@
 import React from 'react';
-import { LayoutDashboard, Users, ClipboardList, Play, Briefcase, ShoppingBag, ArrowLeftRight, Shield, Zap, Microscope } from 'lucide-react';
+import { LayoutDashboard, Users, ClipboardList, Play, Briefcase, ShoppingBag, ArrowLeftRight, Shield, Zap, Microscope, LogOut } from 'lucide-react';
 import { AppView } from '../types';
+import { TEAMS_DB } from '../constants';
 
 interface NavigationProps {
   currentView: AppView;
   setView: (view: AppView) => void;
+  selectedTeamId: string;
 }
 
-const Navigation: React.FC<NavigationProps> = ({ currentView, setView }) => {
+const Navigation: React.FC<NavigationProps> = ({ currentView, setView, selectedTeamId }) => {
+  const team = TEAMS_DB[selectedTeamId];
   const navItems = [
     { id: AppView.DASHBOARD, label: 'HQ Dashboard', icon: LayoutDashboard },
     { id: AppView.ROSTER, label: 'Roster & Depth', icon: Users },
@@ -23,10 +26,12 @@ const Navigation: React.FC<NavigationProps> = ({ currentView, setView }) => {
   return (
     <div className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col h-full shrink-0 z-20">
       <div className="p-6 border-b border-slate-800 flex items-center gap-3">
-        <div className="w-8 h-8 bg-cyan-500 rounded-sm flex items-center justify-center font-bold text-slate-900">HC</div>
+        <div className="w-10 h-10 bg-cyan-500 rounded-lg flex items-center justify-center font-bold text-slate-900 shadow-lg shadow-cyan-500/20">
+          {selectedTeamId.substring(0, 2)}
+        </div>
         <div>
-            <h1 className="text-xl font-bold text-white tracking-wider header-font">HEAD COACH</h1>
-            <span className="text-xs text-cyan-500 font-mono tracking-widest">2026 EDITION</span>
+            <h1 className="text-lg font-bold text-white tracking-tight header-font uppercase leading-tight">{team.name}</h1>
+            <span className="text-[10px] text-cyan-500 font-mono tracking-widest uppercase">{team.city}</span>
         </div>
       </div>
       
@@ -62,6 +67,13 @@ const Navigation: React.FC<NavigationProps> = ({ currentView, setView }) => {
             <span>CAP SPACE</span>
             <span className="text-white">$14.2M</span>
         </div>
+        <button 
+          onClick={() => window.location.reload()} 
+          className="mt-6 w-full flex items-center justify-center gap-2 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 hover:text-red-400 transition-colors border border-slate-800 rounded-lg hover:border-red-500/30"
+        >
+          <LogOut size={12} />
+          Resign Position
+        </button>
       </div>
     </div>
   );

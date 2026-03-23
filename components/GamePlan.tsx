@@ -3,8 +3,12 @@ import { Shield, Zap, Target, AlertCircle, Activity, ChevronRight, Clipboard, Fl
 import { MOCK_PLAYERS } from '../constants';
 import { Player } from '../types';
 
-const GamePlan: React.FC = () => {
-  const [players] = useState<Player[]>(MOCK_PLAYERS.filter(p => p.teamId === 'HOU'));
+interface GamePlanProps {
+  selectedTeamId: string;
+}
+
+const GamePlan: React.FC<GamePlanProps> = ({ selectedTeamId }) => {
+  const [players] = useState<Player[]>(MOCK_PLAYERS.filter(p => p.teamId === selectedTeamId));
   const [focus, setFocus] = useState<'OFFENSE' | 'DEFENSE' | 'BALANCED'>('BALANCED');
   const [intensity, setIntensity] = useState(50);
 

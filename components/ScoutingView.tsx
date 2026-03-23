@@ -3,13 +3,14 @@ import { Search, Filter, Target, Microscope, BarChart3, ChevronRight, AlertCircl
 import { DraftProspect, Scout, Region, Position } from '../types';
 
 interface ScoutingViewProps {
+  selectedTeamId: string;
   prospects: DraftProspect[];
   setProspects: React.Dispatch<React.SetStateAction<DraftProspect[]>>;
   scouts: Scout[];
   setScouts: React.Dispatch<React.SetStateAction<Scout[]>>;
 }
 
-const ScoutingView: React.FC<ScoutingViewProps> = ({ prospects, setProspects, scouts, setScouts }) => {
+const ScoutingView: React.FC<ScoutingViewProps> = ({ selectedTeamId, prospects, setProspects, scouts, setScouts }) => {
   const [activeTab, setActiveTab] = useState<'prospects' | 'scouts' | 'assignments'>('prospects');
   const [selectedProspectId, setSelectedProspectId] = useState<string | null>(null);
 

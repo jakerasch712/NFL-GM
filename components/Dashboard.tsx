@@ -20,8 +20,11 @@ const getTeamData = (teamId: string) => {
   };
 };
 
-const Dashboard: React.FC = () => {
-  const [selectedTeamId, setSelectedTeamId] = useState('HOU');
+interface DashboardProps {
+  selectedTeamId: string;
+}
+
+const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId }) => {
   const team = getTeamData(selectedTeamId);
 
   const teamStats = [
@@ -40,19 +43,6 @@ const Dashboard: React.FC = () => {
           </p>
         </div>
         <div className="flex items-center gap-6">
-            <div className="relative group">
-                <select 
-                    value={selectedTeamId}
-                    onChange={(e) => setSelectedTeamId(e.target.value)}
-                    className="appearance-none bg-slate-900 border border-slate-700 hover:border-cyan-500 text-white pl-4 pr-10 py-2 rounded-lg font-bold uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-cyan-500/50 cursor-pointer transition-all shadow-lg"
-                >
-                    {Object.values(TEAMS_DB).map((t: any) => (
-                        <option key={t.id} value={t.id}>{t.city} {t.name}</option>
-                    ))}
-                </select>
-                <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none group-hover:text-cyan-500 transition-colors" />
-            </div>
-
             <div className="text-right border-l border-slate-700 pl-6">
                 <div className="text-xs text-slate-500 uppercase tracking-widest mb-1">Record</div>
                 <div className="text-2xl font-bold font-mono text-white">{team.record}</div>
