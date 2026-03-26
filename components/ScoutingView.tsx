@@ -13,8 +13,15 @@ interface ScoutingViewProps {
 const ScoutingView: React.FC<ScoutingViewProps> = ({ selectedTeamId, prospects, setProspects, scouts, setScouts }) => {
   const [activeTab, setActiveTab] = useState<'prospects' | 'scouts' | 'assignments'>('prospects');
   const [selectedProspectId, setSelectedProspectId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const selectedProspect = prospects.find(p => p.id === selectedProspectId);
+
+  const filteredProspects = prospects.filter(p =>
+    p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    p.position.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    p.school.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   const handleSimulateWeek = () => {
     // Advance scouting progress for all assigned scouts
@@ -84,6 +91,8 @@ const ScoutingView: React.FC<ScoutingViewProps> = ({ selectedTeamId, prospects, 
                   <input 
                     type="text" 
                     placeholder="Search prospects..." 
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
                     className="bg-slate-950 border border-slate-800 rounded-lg pl-10 pr-4 py-2 text-sm text-white focus:outline-none focus:border-cyan-500 transition-colors w-64"
                   />
                 </div>
@@ -100,7 +109,7 @@ const ScoutingView: React.FC<ScoutingViewProps> = ({ selectedTeamId, prospects, 
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/50">
-                    {prospects.map(prospect => (
+                    {filteredProspects.map(prospect => (
                       <tr 
                         key={prospect.id} 
                         onClick={() => setSelectedProspectId(prospect.id)}

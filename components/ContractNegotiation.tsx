@@ -110,11 +110,15 @@ const ContractNegotiation: React.FC<ContractNegotiationProps> = ({ player, onClo
                         <div className="absolute top-0 left-0 -ml-2 -mt-2 w-4 h-4 bg-cyan-500 rounded-full border-2 border-slate-950"></div>
                         {feedback ? (
                             <span className={dealStatus === 'ACCEPTED' ? 'text-emerald-400 font-bold' : 'text-amber-400'}>{feedback}</span>
+                        ) : player.contractDemand ? (
+                            <span>
+                                "{player.name} is looking for <span className="text-white font-bold">{player.contractDemand.interest}</span>. 
+                                We are seeking a <span className="text-white font-bold">{player.contractDemand.years} year</span> commitment around 
+                                <span className="text-white font-bold"> ${(player.contractDemand.salary * player.contractDemand.years + player.contractDemand.bonus).toFixed(1)}M</span> total value."
+                            </span>
                         ) : (
                             <span>
-                                "{player.name} is looking for <span className="text-white font-bold">{player.contractDemand?.interest}</span>. 
-                                We are seeking a <span className="text-white font-bold">{player.contractDemand?.years} year</span> commitment around 
-                                <span className="text-white font-bold"> ${(player.contractDemand!.salary * player.contractDemand!.years + player.contractDemand!.bonus).toFixed(1)}M</span> total value."
+                                "{player.name}'s representatives are ready to discuss an extension. Submit your offer to begin negotiations."
                             </span>
                         )}
                     </div>

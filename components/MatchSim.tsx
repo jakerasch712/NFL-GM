@@ -184,7 +184,8 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId }) => {
   useEffect(() => {
     if (gameState.possession === 'AWAY' && !isSimulating) {
         const timer = setTimeout(() => {
-            const randomPlay = OFFENSIVE_PLAYS[Math.floor(Math.random() * (OFFENSIVE_PLAYS.length - 2))]; // No special teams for AI yet
+            const nonSpecialPlays = OFFENSIVE_PLAYS.filter(p => p.type !== 'Special');
+            const randomPlay = nonSpecialPlays[Math.floor(Math.random() * nonSpecialPlays.length)];
             handlePlayCall(randomPlay);
         }, 2000);
         return () => clearTimeout(timer);
