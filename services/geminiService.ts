@@ -1,7 +1,11 @@
 import { GoogleGenAI, Type, ThinkingLevel } from "@google/genai";
 import { Player, Position, DraftProspect, DraftPick } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+const getAI = () => {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("GEMINI_API_KEY is not set. AI features require an API key.");
+  return new GoogleGenAI({ apiKey });
+};
 
 export const syncTeamRoster = async (teamName: string): Promise<Player[]> => {
   const prompt = `Fetch the current 2024/2025/2026 active roster for the ${teamName}. 
@@ -10,7 +14,7 @@ export const syncTeamRoster = async (teamName: string): Promise<Player[]> => {
   
   Only include key starters and notable players (around 10-15 players).`;
 
-  const response = await ai.models.generateContent({
+  const response = await getAI().models.generateContent({
     model: "gemini-3-flash-preview",
     contents: prompt,
     config: {
@@ -79,7 +83,7 @@ export const getDraftStrategy = async (
   Analyze the best path forward. Should they trade up, trade down, or stay put? Who are the top 3 targets? 
   Provide a detailed, professional reasoning. Use Markdown for formatting.`;
 
-  const response = await ai.models.generateContent({
+  const response = await getAI().models.generateContent({
     model: "gemini-3.1-pro-preview",
     contents: prompt,
     config: {
