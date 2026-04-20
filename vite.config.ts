@@ -19,6 +19,19 @@ export default defineConfig(({ mode }) => {
         alias: {
           '@': path.resolve(__dirname, '.'),
         }
-      }
+      },
+      build: {
+        rollupOptions: {
+          output: {
+            manualChunks: {
+              charts: ['recharts'],
+              ai: ['@google/genai'],
+              markdown: ['react-markdown'],
+              motion: ['motion'],
+              icons: ['lucide-react'],
+            },
+          },
+        },
+      },
     };
 });
