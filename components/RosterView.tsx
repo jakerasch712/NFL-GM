@@ -20,15 +20,8 @@ const RosterView: React.FC<RosterViewProps> = ({ selectedTeamId }) => {
   const [restructuringPlayerId, setRestructuringPlayerId] = useState<string | null>(null);
   const [releasingPlayerId, setReleasingPlayerId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'standard' | 'financial'>('standard');
-  const [searchTerm, setSearchTerm] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncSuccess, setSyncSuccess] = useState(false);
-
-  const filteredPlayers = players.filter(p =>
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.position.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.archetype.toLowerCase().includes(searchTerm.toLowerCase())
-  );
 
   const activeNegotiationPlayer = players.find(p => p.id === negotiatingPlayerId);
   const activeRestructurePlayer = players.find(p => p.id === restructuringPlayerId);
@@ -157,8 +150,6 @@ const RosterView: React.FC<RosterViewProps> = ({ selectedTeamId }) => {
               <input 
                 type="text" 
                 placeholder="Search players..." 
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
                 className="bg-slate-950 border border-slate-800 rounded-lg pl-10 pr-4 py-2 text-sm text-white focus:outline-none focus:border-cyan-500 transition-colors w-64"
               />
             </div>
@@ -212,7 +203,7 @@ const RosterView: React.FC<RosterViewProps> = ({ selectedTeamId }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/50">
-              {filteredPlayers.map(player => (
+              {players.map(player => (
                 <tr key={player.id} className="hover:bg-slate-800/30 transition-colors group">
                   <td className="p-4">
                     <div className="flex items-center gap-3">
