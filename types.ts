@@ -47,6 +47,8 @@ export interface PlayerStats {
   rating?: number;
 }
 
+export type PlayerPersonality = 'Gunslinger' | 'Mercenary' | 'Workhorse' | 'Ring Chaser' | 'The Diva' | 'Leader' | 'Normal';
+
 export interface Player {
   id: string;
   name: string;
@@ -57,6 +59,7 @@ export interface Player {
   morale: number; // 0-100
   fatigue: number; // 0-100 (100 is fresh)
   archetype: string;
+  personality: PlayerPersonality;
   scheme: string; // e.g., 'Zone', 'Power', 'Man', 'Cover 2'
   developmentTrait: 'Normal' | 'Star' | 'Superstar' | 'X-Factor';
   potential: 'Normal' | 'Star' | 'Superstar' | 'X-Factor';
@@ -75,11 +78,14 @@ export interface StaffTrait {
   };
 }
 
+export type CoachArchetype = 'The Architect' | 'The Mercenary' | 'The Conservative' | 'The Innovator';
+
 export interface Coach {
   id: string;
   name: string;
   role: 'HC' | 'OC' | 'DC' | 'ST';
   specialty: string;
+  archetype: CoachArchetype;
   traits: StaffTrait[];
   experience: number;
   scheme: string;
@@ -101,6 +107,26 @@ export interface GameEvent {
   yardage: number;
   isScore: boolean;
   type: 'Pass' | 'Run' | 'Turnover' | 'Special';
+}
+
+export enum LeaguePhase {
+  TRAINING_CAMP = 'TRAINING_CAMP',
+  PRESEASON = 'PRESEASON',
+  REGULAR_SEASON = 'REGULAR_SEASON',
+  PLAYOFFS = 'PLAYOFFS',
+  SUPER_BOWL = 'SUPER_BOWL',
+  OFFSEASON_FA = 'OFFSEASON_FA',
+  OFFSEASON_DRAFT = 'OFFSEASON_DRAFT'
+}
+
+export type DifficultyTier = 'Casual' | 'Simulation' | 'Hardcore';
+
+export interface LeagueState {
+  currentPhase: LeaguePhase;
+  week: number;
+  year: number;
+  salaryCap: number;
+  difficulty: DifficultyTier;
 }
 
 export enum AppView {

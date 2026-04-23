@@ -37,87 +37,87 @@ export const TEAMS_DB: Record<string, any> = {
 
 export const MOCK_PLAYERS: Player[] = [
   { 
-    id: '1', name: 'C. Stroud', position: Position.QB, age: 24, overall: 91, schemeOvr: 94, morale: 95, fatigue: 98, archetype: 'Field General', scheme: 'West Coast', developmentTrait: 'X-Factor', potential: 'X-Factor',
+    id: '1', name: 'C. Stroud', position: Position.QB, age: 24, overall: 91, schemeOvr: 94, morale: 95, fatigue: 98, archetype: 'Field General', personality: 'Leader', scheme: 'West Coast', developmentTrait: 'X-Factor', potential: 'X-Factor',
     stats: { gamesPlayed: 6, yards: 1850, touchdowns: 14, rating: 108.5 },
     contract: { years: 4, salary: 9.5, bonus: 24, guaranteed: 36, yearsLeft: 3, totalValue: 62, capHit: 12.5, deadCap: 18, voidYears: 0, startYear: 2024, totalLength: 4 },
     teamId: 'HOU'
   },
   { 
-    id: '2', name: 'J. Mixon', position: Position.RB, age: 29, overall: 84, schemeOvr: 82, morale: 88, fatigue: 82, archetype: 'Power Back', scheme: 'Zone', developmentTrait: 'Star', potential: 'Star',
+    id: '2', name: 'J. Mixon', position: Position.RB, age: 29, overall: 84, schemeOvr: 82, morale: 88, fatigue: 82, archetype: 'Power Back', personality: 'Workhorse', scheme: 'Zone', developmentTrait: 'Star', potential: 'Star',
     stats: { gamesPlayed: 6, yards: 520, touchdowns: 4 },
     contract: { years: 3, salary: 8.5, bonus: 6, guaranteed: 12, yearsLeft: 2, totalValue: 31.5, capHit: 10.5, deadCap: 4, voidYears: 0, startYear: 2024, totalLength: 3 },
     teamId: 'HOU'
   },
   { 
-    id: '3', name: 'N. Collins', position: Position.WR, age: 26, overall: 89, schemeOvr: 91, morale: 92, fatigue: 90, archetype: 'Deep Threat', scheme: 'Vertical', developmentTrait: 'Superstar', potential: 'Superstar',
+    id: '3', name: 'N. Collins', position: Position.WR, age: 26, overall: 89, schemeOvr: 91, morale: 92, fatigue: 90, archetype: 'Deep Threat', personality: 'Normal', scheme: 'Vertical', developmentTrait: 'Superstar', potential: 'Superstar',
     stats: { gamesPlayed: 6, yards: 680, touchdowns: 6 },
     contract: { years: 4, salary: 14, bonus: 10, guaranteed: 25, yearsLeft: 3, totalValue: 66, capHit: 16.5, deadCap: 8, voidYears: 0, startYear: 2024, totalLength: 4 },
     teamId: 'HOU'
   },
   { 
-    id: '4', name: 'T. Dell', position: Position.WR, age: 25, overall: 83, schemeOvr: 85, morale: 85, fatigue: 94, archetype: 'Slot Specialist', scheme: 'West Coast', developmentTrait: 'Star', potential: 'Superstar',
+    id: '4', name: 'T. Dell', position: Position.WR, age: 25, overall: 83, schemeOvr: 85, morale: 85, fatigue: 94, archetype: 'Slot Specialist', personality: 'Normal', scheme: 'West Coast', developmentTrait: 'Star', potential: 'Superstar',
     stats: { gamesPlayed: 5, yards: 410, touchdowns: 3 },
     contract: { years: 4, salary: 1.8, bonus: 2, guaranteed: 4, yearsLeft: 2, totalValue: 9.2, capHit: 2.3, deadCap: 1.5, voidYears: 0, startYear: 2024, totalLength: 4 },
     teamId: 'HOU'
   },
   { 
-    id: '5', name: 'W. Anderson Jr.', position: Position.DL, age: 24, overall: 94, schemeOvr: 96, morale: 96, fatigue: 91, archetype: 'Speed Rusher', scheme: '4-3 Under', developmentTrait: 'X-Factor', potential: 'X-Factor',
+    id: '5', name: 'W. Anderson Jr.', position: Position.DL, age: 24, overall: 94, schemeOvr: 96, morale: 96, fatigue: 91, archetype: 'Speed Rusher', personality: 'Leader', scheme: '4-3 Under', developmentTrait: 'X-Factor', potential: 'X-Factor',
     stats: { gamesPlayed: 6, sacks: 7.5, tackles: 24 },
     contract: { years: 4, salary: 8.8, bonus: 22, guaranteed: 34, yearsLeft: 3, totalValue: 57.2, capHit: 14.3, deadCap: 16, voidYears: 0, startYear: 2024, totalLength: 4 },
     teamId: 'HOU'
   },
   { 
-    id: '6', name: 'D. Stingley Jr.', position: Position.CB, age: 24, overall: 90, schemeOvr: 92, morale: 89, fatigue: 88, archetype: 'Man-to-Man', scheme: 'Press Man', developmentTrait: 'Superstar', potential: 'X-Factor',
+    id: '6', name: 'D. Stingley Jr.', position: Position.CB, age: 24, overall: 90, schemeOvr: 92, morale: 89, fatigue: 88, archetype: 'Man-to-Man', personality: 'Normal', scheme: 'Press Man', developmentTrait: 'Superstar', potential: 'X-Factor',
     stats: { gamesPlayed: 6, interceptions: 3, tackles: 18 },
     contract: { years: 4, salary: 9, bonus: 20, guaranteed: 30, yearsLeft: 1, totalValue: 56, capHit: 14, deadCap: 5, voidYears: 0, startYear: 2024, totalLength: 4 },
     teamId: 'HOU'
   },
   { 
-    id: '7', name: 'L. Tunsil', position: Position.OL, age: 31, overall: 92, schemeOvr: 92, morale: 90, fatigue: 85, archetype: 'Pass Protector', scheme: 'Zone', developmentTrait: 'Star', potential: 'Star',
+    id: '7', name: 'L. Tunsil', position: Position.OL, age: 31, overall: 92, schemeOvr: 92, morale: 90, fatigue: 85, archetype: 'Pass Protector', personality: 'Normal', scheme: 'Zone', developmentTrait: 'Star', potential: 'Star',
     stats: { gamesPlayed: 6, sacks: 1 },
     contract: { years: 3, salary: 25, bonus: 15, guaranteed: 45, yearsLeft: 0, totalValue: 90, capHit: 30, deadCap: 10, voidYears: 0, startYear: 2023, totalLength: 3 },
     contractDemand: { years: 3, salary: 26.5, bonus: 18, interest: 'Security', marketValue: 28 },
     teamId: 'HOU'
   },
   {
-    id: 'kc1', name: 'P. Mahomes', position: Position.QB, age: 30, overall: 99, schemeOvr: 99, morale: 98, fatigue: 95, archetype: 'Improviser', scheme: 'West Coast', developmentTrait: 'X-Factor', potential: 'X-Factor',
+    id: 'kc1', name: 'P. Mahomes', position: Position.QB, age: 30, overall: 99, schemeOvr: 99, morale: 98, fatigue: 95, archetype: 'Improviser', personality: 'Gunslinger', scheme: 'West Coast', developmentTrait: 'X-Factor', potential: 'X-Factor',
     stats: { gamesPlayed: 6, yards: 1950, touchdowns: 18 },
     contract: { years: 10, salary: 45, bonus: 60, guaranteed: 140, yearsLeft: 8, totalValue: 450, capHit: 48, deadCap: 80, voidYears: 0, startYear: 2022, totalLength: 10 },
     teamId: 'KC'
   },
   {
-    id: 'sf1', name: 'C. McCaffrey', position: Position.RB, age: 29, overall: 98, schemeOvr: 99, morale: 94, fatigue: 85, archetype: 'Receiving Back', scheme: 'Zone', developmentTrait: 'X-Factor', potential: 'X-Factor',
+    id: 'sf1', name: 'C. McCaffrey', position: Position.RB, age: 29, overall: 98, schemeOvr: 99, morale: 94, fatigue: 85, archetype: 'Receiving Back', personality: 'Ring Chaser', scheme: 'Zone', developmentTrait: 'X-Factor', potential: 'X-Factor',
     stats: { gamesPlayed: 6, yards: 850, touchdowns: 9 },
     contract: { years: 4, salary: 16, bonus: 12, guaranteed: 24, yearsLeft: 2, totalValue: 64, capHit: 19, deadCap: 12, voidYears: 0, startYear: 2023, totalLength: 4 },
     teamId: 'SF'
   },
   {
-    id: 'bal1', name: 'L. Jackson', position: Position.QB, age: 29, overall: 97, schemeOvr: 95, morale: 96, fatigue: 92, archetype: 'Scrambler', scheme: 'Spread', developmentTrait: 'X-Factor', potential: 'X-Factor',
+    id: 'bal1', name: 'L. Jackson', position: Position.QB, age: 29, overall: 97, schemeOvr: 95, morale: 96, fatigue: 92, archetype: 'Scrambler', personality: 'Leader', scheme: 'Spread', developmentTrait: 'X-Factor', potential: 'X-Factor',
     stats: { gamesPlayed: 7, yards: 1650, touchdowns: 12 },
     contract: { years: 5, salary: 52, bonus: 72, guaranteed: 185, yearsLeft: 4, totalValue: 260, capHit: 55, deadCap: 120, voidYears: 0, startYear: 2023, totalLength: 5 },
     teamId: 'BAL'
   },
   {
-    id: 'phi1', name: 'A.J. Brown', position: Position.WR, age: 28, overall: 95, schemeOvr: 93, morale: 92, fatigue: 90, archetype: 'Physical Receiver', scheme: 'Vertical', developmentTrait: 'Superstar', potential: 'Superstar',
+    id: 'phi1', name: 'A.J. Brown', position: Position.WR, age: 28, overall: 95, schemeOvr: 93, morale: 92, fatigue: 90, archetype: 'Physical Receiver', personality: 'Mercenary', scheme: 'Vertical', developmentTrait: 'Superstar', potential: 'Superstar',
     stats: { gamesPlayed: 6, yards: 720, touchdowns: 5 },
     contract: { years: 4, salary: 25, bonus: 20, guaranteed: 50, yearsLeft: 3, totalValue: 100, capHit: 28, deadCap: 35, voidYears: 0, startYear: 2023, totalLength: 4 },
     teamId: 'PHI'
   },
   {
-    id: 'det1', name: 'A. St. Brown', position: Position.WR, age: 26, overall: 94, schemeOvr: 96, morale: 95, fatigue: 94, archetype: 'Slot Specialist', scheme: 'West Coast', developmentTrait: 'Superstar', potential: 'Superstar',
+    id: 'det1', name: 'A. St. Brown', position: Position.WR, age: 26, overall: 94, schemeOvr: 96, morale: 95, fatigue: 94, archetype: 'Slot Specialist', personality: 'Workhorse', scheme: 'West Coast', developmentTrait: 'Superstar', potential: 'Superstar',
     stats: { gamesPlayed: 6, yards: 680, touchdowns: 6 },
     contract: { years: 4, salary: 28, bonus: 24, guaranteed: 60, yearsLeft: 4, totalValue: 112, capHit: 32, deadCap: 45, voidYears: 0, startYear: 2024, totalLength: 4 },
     teamId: 'DET'
   },
   {
-    id: 'fa1', name: 'Stefon Diggs', position: Position.WR, age: 32, overall: 88, schemeOvr: 88, morale: 75, fatigue: 100, archetype: 'Route Runner', scheme: 'Vertical', developmentTrait: 'Superstar', potential: 'Star',
+    id: 'fa1', name: 'Stefon Diggs', position: Position.WR, age: 32, overall: 88, schemeOvr: 88, morale: 75, fatigue: 100, archetype: 'Route Runner', personality: 'The Diva', scheme: 'Vertical', developmentTrait: 'Superstar', potential: 'Star',
     stats: { gamesPlayed: 17, yards: 1180, touchdowns: 8 },
     contract: { years: 1, salary: 18, bonus: 0, guaranteed: 0, yearsLeft: 0, totalValue: 18, capHit: 18, deadCap: 0, voidYears: 0, startYear: 2025, totalLength: 1 },
     contractDemand: { years: 2, salary: 16, bonus: 10, interest: 'Money', marketValue: 19 },
     teamId: 'FA'
   },
   {
-    id: 'fa2', name: 'Saquon Barkley', position: Position.RB, age: 29, overall: 90, schemeOvr: 92, morale: 80, fatigue: 100, archetype: 'Elusive Back', scheme: 'Zone', developmentTrait: 'Superstar', potential: 'Superstar',
+    id: 'fa2', name: 'Saquon Barkley', position: Position.RB, age: 29, overall: 90, schemeOvr: 92, morale: 80, fatigue: 100, archetype: 'Elusive Back', personality: 'Workhorse', scheme: 'Zone', developmentTrait: 'Superstar', potential: 'Superstar',
     stats: { gamesPlayed: 14, yards: 1200, touchdowns: 10 },
     contract: { years: 1, salary: 12, bonus: 0, guaranteed: 0, yearsLeft: 0, totalValue: 12, capHit: 12, deadCap: 0, voidYears: 0, startYear: 2025, totalLength: 1 },
     contractDemand: { years: 3, salary: 13, bonus: 15, interest: 'Security', marketValue: 14 },
@@ -127,13 +127,13 @@ export const MOCK_PLAYERS: Player[] = [
 
 export const MOCK_COACHES: Coach[] = [
   {
-    id: 'c1', name: 'DeMeco Ryans', role: 'HC', specialty: 'Defense', experience: 3, scheme: '4-3 Under', teamId: 'HOU',
+    id: 'c1', name: 'DeMeco Ryans', role: 'HC', specialty: 'Defense', archetype: 'The Mercenary', experience: 3, scheme: '4-3 Under', teamId: 'HOU',
     traits: [
       { name: 'Leader of Men', description: 'Boosts morale for the entire team', bonus: { stat: 'overall', value: 1 } }
     ]
   },
   {
-    id: 'c2', name: 'Bobby Slowik', role: 'OC', specialty: 'Passing', experience: 2, scheme: 'West Coast', teamId: 'HOU',
+    id: 'c2', name: 'Bobby Slowik', role: 'OC', specialty: 'Passing', archetype: 'The Innovator', experience: 2, scheme: 'West Coast', teamId: 'HOU',
     traits: [
       { name: 'QB Whisperer', description: 'Boosts QB accuracy and rating', bonus: { stat: 'rating', value: 5 } }
     ]

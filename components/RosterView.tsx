@@ -3,8 +3,9 @@ import { TEAMS_DB, MOCK_PLAYERS } from '../constants';
 import { Shield, TrendingUp, Battery, AlertCircle, Briefcase, Search, Filter, UserMinus, DollarSign, RefreshCw, CheckCircle2, Loader2 } from 'lucide-react';
 import ContractNegotiation from './ContractNegotiation';
 import { RestructureModal, ReleasePlayerModal } from './CapModals';
-import { Player } from '../types';
+import { Player, Position } from '../types';
 import { syncTeamRoster } from '../services/geminiService';
+import { getTeamCapSpace, restructureContract } from '../services/financeService';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface RosterViewProps {
@@ -16,6 +17,9 @@ const RosterView: React.FC<RosterViewProps> = ({ selectedTeamId }) => {
   const team = TEAMS_DB[selectedTeamId];
   const [capSpace, setCapSpace] = useState(14.2);
   const [deadCap, setDeadCap] = useState(12.8);
+  
+  // Real Cap Calculation using Finance Service
+  const realCapSpace = getTeamCapSpace(players, 255.4);
   const [negotiatingPlayerId, setNegotiatingPlayerId] = useState<string | null>(null);
   const [restructuringPlayerId, setRestructuringPlayerId] = useState<string | null>(null);
   const [releasingPlayerId, setReleasingPlayerId] = useState<string | null>(null);
@@ -132,8 +136,8 @@ const RosterView: React.FC<RosterViewProps> = ({ selectedTeamId }) => {
             {isSyncing ? 'Syncing...' : syncSuccess ? 'Roster Updated' : 'Sync Real Roster'}
           </button>
           <div className="bg-slate-900/50 border border-slate-800 p-4 rounded-xl min-w-[160px] backdrop-blur-sm">
-            <div className="text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-1">Cap Space</div>
-            <div className="text-2xl font-mono font-bold text-emerald-400">${capSpace.toFixed(1)}M</div>
+            <div className="text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-1">Cap Space (Top 51)</div>
+            <div className="text-2xl font-mono font-bold text-emerald-400">${realCapSpace.toFixed(1)}M</div>
           </div>
           <div className="bg-slate-900/50 border border-slate-800 p-4 rounded-xl min-w-[160px] backdrop-blur-sm">
             <div className="text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-1">Dead Cap</div>
@@ -214,8 +218,11 @@ const RosterView: React.FC<RosterViewProps> = ({ selectedTeamId }) => {
                         />
                       </div>
                       <div>
-                        <div className="font-bold text-white group-hover:text-cyan-400 transition-colors">{player.name}</div>
-                        <div className="text-[10px] text-slate-500 uppercase tracking-tighter mt-0.5">{player.archetype} • {player.age}y</div>
+                        <div className="font-bold text-white group-hover:text-cyan-400 transition-colors uppercase tracking-tight">{player.name}</div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[10px] text-slate-500 uppercase tracking-tighter">{player.archetype} • {player.age}y</span>
+                          <span className="text-[9px] px-1 bg-slate-800 text-slate-400 rounded-sm font-bold border border-slate-700/50 uppercase">{player.personality}</span>
+                        </div>
                       </div>
                     </div>
                   </td>
