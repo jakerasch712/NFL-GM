@@ -3,31 +3,58 @@ import { Calendar, TrendingUp, AlertCircle, Activity, Trophy, ChevronDown, MapPi
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { TEAMS_DB, MOCK_PLAYERS } from '../constants';
 import { LeaguePhase } from '../types';
+import { SCHEDULE_2027 } from '../schedule';
 
-// Helper to get next opponent and standings (mocked for brevity in this step)
-const getTeamData = (teamId: string) => {
-  const team = TEAMS_DB[teamId];
-  const divisionTeams = Object.values(TEAMS_DB).filter((t: any) => t.division === team.division);
-  
-  return {
-    ...team,
-    nextOpp: { name: 'OPPONENT', code: 'OPP', record: '0-0', threat: 'MEDIUM', winProb: 50.0, location: 'Stadium', date: 'Sunday' },
-    standings: divisionTeams.map((t: any) => ({
-      team: t.id,
-      w: parseInt(t.record.split('-')[0]),
-      l: parseInt(t.record.split('-')[1]),
-      diff: '+0'
-    })).sort((a, b) => b.w - a.w)
-  };
-};
+// Helper to get next opponent and standings
+// Moved inside component to use dynamic teams
 
 interface DashboardProps {
   selectedTeamId: string;
   leaguePhase: LeaguePhase;
+  currentWeek: number;
+  teams: Record<string, any>;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase }) => {
-  const team = getTeamData(selectedTeamId);
+const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase, currentWeek, teams }) => {
+  const getTeamData = (teamId: string, currentWeek: number) => {
+    const team = teams[teamId] || TEAMS_DB[teamId];
+    const divisionTeams = Object.values(teams).filter((t: any) => t.division === team.division);
+    
+    // Find next match
+    const nextMatch = SCHEDULE_2027.find(m => 
+      m.week >= currentWeek && (m.homeTeamId === teamId || m.awayTeamId === teamId)
+    );
+
+    let nextOpp: any = { name: 'BYE WEEK', code: 'BYE', record: '-', threat: 'NONE', winProb: 0, location: '-', date: '-', logo: '' };
+    
+    if (nextMatch) {
+      const oppId = nextMatch.homeTeamId === teamId ? nextMatch.awayTeamId : nextMatch.homeTeamId;
+      const opp = teams[oppId] || TEAMS_DB[oppId];
+      nextOpp = {
+        name: `${opp.city} ${opp.name}`,
+        code: opp.id,
+        record: opp.record,
+        threat: opp.stats.off > 85 ? 'EXTREME' : opp.stats.off > 78 ? 'HIGH' : 'MEDIUM',
+        winProb: Math.round(50 + (team.stats.off - opp.stats.def) / 2),
+        location: nextMatch.homeTeamId === teamId ? 'Home' : 'Away',
+        date: 'Sunday',
+        logo: opp.logo
+      };
+    }
+    
+    return {
+      ...team,
+      nextOpp,
+      standings: divisionTeams.map((t: any) => ({
+        team: t.id,
+        w: parseInt(t.record.split('-')[0]),
+        l: parseInt(t.record.split('-')[1]),
+        diff: '+0'
+      })).sort((a, b) => b.w - a.w)
+    };
+  };
+
+  const team = getTeamData(selectedTeamId, currentWeek);
   
   const getAdvisorTip = () => {
     switch(leaguePhase) {
@@ -94,11 +121,21 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase }) =>
             <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-cyan-500/50"></div>
 
             <div className="flex justify-between items-start relative z-10">
-                <div>
-                    <span className="text-[10px] font-bold text-cyan-500 tracking-[0.4em] uppercase mb-4 block">TERMINAL::UPCOMING_ENGAGEMENT</span>
-                    <h3 className="text-5xl font-bold text-white header-font mb-2 tracking-tighter">{team.nextOpp.name}</h3>
-                    <div className="text-slate-500 font-mono text-xs flex items-center gap-3 tracking-widest uppercase">
-                        <MapPin size={14} className="text-cyan-500" /> {team.nextOpp.location} // {team.nextOpp.date}
+                <div className="flex gap-6 items-center">
+                    <div className="w-20 h-20 bg-[#05070a] border border-[#1a222e] flex items-center justify-center shadow-2xl relative overflow-hidden">
+                        {team.nextOpp.logo ? (
+                            <img src={team.nextOpp.logo} alt={team.nextOpp.name} className="w-16 h-16 object-contain" referrerPolicy="no-referrer" />
+                        ) : (
+                            <Activity size={32} className="text-slate-700" />
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-tr from-cyan-500/5 to-transparent"></div>
+                    </div>
+                    <div>
+                        <span className="text-[10px] font-bold text-cyan-500 tracking-[0.4em] uppercase mb-2 block">TERMINAL::UPCOMING_ENGAGEMENT</span>
+                        <h3 className="text-5xl font-bold text-white header-font mb-2 tracking-tighter">{team.nextOpp.name}</h3>
+                        <div className="text-slate-500 font-mono text-xs flex items-center gap-3 tracking-widest uppercase">
+                            <MapPin size={14} className="text-cyan-500" /> {team.nextOpp.location} // {team.nextOpp.date}
+                        </div>
                     </div>
                 </div>
                 <div className="text-right">
@@ -166,14 +203,22 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase }) =>
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-[#1a222e]/30">
-                    {team.standings.map((row: any, i: number) => (
-                        <tr key={row.team} className={`hover:bg-cyan-500/5 transition-colors ${row.team === team.id ? 'bg-cyan-500/10 border-l-2 border-l-cyan-500' : ''}`}>
-                            <td className={`px-6 py-4 font-bold tracking-tight ${row.team === team.id ? 'text-cyan-400' : 'text-slate-200'}`}>{row.team}</td>
-                            <td className="px-4 py-4 text-center text-slate-400">{row.w}</td>
-                            <td className="px-4 py-4 text-center text-slate-400">{row.l}</td>
-                            <td className={`px-6 py-4 text-right font-mono ${row.diff.startsWith('+') ? 'text-emerald-500' : 'text-red-500'}`}>{row.diff}</td>
-                        </tr>
-                    ))}
+                    {team.standings.map((row: any, i: number) => {
+                        const standingTeam = TEAMS_DB[row.team];
+                        return (
+                            <tr key={row.team} className={`hover:bg-cyan-500/5 transition-colors ${row.team === team.id ? 'bg-cyan-500/10 border-l-2 border-l-cyan-500' : ''}`}>
+                                <td className="px-6 py-4 flex items-center gap-3">
+                                    <div className="w-6 h-6 flex-shrink-0 bg-[#05070a] border border-[#1a222e] p-0.5">
+                                        <img src={standingTeam.logo} alt={standingTeam.id} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+                                    </div>
+                                    <span className={`font-bold tracking-tight ${row.team === team.id ? 'text-cyan-400' : 'text-slate-200'}`}>{row.team}</span>
+                                </td>
+                                <td className="px-4 py-4 text-center text-slate-400">{row.w}</td>
+                                <td className="px-4 py-4 text-center text-slate-400">{row.l}</td>
+                                <td className={`px-6 py-4 text-right font-mono ${row.diff.startsWith('+') ? 'text-emerald-500' : 'text-red-500'}`}>{row.diff}</td>
+                            </tr>
+                        );
+                    })}
                 </tbody>
             </table>
         </div>

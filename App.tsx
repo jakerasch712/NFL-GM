@@ -10,12 +10,54 @@ import DraftRoom from './components/DraftRoom';
 import StaffView from './components/StaffView';
 import ScoutingView from './components/ScoutingView';
 import TeamSelection from './components/TeamSelection';
-import { AppView, DraftProspect, DraftPick, Scout, LeagueState, LeaguePhase } from './types';
-import { DRAFT_CLASS, INITIAL_PICKS, MOCK_SCOUTS, TEAMS_DB, MOCK_PLAYERS } from './constants';
+import { AppView, DraftProspect, DraftPick, Scout, LeagueState, LeaguePhase, Player, Coach } from './types';
+import { DRAFT_CLASS, INITIAL_PICKS, MOCK_SCOUTS, TEAMS_DB, MOCK_PLAYERS, MOCK_COACHES } from './constants';
+import { nflverseService } from './services/nflverseService';
+import { SCHEDULE_2027 } from './schedule';
 
 const App: React.FC = () => {
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   const [currentView, setCurrentView] = useState<AppView>(AppView.DASHBOARD);
+  const [teams, setTeams] = useState<Record<string, any>>(TEAMS_DB);
+  const [allPlayers, setAllPlayers] = useState<Player[]>(MOCK_PLAYERS);
+  const [coaches, setCoaches] = useState<Coach[]>(MOCK_COACHES);
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    const initData = async () => {
+      setLoading(true);
+      const [nflTeams, nflPlayers] = await Promise.all([
+        nflverseService.fetchTeams(),
+        nflverseService.fetchRosters(2024) // Using 2024 as robust recent year
+      ]);
+      
+      if (nflTeams.length > 0) {
+        setTeams(prev => {
+          const newTeams = { ...prev };
+          nflTeams.forEach(nt => {
+            if (newTeams[nt.team_abbr]) {
+              newTeams[nt.team_abbr] = {
+                ...newTeams[nt.team_abbr],
+                name: nt.team_nick,
+                city: nt.team_name.replace(nt.team_nick, '').trim(),
+                logo: nt.team_logo_espn || nt.team_logo_wikipedia,
+                primaryColor: nt.team_color,
+                secondaryColor: nt.team_color2
+              };
+            }
+          });
+          return newTeams;
+        });
+      }
+
+      if (nflPlayers.length > 0) {
+        setAllPlayers(nflPlayers);
+      }
+
+      setLoading(false);
+    };
+    initData();
+  }, []);
   
   // Global State
   const [prospects, setProspects] = useState<DraftProspect[]>(DRAFT_CLASS);
@@ -25,7 +67,7 @@ const App: React.FC = () => {
   const [leagueState, setLeagueState] = useState<LeagueState>({
     currentPhase: LeaguePhase.REGULAR_SEASON,
     week: 1,
-    year: 2026,
+    year: 2027,
     salaryCap: 255.4,
     difficulty: 'Simulation'
   });
@@ -41,22 +83,22 @@ const App: React.FC = () => {
 
   const renderView = () => {
     if (!selectedTeamId) {
-      return <TeamSelection onSelect={setSelectedTeamId} />;
+      return <TeamSelection onSelect={setSelectedTeamId} teams={teams} />;
     }
 
     switch (currentView) {
       case AppView.DASHBOARD:
-        return <Dashboard selectedTeamId={selectedTeamId} leaguePhase={leagueState.currentPhase} />;
+        return <Dashboard selectedTeamId={selectedTeamId} leaguePhase={leagueState.currentPhase} currentWeek={leagueState.week} teams={teams} />;
       case AppView.ROSTER:
-        return <RosterView selectedTeamId={selectedTeamId} />;
+        return <RosterView selectedTeamId={selectedTeamId} allPlayers={allPlayers} setAllPlayers={setAllPlayers} teams={teams} />;
       case AppView.FREE_AGENCY:
-        return <FreeAgency selectedTeamId={selectedTeamId} />;
+        return <FreeAgency selectedTeamId={selectedTeamId} allPlayers={allPlayers} setAllPlayers={setAllPlayers} />;
       case AppView.TRADE_CENTER:
-        return <TradeCenter selectedTeamId={selectedTeamId} />;
+        return <TradeCenter selectedTeamId={selectedTeamId} allPlayers={allPlayers} teams={teams} />;
       case AppView.GAMEPLAN:
-        return <GamePlan selectedTeamId={selectedTeamId} />;
+        return <GamePlan selectedTeamId={selectedTeamId} currentWeek={leagueState.week} allPlayers={allPlayers} teams={teams} />;
       case AppView.MATCH:
-        return <MatchSim selectedTeamId={selectedTeamId} />;
+        return <MatchSim selectedTeamId={selectedTeamId} allPlayers={allPlayers} teams={teams} />;
       case AppView.DRAFT:
         return (
           <DraftRoom 
@@ -65,10 +107,11 @@ const App: React.FC = () => {
             setProspects={setProspects} 
             picks={picks} 
             setPicks={setPicks} 
+            teams={teams}
           />
         );
       case AppView.STAFF:
-        return <StaffView selectedTeamId={selectedTeamId} />;
+        return <StaffView selectedTeamId={selectedTeamId} coaches={coaches} setCoaches={setCoaches} teams={teams} />;
       case AppView.SCOUTING:
         return (
           <ScoutingView 
@@ -80,7 +123,7 @@ const App: React.FC = () => {
           />
         );
       default:
-        return <Dashboard selectedTeamId={selectedTeamId} leaguePhase={leagueState.currentPhase} />;
+        return <Dashboard selectedTeamId={selectedTeamId} leaguePhase={leagueState.currentPhase} currentWeek={leagueState.week} teams={teams} />;
     }
   };
 
@@ -90,7 +133,7 @@ const App: React.FC = () => {
       <div className="absolute inset-0 grid-lines opacity-20 pointer-events-none"></div>
       <div className="scan-line"></div>
 
-      {selectedTeamId && <Navigation currentView={currentView} setView={setCurrentView} selectedTeamId={selectedTeamId} />}
+      {selectedTeamId && <Navigation currentView={currentView} setView={setCurrentView} selectedTeamId={selectedTeamId} teams={teams} />}
       <main className="flex-1 relative overflow-hidden flex flex-col z-10">
         {/* League Status Bar */}
         {selectedTeamId && (

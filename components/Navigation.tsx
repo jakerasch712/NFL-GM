@@ -7,10 +7,11 @@ interface NavigationProps {
   currentView: AppView;
   setView: (view: AppView) => void;
   selectedTeamId: string;
+  teams: Record<string, any>;
 }
 
-const Navigation: React.FC<NavigationProps> = ({ currentView, setView, selectedTeamId }) => {
-  const team = TEAMS_DB[selectedTeamId];
+const Navigation: React.FC<NavigationProps> = ({ currentView, setView, selectedTeamId, teams }) => {
+  const team = teams[selectedTeamId] || TEAMS_DB[selectedTeamId];
   const navItems = [
     { id: AppView.DASHBOARD, label: 'HQ Dashboard', icon: LayoutDashboard },
     { id: AppView.ROSTER, label: 'Roster & Depth', icon: Users },
@@ -26,8 +27,8 @@ const Navigation: React.FC<NavigationProps> = ({ currentView, setView, selectedT
   return (
     <div className="w-64 bg-[#0a0e14] border-r border-[#1a222e] flex flex-col h-full shrink-0 z-20">
       <div className="p-6 border-b border-[#1a222e] flex items-center gap-3 bg-[#0d121a]/50">
-        <div className="w-10 h-10 bg-cyan-500 rounded-sm flex items-center justify-center font-bold text-slate-900 shadow-[0_0_15px_rgba(0,209,255,0.3)]">
-          {selectedTeamId.substring(0, 2)}
+        <div className="w-12 h-12 bg-[#05070a] border border-[#1a222e] flex items-center justify-center shadow-[0_0_15px_rgba(0,0,0,0.5)] overflow-hidden">
+          <img src={team.logo} alt={team.name} className="w-10 h-10 object-contain" referrerPolicy="no-referrer" />
         </div>
         <div>
             <h1 className="text-xl font-bold text-white tracking-widest header-font uppercase leading-tight italic">{team.name}</h1>

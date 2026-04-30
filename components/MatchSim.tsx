@@ -1,14 +1,27 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { OFFENSIVE_PLAYS, TEAMS_DB, MOCK_PLAYERS } from '../constants';
+import { SCHEDULE_2027 } from '../schedule';
 import { Play, GameEvent, Player, Position } from '../types';
 import { Play as PlayIcon, Clock, ShieldAlert, Wind, ChevronUp, CloudRain, Sun, Zap, Activity } from 'lucide-react';
 
 interface MatchSimProps {
   selectedTeamId: string;
+  allPlayers: Player[];
+  teams: Record<string, any>;
 }
 
-const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId }) => {
-  const opponentTeamId = selectedTeamId === 'HOU' ? 'KC' : 'HOU';
+const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, teams }) => {
+  const [opponentTeamId, setOpponentTeamId] = useState<string>('');
+
+  useEffect(() => {
+    // Find next opponent from schedule or default
+    const nextMatch = SCHEDULE_2027.find(m => m.homeTeamId === selectedTeamId || m.awayTeamId === selectedTeamId);
+    if (nextMatch) {
+      setOpponentTeamId(nextMatch.homeTeamId === selectedTeamId ? nextMatch.awayTeamId : nextMatch.homeTeamId);
+    } else {
+      setOpponentTeamId(Object.keys(teams).find(id => id !== selectedTeamId) || 'KC');
+    }
+  }, [selectedTeamId, teams]);
   
   const [gameState, setGameState] = useState({
     down: 1,
@@ -47,7 +60,7 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId }) => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const getTeamRoster = (teamId: string) => MOCK_PLAYERS.filter(p => p.teamId === teamId);
+  const getTeamRoster = (teamId: string) => allPlayers.filter(p => p.teamId === teamId);
 
   const calculateOutcome = (play: Play): GameEvent => {
     const isUserOffense = gameState.possession === 'HOME';
@@ -259,7 +272,7 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId }) => {
                 </div>
                 <div className="text-[#1a222e] font-bold text-2xl mono-font tracking-widest">VS</div>
                 <div className="text-center">
-                    <div className="text-4xl font-bold text-slate-600 header-font tracking-tighter uppercase italic opacity-80">{selectedTeamId === 'KC' ? 'BAL' : 'KC'}</div>
+                    <div className="text-4xl font-bold text-slate-600 header-font tracking-tighter uppercase italic opacity-80">{opponentTeamId}</div>
                     <div className="text-red-500 font-mono font-bold text-3xl mt-1 tracking-widest">{gameState.awayScore}</div>
                 </div>
             </div>

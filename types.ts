@@ -69,6 +69,33 @@ export interface Player {
   teamId: string;
 }
 
+export interface Team {
+  id: string;
+  city: string;
+  name: string;
+  record: string;
+  division: string;
+  stats: {
+    off: number;
+    def: number;
+    st: number;
+  };
+  logo: string;
+  primaryColor?: string;
+  secondaryColor?: string;
+}
+
+export interface ScheduleMatch {
+  week: number;
+  homeTeamId: string;
+  awayTeamId: string;
+  isCompleted: boolean;
+  score?: {
+    home: number;
+    away: number;
+  };
+}
+
 export interface StaffTrait {
   name: string;
   description: string;
