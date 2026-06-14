@@ -1,17 +1,67 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { OFFENSIVE_PLAYS, TEAMS_DB, MOCK_PLAYERS } from '../constants';
 import { SCHEDULE_2027 } from '../schedule';
-import { Play, GameEvent, Player, Position } from '../types';
-import { Play as PlayIcon, Clock, ShieldAlert, Wind, ChevronUp, CloudRain, Sun, Zap, Activity } from 'lucide-react';
+import { Play, GameEvent, Player, Position, AppView } from '../types';
+import { Play as PlayIcon, Clock, ShieldAlert, Wind, ChevronUp, CloudRain, Sun, Zap, Activity, Trophy, BarChart2, Award, ListFilter, RotateCcw } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface MatchSimProps {
   selectedTeamId: string;
   allPlayers: Player[];
+  setAllPlayers: React.Dispatch<React.SetStateAction<Player[]>>;
   teams: Record<string, any>;
+  setTeams: React.Dispatch<React.SetStateAction<Record<string, any>>>;
+  setView: (view: AppView) => void;
 }
 
-const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, teams }) => {
+interface ScoringEvent {
+  quarter: number;
+  timeLeft: string;
+  teamId: string;
+  type: 'TD' | 'FG';
+  description: string;
+  score: {
+    home: number;
+    away: number;
+  };
+}
+
+const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllPlayers, teams, setTeams, setView }) => {
   const [opponentTeamId, setOpponentTeamId] = useState<string>('');
+  const [isGameOver, setIsGameOver] = useState(false);
+  const [scoringSummary, setScoringSummary] = useState<ScoringEvent[]>([]);
+
+  // Detailed Match Statistics State
+  const [matchStats, setMatchStats] = useState({
+    home: {
+      passYds: 0,
+      rushYds: 0,
+      passTds: 0,
+      rushTds: 0,
+      passAtt: 0,
+      passComp: 0,
+      rushAtt: 0,
+      intsThrown: 0,
+      fumblesLost: 0,
+      sacksAllowed: 0,
+      fgMade: 0,
+      fgAtt: 0,
+    },
+    away: {
+      passYds: 0,
+      rushYds: 0,
+      passTds: 0,
+      rushTds: 0,
+      passAtt: 0,
+      passComp: 0,
+      rushAtt: 0,
+      intsThrown: 0,
+      fumblesLost: 0,
+      sacksAllowed: 0,
+      fgMade: 0,
+      fgAtt: 0,
+    }
+  });
 
   useEffect(() => {
     // Find next opponent from schedule or default
@@ -65,11 +115,10 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, teams }
   const calculateOutcome = (play: Play): GameEvent => {
     const isUserOffense = gameState.possession === 'HOME';
     const offTeamId = isUserOffense ? selectedTeamId : opponentTeamId;
-    const defTeamId = isUserOffense ? opponentTeamId : selectedTeamId;
     
     const roster = getTeamRoster(offTeamId);
-    const qb = roster.find(p => p.position === Position.QB) || roster[0];
-    const topWr = roster.find(p => p.position === Position.WR) || roster[0];
+    const qb = roster.find(p => p.position === Position.QB) || roster[0] || { name: 'Quarterback', overall: 80, schemeOvr: 80 };
+    const topWr = roster.find(p => p.position === Position.WR) || roster[0] || { name: 'Wide Receiver', overall: 80 };
     
     // Global Multipliers
     const hfaBoost = isUserOffense ? 3 : 0; // Home Field Advantage
@@ -104,10 +153,9 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, teams }
 
     // GDD Refined Simulation Engine Formulas
     if (play.type === 'Pass') {
-      // P(Comp) = (Base 45% + (QB_ACC * 0.3) + (WR_CTH * 0.2) - (DB_COV * 0.4) - (Pressure * 0.15)) * Weather_Mult
-      const qbAcc = (qb.schemeOvr + hfaBoost) / 100;
+      const qbAcc = ((qb.schemeOvr || qb.overall) + hfaBoost) / 100;
       const wrCth = (topWr.overall) / 100;
-      const dbCov = 0.82; // Static for now, expand to def systems later
+      const dbCov = 0.82;
       const pressure = Math.random() * 0.3;
       
       const pComp = (0.45 + (qbAcc * 0.3) + (wrCth * 0.2) - (dbCov * 0.4) - (pressure * 0.15)) * weatherMult - windPen;
@@ -118,12 +166,10 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, teams }
         description = `INTERCEPTED! The QB misread the coverage.`;
         yardage = 0;
       } else if (roll < pComp) {
-        // Success
         const isBigPlay = Math.random() < (qb.overall / 300);
         yardage = isBigPlay ? Math.floor(Math.random() * 25) + 20 : Math.floor(Math.random() * 12) + 4;
         description = `Complete to ${topWr.name} for ${yardage} yards.`;
       } else {
-        // Fail
         const isSack = Math.random() < 0.12;
         if (isSack) {
           yardage = -Math.floor(Math.random() * 7) - 3;
@@ -133,9 +179,9 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, teams }
         }
       }
     } else if (play.type === 'Run') {
-      const rb = roster.find(p => p.position === Position.RB) || roster[0];
+      const rb = roster.find(p => p.position === Position.RB) || roster[0] || { name: 'Running Back', overall: 80 };
       const rbPower = (rb.overall + hfaBoost) / 100;
-      const linePush = 0.75; // Mocked OL push
+      const linePush = 0.75;
       
       const successProb = 0.55 + (rbPower * 0.1) + (linePush * 0.1);
       const roll = Math.random();
@@ -165,31 +211,99 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, teams }
   };
 
   const handlePlayCall = (play: Play) => {
-    if (isSimulating) return;
+    if (isSimulating || isGameOver) return;
     setIsSimulating(true);
 
-    // Simulate delay
+    const playTime = Math.floor(Math.random() * 25) + 15; // 15-40 seconds
+    const nextTime = Math.max(0, timeRemaining - playTime);
+
     setTimeout(() => {
       const outcome = calculateOutcome(play);
       setLastEvent(outcome);
       setPlayHistory(prev => [outcome, ...prev]);
-      updateGameState(outcome);
-      setIsSimulating(false);
-      
-      // Time decay
-      const playTime = Math.floor(Math.random() * 25) + 15; // 15-40 seconds
-      setTimeRemaining(prev => Math.max(0, prev - playTime));
 
-      // Randomly fluctuate win prob for effect
+      const possessionKey = gameState.possession === 'HOME' ? 'home' : 'away';
+
+      // Capture Match stats details
+      setMatchStats(prev => {
+        const nextStats = JSON.parse(JSON.stringify(prev));
+        const active = nextStats[possessionKey];
+
+        if (play.type === 'Pass') {
+          active.passAtt += 1;
+          if (outcome.description.includes('Complete')) {
+            active.passComp += 1;
+            active.passYds += outcome.yardage;
+          } else if (outcome.description.includes('SACK')) {
+            active.sacksAllowed += 1;
+            active.passYds += outcome.yardage; // Negative yardage
+          } else if (outcome.description.includes('INTERCEPTED')) {
+            active.intsThrown += 1;
+          }
+        } else if (play.type === 'Run') {
+          active.rushAtt += 1;
+          if (outcome.description.includes('FUMBLE')) {
+            active.fumblesLost += 1;
+          } else {
+            active.rushYds += outcome.yardage;
+          }
+        } else if (play.type === 'Special') {
+          if (play.name === 'Field Goal') {
+            active.fgAtt += 1;
+            if (outcome.isScore) {
+              active.fgMade += 1;
+            }
+          }
+        }
+
+        if (outcome.isScore && !outcome.description.includes('FIELD GOAL')) {
+          if (play.type === 'Pass') active.passTds += 1;
+          if (play.type === 'Run') active.rushTds += 1;
+        }
+
+        return nextStats;
+      });
+
+      // Capture scoring timeline
+      if (outcome.isScore) {
+        const addedHomePoints = outcome.description.includes('FIELD GOAL') ? 3 : 7;
+        const currentHomeScore = gameState.possession === 'HOME' ? gameState.homeScore + addedHomePoints : gameState.homeScore;
+        const currentAwayScore = gameState.possession === 'AWAY' ? gameState.awayScore + addedHomePoints : gameState.awayScore;
+
+        setScoringSummary(prev => [
+          ...prev,
+          {
+            quarter: gameState.quarter,
+            timeLeft: formatTime(nextTime),
+            teamId: gameState.possession === 'HOME' ? selectedTeamId : opponentTeamId,
+            type: outcome.description.includes('FIELD GOAL') ? 'FG' : 'TD',
+            description: outcome.description,
+            score: {
+              home: currentHomeScore,
+              away: currentAwayScore
+            }
+          }
+        ]);
+      }
+
+      updateGameState(outcome);
+      setTimeRemaining(nextTime);
+      setIsSimulating(false);
+
+      // Fluctuating Win Probability calculations
       setWinProb(prev => {
           let change = 0;
-          if (outcome.isScore) change = 5;
+          if (outcome.isScore) change = 6;
           else if (outcome.yardage > 15) change = 3;
           else if (outcome.yardage < 0) change = -2;
-          else if (outcome.type === 'Turnover') change = -10;
+          else if (outcome.type === 'Turnover') change = -12;
           
           return Math.min(99, Math.max(1, prev + (gameState.possession === 'HOME' ? change : -change)));
       });
+
+      if (nextTime <= 0) {
+        setIsGameOver(true);
+      }
 
     }, 1500);
   };
@@ -198,11 +312,15 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, teams }
     setGameState(prev => {
         let nextState = { ...prev };
 
+        // Handle Quarters transition dynamically
+        if (timeRemaining <= 7.5 * 60 && prev.quarter === 1) {
+          nextState.quarter = 2;
+        }
+
         if (event.isScore) {
             if (prev.possession === 'HOME') nextState.homeScore += event.description.includes('FIELD GOAL') ? 3 : 7;
             else nextState.awayScore += event.description.includes('FIELD GOAL') ? 3 : 7;
             
-            // Switch possession after score
             nextState.possession = prev.possession === 'HOME' ? 'AWAY' : 'HOME';
             nextState.ballOn = 25;
             nextState.down = 1;
@@ -225,12 +343,10 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, teams }
         if (newDist <= 0) {
             newDown = 1;
             newDist = 10;
-            // Goal to go check
             if (newBallOn > 90) newDist = 100 - newBallOn;
         }
 
         if (newDown > 4) {
-            // Turnover on downs
             nextState.possession = prev.possession === 'HOME' ? 'AWAY' : 'HOME';
             nextState.ballOn = 100 - newBallOn;
             nextState.down = 1;
@@ -240,6 +356,7 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, teams }
 
         return {
             ...prev,
+            quarter: nextState.quarter,
             ballOn: newBallOn,
             down: newDown,
             distance: newDist
@@ -249,14 +366,97 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, teams }
 
   // Auto-simulate opponent turn
   useEffect(() => {
-    if (gameState.possession === 'AWAY' && !isSimulating) {
+    if (gameState.possession === 'AWAY' && !isSimulating && !isGameOver) {
         const timer = setTimeout(() => {
-            const randomPlay = OFFENSIVE_PLAYS[Math.floor(Math.random() * (OFFENSIVE_PLAYS.length - 2))]; // No special teams for AI yet
+            const randomPlay = OFFENSIVE_PLAYS[Math.floor(Math.random() * (OFFENSIVE_PLAYS.length - 2))]; 
             handlePlayCall(randomPlay);
-        }, 2000);
+        }, 1800);
         return () => clearTimeout(timer);
     }
-  }, [gameState.possession, isSimulating]);
+  }, [gameState.possession, isSimulating, isGameOver]);
+
+  // Saves career records and finishes session
+  const saveAndExitGame = () => {
+    // 1. Update team Standings / W-L record
+    setTeams(prev => {
+      const nextTeams = { ...prev };
+      const homeTeam = nextTeams[selectedTeamId];
+      const awayTeam = nextTeams[opponentTeamId];
+      if (homeTeam && awayTeam) {
+        const [hw, hl, ht] = homeTeam.record.split('-').map(Number);
+        const [aw, al, at] = awayTeam.record.split('-').map(Number);
+        if (gameState.homeScore > gameState.awayScore) {
+          homeTeam.record = `${hw + 1}-${hl}-${ht}`;
+          awayTeam.record = `${aw}-${al + 1}-${at}`;
+        } else if (gameState.awayScore > gameState.homeScore) {
+          homeTeam.record = `${hw}-${hl + 1}-${ht}`;
+          awayTeam.record = `${aw + 1}-${al}-${at}`;
+        } else {
+          homeTeam.record = `${hw}-${hl}-${ht + 1}`;
+          awayTeam.record = `${aw}-${al}-${at + 1}`;
+        }
+      }
+      return nextTeams;
+    });
+
+    // 2. Accumulate simulated stats into active Player profiles
+    setAllPlayers(prev => {
+      return prev.map(player => {
+        if (player.teamId === selectedTeamId) {
+          if (player.position === Position.QB) {
+            return {
+              ...player,
+              stats: {
+                gamesPlayed: (player.stats.gamesPlayed || 0) + 1,
+                completions: (player.stats.completions || 0) + matchStats.home.passComp,
+                attempts: (player.stats.attempts || 0) + matchStats.home.passAtt,
+                yards: (player.stats.yards || 0) + matchStats.home.passYds,
+                touchdowns: (player.stats.touchdowns || 0) + matchStats.home.passTds,
+                interceptions: (player.stats.interceptions || 0) + matchStats.home.intsThrown,
+                rating: parseFloat((((player.stats.rating || 100) * (player.stats.gamesPlayed || 1) + 106) / ((player.stats.gamesPlayed || 1) + 1)).toFixed(1))
+              }
+            };
+          }
+          if (player.position === Position.RB) {
+            return {
+              ...player,
+              stats: {
+                ...player.stats,
+                gamesPlayed: (player.stats.gamesPlayed || 0) + 1,
+                yards: (player.stats.yards || 0) + matchStats.home.rushYds,
+                touchdowns: (player.stats.touchdowns || 0) + matchStats.home.rushTds,
+              }
+            };
+          }
+          if (player.position === Position.WR) {
+            return {
+              ...player,
+              stats: {
+                ...player.stats,
+                gamesPlayed: (player.stats.gamesPlayed || 0) + 1,
+                yards: (player.stats.yards || 0) + Math.floor(matchStats.home.passYds * 0.7),
+                touchdowns: (player.stats.touchdowns || 0) + Math.floor(matchStats.home.passTds * 0.7),
+              }
+            };
+          }
+        }
+        return player;
+      });
+    });
+
+    // 3. Relocate to HQ Dashboard
+    setView(AppView.DASHBOARD);
+  };
+
+  const userRoster = getTeamRoster(selectedTeamId);
+  const homeQb = userRoster.find(p => p.position === Position.QB) || { name: 'C. Stroud', overall: 91 };
+  const homeRb = userRoster.find(p => p.position === Position.RB) || { name: 'J. Mixon', overall: 84 };
+  const homeWr = userRoster.find(p => p.position === Position.WR) || { name: 'N. Collins', overall: 89 };
+
+  const oppRoster = getTeamRoster(opponentTeamId);
+  const awayQb = oppRoster.find(p => p.position === Position.QB) || { name: 'Opp QB', overall: 85 };
+  const awayRb = oppRoster.find(p => p.position === Position.RB) || { name: 'Opp RB', overall: 80 };
+  const awayWr = oppRoster.find(p => p.position === Position.WR) || { name: 'Opp WR', overall: 82 };
 
   return (
     <div className="h-full flex flex-col bg-[#05070a] relative overflow-hidden">
@@ -305,7 +505,6 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, teams }
         <div className="flex-1 relative flex">
             {/* Tactical Field Vis (Left/Center) */}
             <div className="flex-1 bg-[#05070a] relative flex items-center justify-center overflow-hidden">
-                {/* Visual Grid Lines */}
                 <div className="absolute inset-0 grid-lines opacity-10"></div>
 
                 {/* Central Tactical Display */}
@@ -324,9 +523,8 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, teams }
                              <div className={`text-7xl mb-6 font-bold header-font tracking-tighter italic ${lastEvent.isScore ? 'text-emerald-400' : lastEvent.type === 'Turnover' ? 'text-red-500' : 'text-white'}`}>
                                 {lastEvent.isScore ? 'SIGNAL_TOUCHDOWN' : lastEvent.type === 'Turnover' ? 'SYS_CRITICAL_LOST' : `GAIN::${lastEvent.yardage}Y`}
                              </div>
-                             <p className="text-slate-500 text-sm font-mono tracking-widest uppercase italic opacity-80">{lastEvent.description}</p>
+                             <p className="text-slate-500 text-sm font-mono tracking-widest uppercase italic opacity-85">{lastEvent.description}</p>
                              
-                             {/* Tactical Overlay */}
                              <div className="absolute -top-4 -left-4 w-8 h-8 border-t border-l border-slate-700"></div>
                              <div className="absolute -bottom-4 -right-4 w-8 h-8 border-b border-r border-slate-700"></div>
                         </div>
@@ -359,7 +557,7 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, teams }
                              <Wind size={20} />}
                         </div>
                         <div>
-                            <div className="text-[10px] uppercase tracking-widest font-bold">ENV_STATUS</div>
+                            <div className="text-[10px] uppercase tracking-widest font-bold font-mono">ENV_STATUS</div>
                             <div className="text-xs text-white tracking-tighter">
                                 {gameState.weather.type} // {gameState.weather.windSpeed} MPH_VECTOR
                             </div>
@@ -385,7 +583,7 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, teams }
                                 </span>
                                 <span className="text-[9px] text-slate-600 uppercase font-bold tracking-tighter">{play.type}</span>
                             </div>
-                            <div className="text-slate-400 leading-relaxed uppercase opacity-80">{play.description}</div>
+                            <div className="text-slate-400 leading-relaxed uppercase opacity-85">{play.description}</div>
                         </div>
                     ))}
                     {playHistory.length === 0 && <div className="text-slate-700 text-center text-[10px] mono-font tracking-[0.5em] mt-20 opacity-50 italic">INITIALIZING_SESSION...</div>}
@@ -412,16 +610,15 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, teams }
                 {OFFENSIVE_PLAYS.map((play) => (
                     <button 
                         key={play.id}
-                        disabled={isSimulating || gameState.possession === 'AWAY'}
+                        disabled={isSimulating || gameState.possession === 'AWAY' || isGameOver}
                         onClick={() => handlePlayCall(play)}
-                        className="bg-[#05070a] border border-[#1a222e] hover:border-cyan-500/60 hover:bg-cyan-500/5 p-5 text-left transition-all group relative overflow-hidden disabled:opacity-30 disabled:cursor-not-allowed rounded-none"
+                        className="bg-[#05070a] border border-[#1a222e] hover:border-cyan-500/60 hover:bg-cyan-500/5 p-5 text-left transition-all group relative overflow-hidden disabled:opacity-30 disabled:cursor-not-allowed rounded-none h-24"
                     >
-                        {/* Interactive Accent */}
                         <div className="absolute top-0 right-0 w-[1px] h-0 bg-cyan-500 group-hover:h-full transition-all duration-300"></div>
 
-                        <div className="flex justify-between items-start mb-3">
+                        <div className="flex justify-between items-start mb-2">
                             <span className="text-xs font-bold text-white group-hover:text-cyan-400 tracking-tight transition-colors mono-font uppercase">{play.name}</span>
-                            <span className={`text-[9px] px-2 py-0.5 font-bold uppercase tracking-widest ${
+                            <span className={`text-[8px] px-1.5 py-0.5 font-bold uppercase tracking-widest ${
                                 play.type === 'Pass' ? 'bg-cyan-900/20 text-cyan-400 border border-cyan-500/20' : 
                                 play.type === 'Run' ? 'bg-emerald-900/20 text-emerald-400 border border-emerald-500/20' :
                                 'bg-purple-900/20 text-purple-400 border border-purple-500/20'
@@ -429,20 +626,180 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, teams }
                                 {play.type}
                             </span>
                         </div>
-                        <div className="text-[10px] text-slate-600 font-mono mb-4 tracking-tighter bg-[#0d121a] px-2 py-0.5 border-l border-slate-700 inline-block">{play.formation}</div>
+                        <div className="text-[10px] text-slate-600 font-mono mb-2 tracking-tighter bg-[#0d121a] px-2 py-0.5 border-l border-slate-700 inline-block">{play.formation}</div>
                         
                         <div className="flex gap-4 text-[9px] font-mono text-slate-500 mt-auto uppercase">
                             <div className="flex items-center gap-1 group-hover:text-red-500 transition-colors">
-                                <div className="w-1 h-1 bg-red-500 shadow-[0_0_5px_rgba(239,68,68,1)]"></div> R_L::{play.risk}
+                                <div className="w-1.5 h-1.5 bg-red-500 shadow-[0_0_5px_rgba(239,68,68,1)]"></div> RISK::{play.risk}
                             </div>
                             <div className="flex items-center gap-1 group-hover:text-emerald-500 transition-colors">
-                                <div className="w-1 h-1 bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,1)]"></div> W_V::{play.reward}
+                                <div className="w-1.5 h-1.5 bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,1)]"></div> REW::{play.reward}
                             </div>
                         </div>
                     </button>
                 ))}
             </div>
         </div>
+
+        {/* BREATHTAKING MATCH RECAP OVERLAY MODAL */}
+        <AnimatePresence>
+          {isGameOver && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/90 backdrop-blur-md overflow-y-auto"
+            >
+              <motion.div 
+                initial={{ scale: 0.95, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.95, y: 20 }}
+                className="max-w-5xl w-full bg-[#0a0e14] border border-[#1a222e] shadow-[0_0_60px_rgba(0,209,255,0.15)] relative flex flex-col max-h-[92vh] overflow-hidden rounded-none"
+              >
+                {/* Glowing neon header borders */}
+                <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-cyan-500 via-fuchsia-500 to-emerald-500 shadow-[0_0_15px_rgba(0,209,255,0.5)]"></div>
+
+                {/* Scoreboard and Names */}
+                <div className="bg-[#0d121a] border-b border-[#1a222e] p-8 text-center relative overflow-hidden">
+                  <div className="absolute inset-0 grid-lines opacity-10"></div>
+                  <div className="text-[10px] text-cyan-400 font-mono tracking-[0.4em] mb-3 uppercase font-bold text-center italic">/// STATS::COMMUNICATION_SESSION_COMPLETE ///</div>
+                  
+                  <div className="flex justify-center items-center gap-16 relative z-10">
+                    <div className="text-right">
+                      <div className="text-4xl font-bold text-white header-font tracking-tight uppercase italic">{selectedTeamId}</div>
+                      <div className="text-slate-500 font-mono text-xs uppercase tracking-widest mt-1">HOME TEAM</div>
+                    </div>
+                    
+                    <div className="flex items-center gap-8">
+                      <span className="text-6xl font-mono font-bold text-cyan-400 tracking-tighter">{gameState.homeScore}</span>
+                      <span className="text-[#1a222e] font-bold text-2xl font-mono tracking-widest">FINAL</span>
+                      <span className="text-6xl font-mono font-bold text-red-500 tracking-tighter">{gameState.awayScore}</span>
+                    </div>
+
+                    <div className="text-left">
+                      <div className="text-4xl font-bold text-slate-600 header-font tracking-tight uppercase italic">{opponentTeamId}</div>
+                      <div className="text-slate-500 font-mono text-xs uppercase tracking-widest mt-1">AWAY TEAM</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Main 3-Column Splitscreen Board */}
+                <div className="flex-1 overflow-y-auto grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-[#1a222e]">
+                  
+                  {/* Column 1: Team Stat Comparison */}
+                  <div className="p-6 space-y-6">
+                    <h4 className="text-[10px] font-bold text-cyan-500 font-mono tracking-[0.3em] uppercase border-b border-[#1a222e] pb-3 flex items-center gap-2">
+                      <BarChart2 size={14} />
+                      TEAM_COMPARISON_MATRIX
+                    </h4>
+                    
+                    <div className="space-y-4 pt-2 font-mono text-xs">
+                      {/* STATS ITEMS */}
+                      {[
+                        { label: 'TOTAL OFFENSIVE YARDS', valH: matchStats.home.passYds + matchStats.home.rushYds, valA: matchStats.away.passYds + matchStats.away.rushYds },
+                        { label: 'PASSING YARDS', valH: matchStats.home.passYds, valA: matchStats.away.passYds },
+                        { label: 'RUSHING YARDS', valH: matchStats.home.rushYds, valA: matchStats.away.rushYds },
+                        { label: 'COMP / ATT', valH: `${matchStats.home.passComp}/${matchStats.home.passAtt}`, valA: `${matchStats.away.passComp}/${matchStats.away.passAtt}` },
+                        { label: 'TOUCHDOWNS', valH: matchStats.home.passTds + matchStats.home.rushTds, valA: matchStats.away.passTds + matchStats.away.rushTds },
+                        { label: 'INTERCEPTIONS THROWN', valH: matchStats.home.intsThrown, valA: matchStats.away.intsThrown },
+                        { label: 'FUMBLES LOST', valH: matchStats.home.fumblesLost, valA: matchStats.away.fumblesLost },
+                        { label: 'SACKS SUFFERED', valH: matchStats.home.sacksAllowed, valA: matchStats.away.sacksAllowed },
+                        { label: 'FIELD GOALS MADE', valH: `${matchStats.home.fgMade}/${matchStats.home.fgAtt}`, valA: `${matchStats.away.fgMade}/${matchStats.away.fgAtt}` }
+                      ].map((s, idx) => (
+                        <div key={idx} className="pb-3 border-b border-[#1a222e]/30">
+                          <div className="flex justify-between font-bold text-slate-400 text-[10px] uppercase mb-1.5 tracking-tight">{s.label}</div>
+                          <div className="flex justify-between items-center bg-[#05070a] border border-[#1a222e]/60 px-3 py-1.5">
+                            <span className="text-cyan-400 font-bold">{s.valH}</span>
+                            <div className="text-[9px] text-slate-700 font-bold">||</div>
+                            <span className="text-red-400 font-bold">{s.valA}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Column 2: Top Performers Cards */}
+                  <div className="p-6 space-y-6">
+                    <h4 className="text-[10px] font-bold text-cyan-500 font-mono tracking-[0.3em] uppercase border-b border-[#1a222e] pb-3 flex items-center gap-2">
+                      <Award size={14} />
+                       locker_room_TOP_PERFORMERS
+                    </h4>
+
+                    <div className="space-y-4 pt-2 font-mono">
+                      {/* HOME Passer */}
+                      <div className="bg-[#05070a] border border-[#1a222e] p-4 relative group">
+                        <div className="text-[8px] tracking-widest bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 px-2 py-0.5 inline-block mb-3 uppercase font-bold">HOME PASSING LEADER</div>
+                        <h5 className="text-sm font-bold text-white uppercase">{homeQb.name} <span className="text-[9px] text-slate-500">OVR {homeQb.overall}</span></h5>
+                        <p className="text-[11px] text-slate-400 mt-2 uppercase">{matchStats.home.passComp} of {matchStats.home.passAtt} passes // {matchStats.home.passYds} Yards // {matchStats.home.passTds} touchdowns // {matchStats.home.intsThrown} interceptions</p>
+                      </div>
+
+                      {/* HOME Rusher */}
+                      <div className="bg-[#05070a] border border-[#1a222e] p-4 relative group">
+                        <div className="text-[8px] tracking-widest bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 px-2 py-0.5 inline-block mb-3 uppercase font-bold">HOME RUSHING LEADER</div>
+                        <h5 className="text-sm font-bold text-white uppercase">{homeRb.name} <span className="text-[9px] text-slate-500">OVR {homeRb.overall}</span></h5>
+                        <p className="text-[11px] text-slate-400 mt-2 uppercase">{matchStats.home.rushAtt} rushes // {matchStats.home.rushYds} Yards // {matchStats.home.rushTds} touchdowns</p>
+                      </div>
+
+                      <div className="h-[2px] bg-[#1a222e] my-4"></div>
+
+                      {/* AWAY Passer */}
+                      <div className="bg-[#05070a] border border-[#1a222e] p-4 relative group">
+                        <div className="text-[8px] tracking-widest bg-red-500/10 border border-red-500/20 text-red-400 px-2 py-0.5 inline-block mb-3 uppercase font-bold">AWAY PASSING LEADER</div>
+                        <h5 className="text-sm font-bold text-white uppercase">{awayQb.name} <span className="text-[9px] text-slate-500">OVR {awayQb.overall}</span></h5>
+                        <p className="text-[11px] text-slate-400 mt-2 uppercase">{matchStats.away.passComp} of {matchStats.away.passAtt} passes // {matchStats.away.passYds} Yards // {matchStats.away.passTds} touchdowns // {matchStats.away.intsThrown} interceptions</p>
+                      </div>
+
+                      {/* AWAY Rusher */}
+                      <div className="bg-[#05070a] border border-[#1a222e] p-4 relative group">
+                        <div className="text-[8px] tracking-widest bg-red-500/10 border border-red-500/20 text-red-400 px-2 py-0.5 inline-block mb-3 uppercase font-bold">AWAY RUSHING LEADER</div>
+                        <h5 className="text-sm font-bold text-white uppercase">{awayRb.name} <span className="text-[9px] text-slate-500">OVR {awayRb.overall}</span></h5>
+                        <p className="text-[11px] text-slate-400 mt-2 uppercase">{matchStats.away.rushAtt} rushes // {matchStats.away.rushYds} Yards // {matchStats.away.rushTds} touchdowns</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Column 3: Scoring Events Chronological sequence */}
+                  <div className="p-6 space-y-6">
+                    <h4 className="text-[10px] font-bold text-cyan-500 font-mono tracking-[0.3em] uppercase border-b border-[#1a222e] pb-3 flex items-center gap-2">
+                      <ListFilter size={14} />
+                      SCORING_TIMELINE_SEQUENCING
+                    </h4>
+
+                    <div className="space-y-4 pt-2 overflow-y-auto max-h-[480px] pr-2">
+                      {scoringSummary.map((event, index) => (
+                        <div key={index} className="p-3 bg-[#05070a] border border-[#1a222e] font-mono text-[10.5px]">
+                          <div className="flex justify-between items-center mb-1.5 pb-1 border-b border-[#1a222e]/40">
+                            <span className="text-cyan-400 font-bold uppercase tracking-widest">Q{event.quarter} - {event.timeLeft}</span>
+                            <span className={`px-1.5 py-0.2 text-[8px] font-bold border ${event.type === 'TD' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20'}`}>{event.type}</span>
+                          </div>
+                          <p className="text-slate-300 leading-relaxed uppercase tracking-tighter">{event.description}</p>
+                          <div className="text-[9px] text-slate-500 mt-2 font-bold text-right">RUN_SCORE: {event.score.home} - {event.score.away}</div>
+                        </div>
+                      ))}
+                      {scoringSummary.length === 0 && (
+                        <div className="text-center text-[10px] text-slate-700 font-mono tracking-[0.4em] uppercase py-16 italic">NO_SCORES_SEQUENCED</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer and exit buttons */}
+                <div className="bg-[#0c1017] border-t border-[#1a222e] p-6 flex justify-between items-center gap-6">
+                  <div className="flex items-center gap-2 text-[10px] text-slate-500 font-mono">
+                    <Activity size={14} className="text-cyan-500 animate-pulse" />
+                    <span>HQ DATABASE SYNC STABLE // W-L STANDINGS COMMITTED // CAREER STATISTICS MODIFIED S_RECORD</span>
+                  </div>
+                  <button 
+                    onClick={saveAndExitGame}
+                    className="bg-cyan-500 hover:bg-cyan-400 text-black font-bold uppercase tracking-[0.3em] text-[10px] px-8 py-3.5 shadow-[0_0_20px_rgba(6,182,212,0.3)] transition-all font-mono"
+                  >
+                    COMMENCE STATS SYNC & EXIT TO HQ
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
     </div>
   );
 };

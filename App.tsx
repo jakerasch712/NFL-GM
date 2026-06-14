@@ -88,7 +88,7 @@ const App: React.FC = () => {
 
     switch (currentView) {
       case AppView.DASHBOARD:
-        return <Dashboard selectedTeamId={selectedTeamId} leaguePhase={leagueState.currentPhase} currentWeek={leagueState.week} teams={teams} />;
+        return <Dashboard selectedTeamId={selectedTeamId} leaguePhase={leagueState.currentPhase} currentWeek={leagueState.week} teams={teams} allPlayers={allPlayers} />;
       case AppView.ROSTER:
         return <RosterView selectedTeamId={selectedTeamId} allPlayers={allPlayers} setAllPlayers={setAllPlayers} teams={teams} />;
       case AppView.FREE_AGENCY:
@@ -98,7 +98,16 @@ const App: React.FC = () => {
       case AppView.GAMEPLAN:
         return <GamePlan selectedTeamId={selectedTeamId} currentWeek={leagueState.week} allPlayers={allPlayers} teams={teams} />;
       case AppView.MATCH:
-        return <MatchSim selectedTeamId={selectedTeamId} allPlayers={allPlayers} teams={teams} />;
+        return (
+          <MatchSim 
+            selectedTeamId={selectedTeamId} 
+            allPlayers={allPlayers} 
+            setAllPlayers={setAllPlayers}
+            teams={teams}
+            setTeams={setTeams}
+            setView={setCurrentView}
+          />
+        );
       case AppView.DRAFT:
         return (
           <DraftRoom 
@@ -123,7 +132,7 @@ const App: React.FC = () => {
           />
         );
       default:
-        return <Dashboard selectedTeamId={selectedTeamId} leaguePhase={leagueState.currentPhase} currentWeek={leagueState.week} teams={teams} />;
+        return <Dashboard selectedTeamId={selectedTeamId} leaguePhase={leagueState.currentPhase} currentWeek={leagueState.week} teams={teams} allPlayers={allPlayers} />;
     }
   };
 

@@ -67,6 +67,7 @@ export interface Player {
   contract: Contract;
   contractDemand?: ContractDemand; 
   teamId: string;
+  depth?: number;
 }
 
 export interface Team {
