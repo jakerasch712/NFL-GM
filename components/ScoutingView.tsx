@@ -11,7 +11,7 @@ interface ScoutingViewProps {
 }
 
 const ScoutingView: React.FC<ScoutingViewProps> = ({ selectedTeamId, prospects, setProspects, scouts, setScouts }) => {
-  const [activeTab, setActiveTab] = useState<'prospects' | 'scouts' | 'assignments'>('prospects');
+  const [activeTab, setActiveTab] = useState<'prospects' | 'scouts' | 'assignments' | 'summary'>('prospects');
   const [selectedProspectId, setSelectedProspectId] = useState<string | null>(null);
 
   const selectedProspect = prospects.find(p => p.id === selectedProspectId);
@@ -51,7 +51,7 @@ const ScoutingView: React.FC<ScoutingViewProps> = ({ selectedTeamId, prospects, 
         <div>
           <h2 className="text-4xl font-bold text-white header-font tracking-tight uppercase">Scouting Operations</h2>
           <div className="flex gap-4 mt-2">
-            {['prospects', 'scouts', 'assignments'].map((tab) => (
+            {['prospects', 'scouts', 'assignments', 'summary'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab as any)}
@@ -59,7 +59,7 @@ const ScoutingView: React.FC<ScoutingViewProps> = ({ selectedTeamId, prospects, 
                   activeTab === tab ? 'text-cyan-400 border-cyan-400' : 'text-slate-500 border-transparent hover:text-slate-300'
                 }`}
               >
-                {tab}
+                {tab === 'summary' ? 'Scout Accuracy Summary' : tab}
               </button>
             ))}
           </div>
@@ -206,6 +206,80 @@ const ScoutingView: React.FC<ScoutingViewProps> = ({ selectedTeamId, prospects, 
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'summary' && (
+            <div className="p-6 overflow-y-auto space-y-6 font-mono">
+              <div className="bg-slate-950 border border-slate-800 p-6 rounded-xl">
+                <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-800">
+                  <div>
+                    <h3 className="text-xl font-bold text-white header-font uppercase tracking-wider italic">
+                      SCOUT SUCCESS RATE & EVALUATION ACCURACY
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Historical correlation between scout potential projections and actual draft/NFL performance
+                    </p>
+                  </div>
+                  <div className="bg-emerald-500/10 border border-emerald-500/40 px-4 py-2 text-emerald-400 font-bold text-lg">
+                    89.4% OVERALL ACCURACY
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4 mb-6">
+                  <div className="bg-slate-900 border border-slate-800 p-4">
+                    <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">PROSPECT HIT RATE</span>
+                    <span className="text-2xl font-bold text-white">18 / 20</span>
+                    <span className="text-[10px] text-emerald-400 block mt-1 font-bold">90.0% Grade Accuracy</span>
+                  </div>
+                  <div className="bg-slate-900 border border-slate-800 p-4">
+                    <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">BUST IDENTIFICATION</span>
+                    <span className="text-2xl font-bold text-white">94.2%</span>
+                    <span className="text-[10px] text-cyan-400 block mt-1 font-bold">Low Risk Tolerance</span>
+                  </div>
+                  <div className="bg-slate-900 border border-slate-800 p-4">
+                    <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">GEM DISCOVERY INDEX</span>
+                    <span className="text-2xl font-bold text-white">+14.2 OVR</span>
+                    <span className="text-[10px] text-amber-400 block mt-1 font-bold">Late-Round Upside</span>
+                  </div>
+                </div>
+
+                {/* Individual Scout Performance Table */}
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider mb-3">SCOUTING STAFF ACCURACY LEADERBOARD</h4>
+                <div className="space-y-3">
+                  {scouts.map((scout, idx) => {
+                    const accuracy = 94 - idx * 4;
+                    const hits = 15 - idx * 2;
+                    const misses = idx;
+                    return (
+                      <div key={scout.id} className="bg-slate-900 border border-slate-800 p-4 flex justify-between items-center">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-cyan-400 text-sm">
+                            {scout.name.charAt(0)}
+                          </div>
+                          <div>
+                            <div className="text-sm font-bold text-white">{scout.name}</div>
+                            <div className="text-[10px] text-slate-500 uppercase">{scout.specialty} Specialist • {scout.regionExpertise} Region</div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-6">
+                          <div className="text-right">
+                            <span className="text-[10px] text-slate-500 uppercase block font-bold">GRADE HITS / MISSES</span>
+                            <span className="text-xs text-slate-200 font-bold">{hits} HITS // {misses} MISSES</span>
+                          </div>
+                          <div className="text-right min-w-[100px]">
+                            <span className="text-[10px] text-slate-500 uppercase block font-bold">ACCURACY</span>
+                            <span className={`text-sm font-bold ${accuracy >= 90 ? 'text-emerald-400' : accuracy >= 80 ? 'text-amber-400' : 'text-slate-300'}`}>
+                              {accuracy}.0%
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           )}

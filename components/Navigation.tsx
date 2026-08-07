@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, Users, ClipboardList, Play, Briefcase, ShoppingBag, ArrowLeftRight, Shield, Zap, Microscope, LogOut } from 'lucide-react';
+import { LayoutDashboard, Users, ClipboardList, Play, Briefcase, ShoppingBag, ArrowLeftRight, Shield, Zap, Microscope, LogOut, Award } from 'lucide-react';
 import { AppView } from '../types';
 import { TEAMS_DB } from '../constants';
 
@@ -22,6 +22,7 @@ const Navigation: React.FC<NavigationProps> = ({ currentView, setView, selectedT
     { id: AppView.DRAFT, label: 'War Room', icon: Shield },
     { id: AppView.STAFF, label: 'Staff', icon: Zap },
     { id: AppView.SCOUTING, label: 'Scouting', icon: Microscope },
+    { id: AppView.HALL_OF_FAME, label: 'Hall of Fame', icon: Award },
   ];
 
   return (

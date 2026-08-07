@@ -47,6 +47,22 @@ export interface PlayerStats {
   rating?: number;
 }
 
+export interface CareerMilestone {
+  id: string;
+  year: number;
+  title: string;
+  category: 'AWARD' | 'RECORD' | 'HONOR' | 'CHAMPIONSHIP';
+  description: string;
+}
+
+export interface InjuryRecord {
+  id: string;
+  season: number;
+  injury: string;
+  weeksOut: number;
+  devImpact: string;
+}
+
 export type PlayerPersonality = 'Gunslinger' | 'Mercenary' | 'Workhorse' | 'Ring Chaser' | 'The Diva' | 'Leader' | 'Normal';
 
 export interface Player {
@@ -68,6 +84,12 @@ export interface Player {
   contractDemand?: ContractDemand; 
   teamId: string;
   depth?: number;
+  trainingFocus?: string;
+  trendDirection?: 'increasing' | 'stable' | 'decreasing';
+  trendDelta?: number;
+  durability?: number; // 0-100
+  injuryHistory?: InjuryRecord[];
+  milestones?: CareerMilestone[];
 }
 
 export interface Team {
@@ -84,6 +106,8 @@ export interface Team {
   logo: string;
   primaryColor?: string;
   secondaryColor?: string;
+  fanApproval?: number; // 0-100
+  ownerApproval?: number; // 0-100
 }
 
 export interface ScheduleMatch {
@@ -167,7 +191,38 @@ export enum AppView {
   MATCH = 'MATCH',
   DRAFT = 'DRAFT',
   STAFF = 'STAFF',
-  SCOUTING = 'SCOUTING'
+  SCOUTING = 'SCOUTING',
+  HALL_OF_FAME = 'HALL_OF_FAME'
+}
+
+export interface HallOfFamer {
+  id: string;
+  name: string;
+  position: Position;
+  inductionYear: number;
+  primaryTeam: string;
+  seasonsPlayed: number;
+  superBowlRings: number;
+  proBowls: number;
+  allProSelections: number;
+  mvpAwards: number;
+  careerStats: {
+    label: string;
+    value: string;
+  }[];
+  legacyScore: number;
+  keyHighlights: string[];
+  quote: string;
+  avatarUrl?: string;
+}
+
+export interface HighlightPackage {
+  headline: string;
+  commentary: string[];
+  videoPrompt?: string;
+  topPlay?: string;
+  videoUrl?: string | null;
+  videoStatus?: string;
 }
 
 export enum Region {
@@ -223,4 +278,36 @@ export interface DraftProspect {
   traits: string[];
   hiddenTraits: string[]; // Revealed by scouting
   scoutingProgress: number; // 0-100
+  deepScoutingUnlocked?: boolean;
+  deepTraits?: string[];
+  interviewNotes?: string;
+  interviewStatus?: 'NONE' | 'SCHEDULED' | 'COMPLETED';
 }
+
+export interface TradeRecord {
+  id: string;
+  date: string;
+  myTeamId: string;
+  targetTeamId: string;
+  myTeamName: string;
+  targetTeamName: string;
+  sentAssets: string[];
+  receivedAssets: string[];
+  fairness: string;
+  valueDelta: number;
+}
+
+export type PositionGroup = 'QB' | 'RB' | 'WR' | 'TE' | 'OL' | 'DL' | 'LB' | 'DB' | 'ST';
+
+export interface PositionGroupFocus {
+  group: PositionGroup;
+  focus: string;
+  intensity: 'Low' | 'Medium' | 'High';
+}
+
+export interface PlayerDevFocus {
+  playerId: string;
+  focusArea: string;
+  progress: number;
+}
+

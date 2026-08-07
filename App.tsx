@@ -9,8 +9,9 @@ import MatchSim from './components/MatchSim';
 import DraftRoom from './components/DraftRoom';
 import StaffView from './components/StaffView';
 import ScoutingView from './components/ScoutingView';
+import HallOfFame from './components/HallOfFame';
 import TeamSelection from './components/TeamSelection';
-import { AppView, DraftProspect, DraftPick, Scout, LeagueState, LeaguePhase, Player, Coach } from './types';
+import { AppView, DraftProspect, DraftPick, Scout, LeagueState, LeaguePhase, Player, Coach, TradeRecord } from './types';
 import { DRAFT_CLASS, INITIAL_PICKS, MOCK_SCOUTS, TEAMS_DB, MOCK_PLAYERS, MOCK_COACHES } from './constants';
 import { nflverseService } from './services/nflverseService';
 import { SCHEDULE_2027 } from './schedule';
@@ -21,40 +22,46 @@ const App: React.FC = () => {
   const [teams, setTeams] = useState<Record<string, any>>(TEAMS_DB);
   const [allPlayers, setAllPlayers] = useState<Player[]>(MOCK_PLAYERS);
   const [coaches, setCoaches] = useState<Coach[]>(MOCK_COACHES);
+  const [tradeHistory, setTradeHistory] = useState<TradeRecord[]>([]);
   const [loading, setLoading] = useState(true);
+
   
   useEffect(() => {
     const initData = async () => {
       setLoading(true);
-      const [nflTeams, nflPlayers] = await Promise.all([
-        nflverseService.fetchTeams(),
-        nflverseService.fetchRosters(2024) // Using 2024 as robust recent year
-      ]);
-      
-      if (nflTeams.length > 0) {
-        setTeams(prev => {
-          const newTeams = { ...prev };
-          nflTeams.forEach(nt => {
-            if (newTeams[nt.team_abbr]) {
-              newTeams[nt.team_abbr] = {
-                ...newTeams[nt.team_abbr],
-                name: nt.team_nick,
-                city: nt.team_name.replace(nt.team_nick, '').trim(),
-                logo: nt.team_logo_espn || nt.team_logo_wikipedia,
-                primaryColor: nt.team_color,
-                secondaryColor: nt.team_color2
-              };
-            }
+      try {
+        const [nflTeams, nflPlayers] = await Promise.all([
+          nflverseService.fetchTeams().catch(() => []),
+          nflverseService.fetchRosters(2024).catch(() => [])
+        ]);
+        
+        if (nflTeams && nflTeams.length > 0) {
+          setTeams(prev => {
+            const newTeams = { ...prev };
+            nflTeams.forEach(nt => {
+              if (newTeams[nt.team_abbr]) {
+                newTeams[nt.team_abbr] = {
+                  ...newTeams[nt.team_abbr],
+                  name: nt.team_nick,
+                  city: nt.team_name.replace(nt.team_nick, '').trim(),
+                  logo: nt.team_logo_espn || nt.team_logo_wikipedia,
+                  primaryColor: nt.team_color,
+                  secondaryColor: nt.team_color2
+                };
+              }
+            });
+            return newTeams;
           });
-          return newTeams;
-        });
-      }
+        }
 
-      if (nflPlayers.length > 0) {
-        setAllPlayers(nflPlayers);
+        if (nflPlayers && nflPlayers.length > 0) {
+          setAllPlayers(nflPlayers);
+        }
+      } catch (err) {
+        console.warn('Initialization using default local databases:', err);
+      } finally {
+        setLoading(false);
       }
-
-      setLoading(false);
     };
     initData();
   }, []);
@@ -94,9 +101,27 @@ const App: React.FC = () => {
       case AppView.FREE_AGENCY:
         return <FreeAgency selectedTeamId={selectedTeamId} allPlayers={allPlayers} setAllPlayers={setAllPlayers} />;
       case AppView.TRADE_CENTER:
-        return <TradeCenter selectedTeamId={selectedTeamId} allPlayers={allPlayers} teams={teams} />;
+        return (
+          <TradeCenter 
+            selectedTeamId={selectedTeamId} 
+            allPlayers={allPlayers} 
+            setAllPlayers={setAllPlayers}
+            teams={teams} 
+            tradeHistory={tradeHistory}
+            setTradeHistory={setTradeHistory}
+            currentWeek={leagueState.week}
+          />
+        );
       case AppView.GAMEPLAN:
-        return <GamePlan selectedTeamId={selectedTeamId} currentWeek={leagueState.week} allPlayers={allPlayers} teams={teams} />;
+        return (
+          <GamePlan 
+            selectedTeamId={selectedTeamId} 
+            currentWeek={leagueState.week} 
+            allPlayers={allPlayers} 
+            setAllPlayers={setAllPlayers}
+            teams={teams} 
+          />
+        );
       case AppView.MATCH:
         return (
           <MatchSim 
@@ -117,6 +142,7 @@ const App: React.FC = () => {
             picks={picks} 
             setPicks={setPicks} 
             teams={teams}
+            allPlayers={allPlayers}
           />
         );
       case AppView.STAFF:
@@ -129,6 +155,14 @@ const App: React.FC = () => {
             setProspects={setProspects} 
             scouts={scouts} 
             setScouts={setScouts} 
+          />
+        );
+      case AppView.HALL_OF_FAME:
+        return (
+          <HallOfFame
+            selectedTeamId={selectedTeamId}
+            allPlayers={allPlayers}
+            teams={teams}
           />
         );
       default:

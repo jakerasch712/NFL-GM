@@ -38,7 +38,7 @@ export const nflverseService = {
         });
       });
     } catch (error) {
-      console.error('Error fetching nflverse teams:', error);
+      console.warn('NFLverse teams external data unavailable, using local TEAMS_DB default.');
       return [];
     }
   },
@@ -66,7 +66,7 @@ export const nflverseService = {
         });
       });
     } catch (error) {
-      console.error(`Error fetching nflverse schedules for ${year}:`, error);
+      console.warn(`NFLverse schedules data for ${year} unavailable, using local default.`);
       return [];
     }
   },
@@ -96,8 +96,58 @@ export const nflverseService = {
       const csvText = await response.text();
       return parseRosters(csvText);
     } catch (error) {
-      console.error(`Error fetching nflverse rosters for ${year}:`, error);
+      console.warn(`NFLverse rosters data for ${year} unavailable, using local MOCK_PLAYERS default.`);
       return [];
+    }
+  },
+
+  async fetchLiveSearchRoster(teamName?: string, query?: string): Promise<{ players: any[]; sources: any[] }> {
+    try {
+      const res = await fetch('/api/rosters/live-search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teamName, query })
+      });
+      if (!res.ok) throw new Error('Live roster search request failed');
+      const data = await res.json();
+      
+      const formattedPlayers = (data.players || []).map((p: any) => ({
+        id: `live_${p.name.replace(/\s+/g, '_').toLowerCase()}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        name: p.name,
+        position: normalizePosition(p.position),
+        age: p.age || 26,
+        overall: p.overall || 80,
+        schemeOvr: p.overall || 80,
+        morale: 85,
+        fatigue: 100,
+        archetype: 'Standard',
+        personality: 'Normal' as PlayerPersonality,
+        scheme: 'Balanced',
+        developmentTrait: p.overall >= 90 ? 'X-Factor' : p.overall >= 84 ? 'Superstar' : p.overall >= 78 ? 'Star' : 'Normal',
+        potential: p.overall >= 88 ? 'S' : p.overall >= 82 ? 'A' : 'B',
+        stats: { gamesPlayed: 17, yards: 0, touchdowns: 0 },
+        contract: {
+          years: 2,
+          salary: Math.max(1, Math.round((p.overall - 65) * 0.7)),
+          bonus: 1,
+          guaranteed: Math.max(1, Math.round((p.overall - 65) * 0.7)),
+          yearsLeft: 2,
+          totalValue: Math.max(2, Math.round((p.overall - 65) * 1.4)),
+          capHit: Math.max(1, Math.round((p.overall - 65) * 0.7)),
+          deadCap: 0,
+          voidYears: 0,
+          startYear: 2026,
+          totalLength: 2
+        },
+        teamId: p.teamAbbr || 'KC',
+        depth: p.depth || 1,
+        notes: p.notes
+      }));
+
+      return { players: formattedPlayers, sources: data.sources || [] };
+    } catch (err) {
+      console.warn('Error fetching live search roster:', err);
+      return { players: [], sources: [] };
     }
   }
 };

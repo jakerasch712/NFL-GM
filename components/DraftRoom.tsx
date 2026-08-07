@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { Timer, Search, Filter, Star, ArrowRight, History, TrendingUp, RefreshCcw, X, Sparkles, Brain, Loader2 } from 'lucide-react';
-import { DraftProspect, DraftPick } from '../types';
+import React, { useState, useMemo } from 'react';
+import { Timer, Search, Filter, Star, ArrowRight, History, TrendingUp, RefreshCcw, X, Sparkles, Brain, Loader2, AlertTriangle, ShieldAlert, CheckCircle } from 'lucide-react';
+import { DraftProspect, DraftPick, Player } from '../types';
 import { TEAMS_DB } from '../constants';
 import { getDraftStrategy } from '../services/geminiService';
 import Markdown from 'react-markdown';
@@ -13,11 +13,20 @@ interface DraftRoomProps {
   picks: DraftPick[];
   setPicks: React.Dispatch<React.SetStateAction<DraftPick[]>>;
   teams: Record<string, any>;
+  allPlayers?: Player[];
 }
 
-const DraftRoom: React.FC<DraftRoomProps> = ({ selectedTeamId, prospects, setProspects, picks, setPicks, teams }) => {
+interface TeamNeedItem {
+  position: string;
+  priority: 'CRITICAL' | 'HIGH' | 'MEDIUM';
+  reason: string;
+  depthAvg: number;
+}
+
+const DraftRoom: React.FC<DraftRoomProps> = ({ selectedTeamId, prospects, setProspects, picks, setPicks, teams, allPlayers = [] }) => {
   const [currentPickIndex, setCurrentPickIndex] = useState(0);
   const [selectedProspectId, setSelectedProspectId] = useState<string | null>(null);
+  const [selectedNeedPos, setSelectedNeedPos] = useState<string | null>(null);
   const [draftHistory, setDraftHistory] = useState<{pick: DraftPick, prospect: DraftProspect}[]>([]);
   const [isTradeModalOpen, setIsTradeModalOpen] = useState(false);
   
@@ -28,6 +37,51 @@ const DraftRoom: React.FC<DraftRoomProps> = ({ selectedTeamId, prospects, setPro
   const [isAiAnalyzing, setIsAiAnalyzing] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+
+  // Automatic Team Needs Priority Calculation
+  const myTeamPlayers = useMemo(() => allPlayers.filter(p => p.teamId === selectedTeamId), [allPlayers, selectedTeamId]);
+  
+  const teamNeeds: TeamNeedItem[] = useMemo(() => {
+    if (!myTeamPlayers.length) {
+      return [
+        { position: 'EDGE', priority: 'CRITICAL', reason: 'Contract Expirations & Depth Hole', depthAvg: 74 },
+        { position: 'OL', priority: 'HIGH', reason: 'Roster Rating Deficit (76 OVR)', depthAvg: 76 },
+        { position: 'CB', priority: 'HIGH', reason: 'Expiring Starters (Contract Warning)', depthAvg: 78 },
+        { position: 'WR', priority: 'MEDIUM', reason: 'Developmental Target Need', depthAvg: 80 },
+      ];
+    }
+
+    const posGroups = ['QB', 'RB', 'WR', 'TE', 'OL', 'DL', 'EDGE', 'LB', 'CB', 'S'];
+    const needs: TeamNeedItem[] = [];
+
+    posGroups.forEach(pos => {
+      const posPlayers = myTeamPlayers.filter(p => p.position === pos);
+      const count = posPlayers.length;
+      const avgOvr = count ? Math.round(posPlayers.reduce((a, b) => a + b.overall, 0) / count) : 70;
+      const expiringCount = posPlayers.filter(p => (p.contract && p.contract.yearsLeft === 1) || p.age >= 31).length;
+
+      let priority: 'CRITICAL' | 'HIGH' | 'MEDIUM' | null = null;
+      let reason = '';
+
+      if (count <= 1 || (expiringCount >= 2 && avgOvr < 82)) {
+        priority = 'CRITICAL';
+        reason = expiringCount >= 1 ? `Expiring Contracts (${expiringCount}) & Thin Depth` : `Critical Roster Weakness (${count} rostered)`;
+      } else if (avgOvr < 78 || expiringCount >= 1) {
+        priority = 'HIGH';
+        reason = avgOvr < 78 ? `Roster Rating Deficit (${avgOvr} OVR)` : `Expiring Contract Warning`;
+      } else if (avgOvr < 81) {
+        priority = 'MEDIUM';
+        reason = `Developmental Target Area`;
+      }
+
+      if (priority) {
+        needs.push({ position: pos, priority, reason, depthAvg: avgOvr });
+      }
+    });
+
+    const priorityScore = (n: TeamNeedItem) => n.priority === 'CRITICAL' ? 3 : n.priority === 'HIGH' ? 2 : 1;
+    return needs.sort((a, b) => priorityScore(b) - priorityScore(a)).slice(0, 5);
+  }, [myTeamPlayers, selectedTeamId]);
 
   const currentPick = picks[currentPickIndex];
   const selectedProspect = prospects.find(p => p.id === selectedProspectId);
@@ -117,6 +171,46 @@ const DraftRoom: React.FC<DraftRoomProps> = ({ selectedTeamId, prospects, setPro
                         <button className="p-2.5 bg-[#05070a] border border-[#1a222e] text-slate-500 hover:text-cyan-400 transition-all"><Filter size={14} /></button>
                     </div>
                 </div>
+
+                {/* Team Needs Priority Matrix Bar */}
+                <div className="bg-[#0d121a] border-b border-[#1a222e] p-3 flex flex-col gap-2 font-mono">
+                    <div className="flex justify-between items-center">
+                        <span className="text-[9.5px] font-bold uppercase tracking-[0.2em] text-cyan-400 flex items-center gap-1.5">
+                            <ShieldAlert size={14} />
+                            AUTOMATED_TEAM_NEEDS_PRIORITY_LIST
+                        </span>
+                        {selectedNeedPos && (
+                          <button 
+                            onClick={() => setSelectedNeedPos(null)}
+                            className="text-[9px] text-amber-400 hover:underline uppercase font-bold"
+                          >
+                            CLEAR FILTER [SHOW ALL]
+                          </button>
+                        )}
+                    </div>
+                    <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+                        {teamNeeds.map((need, idx) => {
+                            const isSelected = selectedNeedPos === need.position;
+                            const priorityColor = need.priority === 'CRITICAL' ? 'border-red-500/50 bg-red-500/10 text-red-400' :
+                                                  need.priority === 'HIGH' ? 'border-amber-500/50 bg-amber-500/10 text-amber-400' :
+                                                  'border-cyan-500/50 bg-cyan-500/10 text-cyan-400';
+                            return (
+                                <button
+                                    key={need.position}
+                                    onClick={() => setSelectedNeedPos(isSelected ? null : need.position)}
+                                    className={`p-2 border text-left transition-all min-w-[170px] ${priorityColor} ${isSelected ? 'ring-2 ring-cyan-400' : 'hover:opacity-90'}`}
+                                >
+                                    <div className="flex justify-between items-center text-[9px] font-bold">
+                                        <span>#{idx + 1} {need.position} NEED</span>
+                                        <span className="text-[8px] uppercase tracking-wider">{need.priority}</span>
+                                    </div>
+                                    <div className="text-[8.5px] opacity-80 mt-0.5 truncate">{need.reason}</div>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+
                 <div className="flex-1 overflow-y-auto">
                     <table className="w-full text-left">
                         <thead className="sticky top-0 bg-[#0d121a] z-10 border-b border-[#1a222e]">
@@ -130,7 +224,11 @@ const DraftRoom: React.FC<DraftRoomProps> = ({ selectedTeamId, prospects, setPro
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-[#1a222e]/30">
-                            {prospects.map((prospect, i) => (
+                            {prospects
+                              .filter(p => !selectedNeedPos || p.position === selectedNeedPos)
+                              .map((prospect, i) => {
+                                const matchingNeed = teamNeeds.find(n => n.position === prospect.position);
+                                return (
                                 <tr 
                                     key={prospect.id} 
                                     onClick={() => setSelectedProspectId(prospect.id)}
@@ -139,7 +237,16 @@ const DraftRoom: React.FC<DraftRoomProps> = ({ selectedTeamId, prospects, setPro
                                     {selectedProspectId === prospect.id && <div className="absolute left-0 top-0 w-1 h-full bg-cyan-500 shadow-[0_0_10px_rgba(0,209,255,1)]"></div>}
                                     <td className="px-6 py-5 font-mono text-slate-600 text-xs font-bold italic">#{i + 1}</td>
                                     <td className="px-4 py-5">
-                                        <div className="font-bold text-white text-base group-hover:text-cyan-400 header-font uppercase italic tracking-tight">{prospect.name}</div>
+                                        <div className="font-bold text-white text-base group-hover:text-cyan-400 header-font uppercase italic tracking-tight flex items-center gap-2">
+                                          <span>{prospect.name}</span>
+                                          {matchingNeed && (
+                                            <span className={`text-[8.5px] font-mono px-1.5 py-0.5 border font-bold uppercase tracking-wider ${
+                                              matchingNeed.priority === 'CRITICAL' ? 'bg-red-500/15 border-red-500/40 text-red-400' : 'bg-cyan-500/15 border-cyan-500/40 text-cyan-400'
+                                            }`}>
+                                              🎯 NEED MATCH
+                                            </span>
+                                          )}
+                                        </div>
                                         <div className="flex gap-3 mt-1.5 mono-font">
                                             <div className="text-[9px] text-slate-500 font-bold bg-[#05070a] border border-[#1a222e] px-2 py-0.5 uppercase tracking-widest">{prospect.position}</div>
                                             {prospect.scoutingProgress >= 90 && prospect.hiddenTraits.slice(0, 1).map(t => (
@@ -172,7 +279,8 @@ const DraftRoom: React.FC<DraftRoomProps> = ({ selectedTeamId, prospects, setPro
                                         </div>
                                     </td>
                                 </tr>
-                            ))}
+                              );
+                            })}
                         </tbody>
                     </table>
                 </div>
@@ -188,21 +296,81 @@ const DraftRoom: React.FC<DraftRoomProps> = ({ selectedTeamId, prospects, setPro
                             <div className="text-4xl font-bold text-white mb-2 header-font italic tracking-tighter uppercase">{selectedProspect.name}</div>
                             <div className="text-cyan-500 font-bold mb-8 mono-font italic text-xs tracking-widest uppercase">{selectedProspect.position} // ORIGIN::{selectedProspect.school}</div>
                             
-                            <div className="grid grid-cols-2 gap-1 mb-10 font-mono">
-                                <div className="bg-[#05070a] border border-[#1a222e] p-5 group hover:border-cyan-500/30 transition-colors">
-                                    <div className="text-[9px] text-slate-600 uppercase mb-2 font-bold tracking-widest">PROJ_ROUND</div>
-                                    <div className="text-white font-bold text-xl tracking-tighter">{selectedProspect.projectedRound}</div>
+                            <div className="grid grid-cols-2 gap-1 mb-6 font-mono">
+                                <div className="bg-[#05070a] border border-[#1a222e] p-4 group hover:border-cyan-500/30 transition-colors">
+                                    <div className="text-[9px] text-slate-600 uppercase mb-1 font-bold tracking-widest">PROJ_ROUND</div>
+                                    <div className="text-white font-bold text-lg tracking-tighter">{selectedProspect.projectedRound}</div>
                                 </div>
-                                <div className="bg-[#05070a] border border-[#1a222e] p-5 group hover:border-cyan-500/30 transition-colors">
-                                    <div className="text-[9px] text-slate-600 uppercase mb-2 font-bold tracking-widest">QUAL_V</div>
-                                    <div className="text-cyan-400 font-bold text-xl tracking-tighter">{selectedProspect.scoutingGrade}</div>
+                                <div className="bg-[#05070a] border border-[#1a222e] p-4 group hover:border-cyan-500/30 transition-colors">
+                                    <div className="text-[9px] text-slate-600 uppercase mb-1 font-bold tracking-widest">QUAL_V</div>
+                                    <div className="text-cyan-400 font-bold text-lg tracking-tighter">{selectedProspect.scoutingGrade}</div>
                                 </div>
+                            </div>
+
+                            {/* Deep Scouting & In-Person Interview Section */}
+                            <div className="bg-[#05070a] border border-[#1a222e] p-4 mb-6 font-mono">
+                                <div className="flex justify-between items-center mb-3">
+                                    <span className="text-[9px] text-amber-400 font-bold uppercase tracking-widest flex items-center gap-1.5">
+                                        <Sparkles size={12} />
+                                        DEEP SCOUTING & INTERVIEW
+                                    </span>
+                                    <span className={`px-2 py-0.5 text-[8px] font-bold uppercase ${selectedProspect.deepScoutingUnlocked ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-slate-800 text-slate-400'}`}>
+                                        {selectedProspect.deepScoutingUnlocked ? 'UNLOCKED' : 'LOCKED'}
+                                    </span>
+                                </div>
+
+                                {selectedProspect.deepScoutingUnlocked ? (
+                                    <div className="space-y-3 text-[10px]">
+                                        <div>
+                                            <span className="text-slate-500 uppercase font-bold block mb-1">UNLOCKED PERSONALITY TRAITS:</span>
+                                            <div className="flex flex-wrap gap-1">
+                                                {(selectedProspect.deepTraits || ['Film Room Junkie', 'High Football IQ', 'Clutch Under Pressure']).map(dt => (
+                                                    <span key={dt} className="px-2 py-0.5 bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-[9px] font-bold uppercase">
+                                                        ★ {dt}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <span className="text-slate-500 uppercase font-bold block mb-1">SCOUT INTERVIEW REPORT:</span>
+                                            <p className="text-slate-300 leading-tight italic bg-[#0a0e14] p-2 border border-[#1a222e]">
+                                                "{selectedProspect.interviewNotes || 'Prospect aced the whiteboard interview, showing exceptional field vision and leadership qualities.'}"
+                                            </p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <p className="text-[10px] text-slate-500 mb-3 leading-snug">
+                                            Assign lead scout to conduct a private in-person interview to unlock hidden personality traits and true potential.
+                                        </p>
+                                        <button
+                                            onClick={() => {
+                                                setProspects(prev => prev.map(p => {
+                                                    if (p.id === selectedProspect.id) {
+                                                        return {
+                                                            ...p,
+                                                            deepScoutingUnlocked: true,
+                                                            scoutingProgress: 100,
+                                                            deepTraits: ['Film Room Junkie', 'High Football IQ', 'Clutch Performer'],
+                                                            interviewNotes: `${p.name} demonstrated exceptional whiteboard acumen, calling out complex pre-snap defensive shifts with poise.`
+                                                        };
+                                                    }
+                                                    return p;
+                                                }));
+                                            }}
+                                            className="w-full bg-amber-500/10 hover:bg-amber-500 hover:text-black border border-amber-500/40 text-amber-400 font-bold py-2 text-[9px] uppercase tracking-wider transition-all flex items-center justify-center gap-2"
+                                        >
+                                            <Sparkles size={12} />
+                                            CONDUCT IN-PERSON INTERVIEW
+                                        </button>
+                                    </div>
+                                )}
                             </div>
 
                             <button 
                                 onClick={handleDraftPlayer}
                                 disabled={!currentPick || currentPick.currentTeamId !== selectedTeamId}
-                                className="w-full bg-[#0d121a] hover:bg-cyan-500 hover:text-black border border-[#1a222e] text-slate-500 hover:border-cyan-400 font-bold py-5 text-[11px] uppercase tracking-[0.3em] transition-all shadow-xl mono-font italic flex items-center justify-center gap-3 disabled:opacity-20 disabled:cursor-not-allowed group"
+                                className="w-full bg-[#0d121a] hover:bg-cyan-500 hover:text-black border border-[#1a222e] text-slate-500 hover:border-cyan-400 font-bold py-4 text-[11px] uppercase tracking-[0.3em] transition-all shadow-xl mono-font italic flex items-center justify-center gap-3 disabled:opacity-20 disabled:cursor-not-allowed group mt-auto"
                             >
                                 <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" /> SUBMIT_SELECTION_PROTOCOL
                             </button>

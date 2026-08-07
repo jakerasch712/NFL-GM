@@ -1,65 +1,56 @@
-import { GoogleGenAI, Type, ThinkingLevel } from "@google/genai";
 import { Player, Position, DraftProspect, DraftPick } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
-
 export const syncTeamRoster = async (teamName: string): Promise<Player[]> => {
-  const prompt = `Fetch the current 2024/2025/2026 active roster for the ${teamName}. 
-  Return a JSON array of players with the following fields: 
-  name, position (QB, RB, WR, TE, OL, DL, LB, CB, S, K), age, overall (estimate based on current status), archetype, scheme.
-  
-  Only include key starters and notable players (around 10-15 players).`;
-
-  const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents: prompt,
-    config: {
-      tools: [{ googleSearch: {} }],
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.ARRAY,
-        items: {
-          type: Type.OBJECT,
-          properties: {
-            name: { type: Type.STRING },
-            position: { type: Type.STRING, enum: Object.values(Position) },
-            age: { type: Type.NUMBER },
-            overall: { type: Type.NUMBER },
-            archetype: { type: Type.STRING },
-            scheme: { type: Type.STRING },
-          },
-          required: ["name", "position", "age", "overall", "archetype", "scheme"],
-        },
-      },
-    },
-  });
-
   try {
-    const playersData = JSON.parse(response.text || "[]");
-    return playersData.map((p: any, index: number) => ({
-      ...p,
-      id: `sync-${Date.now()}-${index}`,
-      morale: 85,
-      fatigue: 100,
-      developmentTrait: p.overall > 90 ? 'X-Factor' : p.overall > 85 ? 'Superstar' : 'Star',
-      potential: p.overall > 85 ? 'Superstar' : 'Star',
-      stats: { gamesPlayed: 0 },
-      schemeOvr: p.overall + (Math.random() > 0.5 ? 2 : -1),
-      contract: {
-        years: 3,
-        salary: 5,
-        bonus: 10,
-        guaranteed: 15,
-        yearsLeft: 2,
-        totalValue: 25,
-        capHit: 8,
-        deadCap: 5,
-        voidYears: 0,
-        startYear: 2024,
-        totalLength: 3
-      },
-      teamId: '' // To be filled by caller
-    }));
+    const res = await fetch('/api/rosters/live-search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ teamName, query: `Gather active 2025/2026 starter roster for ${teamName}` })
+    });
+    
+    if (!res.ok) throw new Error('Failed to fetch from live search server endpoint');
+    const data = await res.json();
+    const playersData = data.players || [];
+
+    return playersData.map((p: any, index: number) => {
+      const posString = (p.position || 'WR').toUpperCase().trim();
+      let posEnum = Position.WR;
+      if (Object.values(Position).includes(posString as Position)) {
+        posEnum = posString as Position;
+      }
+
+      const ovr = p.overall || 80;
+      return {
+        id: `sync-${Date.now()}-${index}`,
+        name: p.name,
+        position: posEnum,
+        age: p.age || 26,
+        overall: ovr,
+        schemeOvr: ovr + (Math.random() > 0.5 ? 2 : -1),
+        morale: 85,
+        fatigue: 100,
+        archetype: p.archetype || 'Standard',
+        personality: 'Normal',
+        scheme: p.scheme || 'Balanced',
+        developmentTrait: ovr >= 90 ? 'X-Factor' : ovr >= 85 ? 'Superstar' : ovr >= 78 ? 'Star' : 'Normal',
+        potential: ovr >= 85 ? 'Superstar' : 'Star',
+        stats: { gamesPlayed: 17 },
+        contract: {
+          years: 3,
+          salary: Math.max(1, Math.round((ovr - 65) * 0.6)),
+          bonus: 5,
+          guaranteed: 10,
+          yearsLeft: 2,
+          totalValue: Math.max(3, Math.round((ovr - 65) * 1.8)),
+          capHit: Math.max(1, Math.round((ovr - 65) * 0.6)),
+          deadCap: 2,
+          voidYears: 0,
+          startYear: 2026,
+          totalLength: 3
+        },
+        teamId: '' // Filled by caller
+      };
+    });
   } catch (e) {
     console.error("Failed to parse roster sync data", e);
     return [];
@@ -71,21 +62,17 @@ export const getDraftStrategy = async (
   prospects: DraftProspect[], 
   picks: DraftPick[]
 ): Promise<string> => {
-  const prompt = `As an elite NFL Draft Analyst, provide a deep strategic analysis for the ${teamId}.
-  
-  Current Draft Board: ${JSON.stringify(prospects.slice(0, 10).map(p => ({ name: p.name, pos: p.position, grade: p.scoutingGrade })))}
-  Team's Upcoming Picks: ${JSON.stringify(picks.filter(p => p.currentTeamId === teamId).map(p => ({ round: p.round, pick: p.pickNumber })))}
-  
-  Analyze the best path forward. Should they trade up, trade down, or stay put? Who are the top 3 targets? 
-  Provide a detailed, professional reasoning. Use Markdown for formatting.`;
-
-  const response = await ai.models.generateContent({
-    model: "gemini-3.1-pro-preview",
-    contents: prompt,
-    config: {
-      thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH }
-    },
-  });
-
-  return response.text || "Strategy analysis unavailable.";
+  try {
+    const res = await fetch('/api/draft/strategy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ teamId, prospects, picks })
+    });
+    if (!res.ok) throw new Error('Draft strategy request failed');
+    const data = await res.json();
+    return data.text || "Strategy analysis unavailable.";
+  } catch (err) {
+    console.error("Failed to load draft strategy:", err);
+    return "Draft strategy server endpoint unavailable.";
+  }
 };

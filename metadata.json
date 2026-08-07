@@ -1,5 +1,6 @@
 {
   "name": "NFL Head Coach 2026",
   "description": "A modern, analytics-driven NFL management simulation focusing on strategy, roster construction, and play-calling.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

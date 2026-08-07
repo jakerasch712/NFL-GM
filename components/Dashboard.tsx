@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Calendar, TrendingUp, AlertCircle, Activity, Trophy, ChevronDown, MapPin, UserCheck, HelpCircle, Newspaper } from 'lucide-react';
+import { Calendar, TrendingUp, AlertCircle, Activity, Trophy, ChevronDown, MapPin, UserCheck, HelpCircle, Newspaper, Award, Flame, DollarSign, X, ShieldAlert, Info, ExternalLink, ChevronRight, HeartPulse } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { TEAMS_DB, MOCK_PLAYERS } from '../constants';
 import { LeaguePhase, Player, Position } from '../types';
@@ -14,6 +14,10 @@ interface DashboardProps {
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase, currentWeek, teams, allPlayers }) => {
+  const [leaderboardCategory, setLeaderboardCategory] = useState<'passing' | 'rushing' | 'sacks'>('passing');
+  const [showCapToast, setShowCapToast] = useState(true);
+  const [showCapModal, setShowCapModal] = useState(false);
+
   const getTeamData = (teamId: string, currentWeek: number) => {
     const team = teams[teamId] || TEAMS_DB[teamId];
     const divisionTeams = Object.values(teams).filter((t: any) => t.division === team.division);
@@ -93,6 +97,41 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase, curr
 
   // Calculate Cap Hit by Position Group Dynamically
   const roster = allPlayers.filter(p => p.teamId === selectedTeamId);
+
+  // Helper for League Health Ticker (Star Injuries with Trade/FA context)
+  const getLeagueHealthInjuries = () => {
+    const starInjured = allPlayers.filter(p => p.overall >= 84 && p.teamId !== 'FA' && p.teamId !== (selectedTeamId as any));
+    const mockInjuries = [
+      { name: 'Patrick Mahomes', team: 'KC', pos: 'QB', ovr: 99, injury: 'Ankle Sprain', duration: 'Out 2 Weeks', impact: 'KC seeking veteran QB depth' },
+      { name: 'Micah Parsons', team: 'DAL', pos: 'EDGE', ovr: 97, injury: 'MCL Strain', duration: 'Out 3 Weeks', impact: 'DAL targeting Pass Rusher FA' },
+      { name: 'Justin Jefferson', team: 'MIN', pos: 'WR', ovr: 98, injury: 'Hamstring Pull', duration: 'Out 4 Weeks', impact: 'MIN active in WR trade market' },
+      { name: 'Christian McCaffrey', team: 'SF', pos: 'RB', ovr: 98, injury: 'Calf Soreness', duration: 'Week-to-Week', impact: 'SF monitoring RB waiver wire' },
+      { name: 'Sauce Gardner', team: 'NYJ', pos: 'CB', ovr: 94, injury: 'Shoulder Subluxation', duration: 'Out 2 Weeks', impact: 'NYJ seeking DB depth' },
+    ];
+    return mockInjuries;
+  };
+
+  const leagueInjuries = getLeagueHealthInjuries();
+
+  // Helper for Weekly Preview Opponent Stars
+  const getOpponentStars = () => {
+    const oppCode = team.nextOpp.code;
+    const oppPool = allPlayers.filter(p => p.teamId === oppCode);
+    
+    let topOffense = oppPool.filter(p => ['QB', 'RB', 'WR', 'TE', 'OL'].includes(p.position)).sort((a, b) => b.overall - a.overall)[0];
+    let topDefense = oppPool.filter(p => ['DL', 'LB', 'CB', 'S', 'EDGE'].includes(p.position)).sort((a, b) => b.overall - a.overall)[0];
+
+    if (!topOffense) {
+      topOffense = { name: 'C. Stroud', position: 'QB' as any, overall: 91, teamId: oppCode, stats: { yards: 2450 } } as any;
+    }
+    if (!topDefense) {
+      topDefense = { name: 'W. Anderson Jr.', position: 'EDGE' as any, overall: 94, teamId: oppCode, stats: { sacks: 8.5 } } as any;
+    }
+
+    return { topOffense, topDefense };
+  };
+
+  const { topOffense, topDefense } = getOpponentStars();
   const capDistribution = [
     { name: 'QB', val: 0, color: '#f43f5e' },
     { name: 'RB', val: 0, color: '#10b981' },
@@ -128,7 +167,94 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase, curr
     item.val = parseFloat(item.val.toFixed(1));
   });
 
-  // Pseudo-random headlines generator (stable for current week & team)
+  // Calculate Salary Cap Health Metrics
+  const MAX_CAP_LIMIT = 255.4;
+  const totalPayroll = parseFloat(roster.reduce((sum, p) => sum + (p.contract?.capHit || p.contract?.salary || 0), 0).toFixed(1));
+  const remainingCapSpace = parseFloat((MAX_CAP_LIMIT - totalPayroll).toFixed(1));
+  const capUsagePct = Math.min(100, Math.round((totalPayroll / MAX_CAP_LIMIT) * 100));
+  const isCapApproachingLimit = capUsagePct >= 85 || remainingCapSpace <= 38.0;
+  const capHealthStatus = capUsagePct >= 93 ? 'CRITICAL' : capUsagePct >= 85 ? 'WARNING' : 'HEALTHY';
+  
+  // Sorted Top Contracts
+  const sortedTopContracts = [...roster].sort((a, b) => (b.contract?.capHit || b.contract?.salary || 0) - (a.contract?.capHit || a.contract?.salary || 0)).slice(0, 5);
+
+  // Calculate Statistical Leaderboards using Recharts
+  const getPassingLeaders = () => {
+    const qbs = allPlayers.filter(p => p.position === Position.QB || p.position === ('QB' as any));
+    const list = qbs.map(p => ({
+      name: p.name,
+      team: p.teamId,
+      val: p.stats.yards || Math.round(p.overall * 21 + 100),
+      secondary: `${p.stats.touchdowns || Math.round(p.overall / 6)} TD`,
+      ovr: p.overall
+    }));
+    const defaults = [
+      { name: 'P. Mahomes', team: 'KC', val: 1950, secondary: '18 TD', ovr: 99 },
+      { name: 'C. Stroud', team: 'HOU', val: 1850, secondary: '14 TD', ovr: 91 },
+      { name: 'L. Jackson', team: 'BAL', val: 1650, secondary: '12 TD', ovr: 97 },
+      { name: 'J. Allen', team: 'BUF', val: 1610, secondary: '13 TD', ovr: 95 },
+      { name: 'J. Burrow', team: 'CIN', val: 1580, secondary: '11 TD', ovr: 93 },
+    ];
+    defaults.forEach(d => {
+      if (!list.some(item => item.name === d.name)) list.push(d);
+    });
+    return list.sort((a, b) => b.val - a.val).slice(0, 5);
+  };
+
+  const getRushingLeaders = () => {
+    const rbs = allPlayers.filter(p => p.position === Position.RB || p.position === ('RB' as any));
+    const list = rbs.map(p => ({
+      name: p.name,
+      team: p.teamId,
+      val: p.stats.yards || Math.round(p.overall * 8 + 50),
+      secondary: `${p.stats.touchdowns || Math.round(p.overall / 15)} TD`,
+      ovr: p.overall
+    }));
+    const defaults = [
+      { name: 'C. McCaffrey', team: 'SF', val: 850, secondary: '9 TD', ovr: 98 },
+      { name: 'Saquon Barkley', team: 'PHI', val: 780, secondary: '8 TD', ovr: 90 },
+      { name: 'D. Henry', team: 'BAL', val: 710, secondary: '7 TD', ovr: 91 },
+      { name: 'J. Taylor', team: 'IND', val: 640, secondary: '6 TD', ovr: 88 },
+      { name: 'J. Mixon', team: 'HOU', val: 520, secondary: '4 TD', ovr: 84 },
+    ];
+    defaults.forEach(d => {
+      if (!list.some(item => item.name === d.name)) list.push(d);
+    });
+    return list.sort((a, b) => b.val - a.val).slice(0, 5);
+  };
+
+  const getSackLeaders = () => {
+    const dls = allPlayers.filter(p => p.position === Position.DL || p.position === Position.LB || p.position === ('DL' as any));
+    const list = dls.map(p => ({
+      name: p.name,
+      team: p.teamId,
+      val: p.stats.sacks || parseFloat(((p.overall - 75) * 0.4).toFixed(1)),
+      secondary: `${p.stats.tackles || 25} TKL`,
+      ovr: p.overall
+    }));
+    const defaults = [
+      { name: 'M. Garrett', team: 'CLE', val: 9.5, secondary: '28 TKL', ovr: 98 },
+      { name: 'W. Anderson Jr.', team: 'HOU', val: 8.5, secondary: '24 TKL', ovr: 94 },
+      { name: 'M. Parsons', team: 'DAL', val: 8.0, secondary: '22 TKL', ovr: 97 },
+      { name: 'C. Jones', team: 'KC', val: 7.5, secondary: '19 TKL', ovr: 96 },
+      { name: 'T. Watt', team: 'PIT', val: 7.0, secondary: '25 TKL', ovr: 97 },
+    ];
+    defaults.forEach(d => {
+      if (!list.some(item => item.name === d.name)) list.push(d);
+    });
+    return list.sort((a, b) => b.val - a.val).slice(0, 5);
+  };
+
+  const leaderData = 
+    leaderboardCategory === 'passing' ? getPassingLeaders() :
+    leaderboardCategory === 'rushing' ? getRushingLeaders() :
+    getSackLeaders();
+
+  const primaryLeaderColor = 
+    leaderboardCategory === 'passing' ? '#00d1ff' :
+    leaderboardCategory === 'rushing' ? '#10b981' : '#f43f5e';
+
+  // Pseudo-random headlines generator
   const getLeagueNews = () => {
     const seedHash = (currentWeek * 17) + selectedTeamId.charCodeAt(0) + (selectedTeamId.charCodeAt(1) || 0);
     const headlinesList = [];
@@ -167,7 +293,6 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase, curr
       return pool[pIdx];
     };
 
-    // Headline 1: Game Results
     const teamA = getSubTeam(1);
     const teamB = getSubTeam(2);
     const gameResults = [
@@ -192,7 +317,6 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase, curr
     ];
     headlinesList.push(gameResults[seedHash % gameResults.length]);
 
-    // Headline 2: Player Injuries
     const injuredPlayer = getSubPlayer(5);
     const injuryTeam = teams[injuredPlayer.teamId] || TEAMS_DB[injuredPlayer.teamId] || { name: 'Rivals' };
     const injuries = [
@@ -217,7 +341,6 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase, curr
     ];
     headlinesList.push(injuries[(seedHash + 3) % injuries.length]);
 
-    // Headline 3: Coaching/Staff Changes
     const coachTeam = getSubTeam(4);
     const coachingHeadlines = [
       {
@@ -255,22 +378,212 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase, curr
             <Calendar size={14} className="text-cyan-500 animate-pulse" /> PHASE::{leaguePhase.replace('_', ' ')}
           </p>
         </div>
-        <div className="flex items-center gap-10">
-          <div className="text-right border-l border-[#1a222e] pl-10">
+        <div className="flex items-center gap-6">
+          <button
+            onClick={() => setShowCapModal(true)}
+            className={`flex items-center gap-3 px-4 py-2 border transition-all font-mono font-bold text-[10px] uppercase tracking-wider ${
+              capHealthStatus === 'CRITICAL'
+                ? 'bg-red-500/10 border-red-500/50 text-red-400 hover:bg-red-500/20'
+                : capHealthStatus === 'WARNING'
+                ? 'bg-amber-500/10 border-amber-500/50 text-amber-400 hover:bg-amber-500/20'
+                : 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/20'
+            }`}
+          >
+            <DollarSign size={15} />
+            <span>CAP HEALTH :: {capUsagePct}% USED</span>
+            <ChevronRight size={14} />
+          </button>
+
+          <div className="text-right border-l border-[#1a222e] pl-6">
             <div className="text-[10px] text-slate-500 uppercase tracking-[0.2em] mb-1 font-bold">REGISTRY_RECORD</div>
             <div className="text-3xl font-bold font-mono text-white tracking-widest">{team.record}</div>
           </div>
         </div>
       </header>
 
-      {/* Row 1: Upcoming Match & Unit Matrix */}
+      {/* Salary Cap Health Toast Notification Banner */}
+      {showCapToast && isCapApproachingLimit && (
+        <div className={`mb-6 p-5 border shadow-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition-all animate-pulse-subtle ${
+          capHealthStatus === 'CRITICAL'
+            ? 'bg-red-500/10 border-red-500/60 text-red-200'
+            : 'bg-amber-500/10 border-amber-500/60 text-amber-200'
+        }`}>
+          <div className="flex items-start gap-4">
+            <div className={`p-2.5 rounded-none border ${
+              capHealthStatus === 'CRITICAL' ? 'bg-red-500/20 border-red-500 text-red-400' : 'bg-amber-500/20 border-amber-500 text-amber-400'
+            }`}>
+              <ShieldAlert size={22} />
+            </div>
+            <div>
+              <div className="flex items-center gap-3">
+                <h4 className="text-sm font-bold font-mono tracking-wider uppercase text-white">
+                  SALARY CAP HEALTH WARNING :: PAYROLL APPROACHING MAXIMUM LIMIT
+                </h4>
+                <span className={`px-2 py-0.5 text-[8px] font-mono font-bold uppercase tracking-widest border ${
+                  capHealthStatus === 'CRITICAL' ? 'bg-red-500/20 border-red-500 text-red-400' : 'bg-amber-500/20 border-amber-500 text-amber-400'
+                }`}>
+                  {capHealthStatus} PROTOCOL ({capUsagePct}%)
+                </span>
+              </div>
+              <p className="text-[11px] font-mono text-slate-300 mt-1">
+                Total team payroll is <span className="font-bold text-white">${totalPayroll}M</span> out of <span className="font-bold text-white">${MAX_CAP_LIMIT}M</span> limit. Only <span className="font-bold text-emerald-400">${remainingCapSpace}M</span> remaining in cap space.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+            <button
+              onClick={() => setShowCapModal(true)}
+              className="px-4 py-2 bg-[#0a0e14] border border-[#1a222e] hover:border-cyan-500 hover:text-cyan-400 text-slate-200 font-mono text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-2"
+            >
+              ANALYZE CAP HEALTH <ExternalLink size={12} />
+            </button>
+            <button
+              onClick={() => setShowCapToast(false)}
+              className="p-2 text-slate-500 hover:text-white transition-colors"
+              title="Dismiss Notification"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Salary Cap Health Overlay Modal */}
+      {showCapModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-[#0a0e14] border border-[#1a222e] w-full max-w-3xl p-8 shadow-2xl relative">
+            <button
+              onClick={() => setShowCapModal(false)}
+              className="absolute top-6 right-6 text-slate-500 hover:text-white transition-colors p-2"
+            >
+              <X size={20} />
+            </button>
+
+            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[#1a222e]">
+              <DollarSign className="text-cyan-400" size={28} />
+              <div>
+                <h3 className="text-2xl font-bold text-white header-font tracking-tight uppercase italic">
+                  SALARY_CAP_HEALTH_DIAGNOSTICS
+                </h3>
+                <p className="text-[10px] text-slate-500 font-mono uppercase tracking-widest mt-0.5">
+                  League Maximum Cap Limit: <span className="text-white font-bold">${MAX_CAP_LIMIT}M</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4 mb-6">
+              <div className="bg-[#05070a] border border-[#1a222e] p-4">
+                <div className="text-[9px] font-mono text-slate-500 uppercase tracking-widest mb-1">TOTAL_PAYROLL</div>
+                <div className="text-2xl font-mono font-bold text-white">${totalPayroll}M</div>
+                <div className="text-[9px] font-mono text-cyan-500 mt-1">{capUsagePct}% Of Limit</div>
+              </div>
+
+              <div className="bg-[#05070a] border border-[#1a222e] p-4">
+                <div className="text-[9px] font-mono text-slate-500 uppercase tracking-widest mb-1">REMAINING_ROOM</div>
+                <div className={`text-2xl font-mono font-bold ${remainingCapSpace < 20 ? 'text-red-500' : remainingCapSpace < 40 ? 'text-amber-500' : 'text-emerald-500'}`}>
+                  ${remainingCapSpace}M
+                </div>
+                <div className="text-[9px] font-mono text-slate-500 mt-1">Available Top 51</div>
+              </div>
+
+              <div className="bg-[#05070a] border border-[#1a222e] p-4">
+                <div className="text-[9px] font-mono text-slate-500 uppercase tracking-widest mb-1">CAP_HEALTH_STATUS</div>
+                <div className={`text-2xl font-mono font-bold ${
+                  capHealthStatus === 'CRITICAL' ? 'text-red-500' : capHealthStatus === 'WARNING' ? 'text-amber-500' : 'text-emerald-500'
+                }`}>
+                  {capHealthStatus}
+                </div>
+                <div className="text-[9px] font-mono text-slate-500 mt-1">League Benchmark</div>
+              </div>
+            </div>
+
+            {/* Cap Usage Meter */}
+            <div className="mb-6 bg-[#05070a] border border-[#1a222e] p-4">
+              <div className="flex justify-between items-center text-[10px] font-mono font-bold text-slate-400 mb-2">
+                <span>CAP LIMIT UTILIZATION</span>
+                <span>${totalPayroll}M / ${MAX_CAP_LIMIT}M ({capUsagePct}%)</span>
+              </div>
+              <div className="w-full bg-[#0d121a] h-3 border border-[#1a222e] overflow-hidden">
+                <div
+                  className={`h-full transition-all duration-500 ${
+                    capUsagePct >= 93 ? 'bg-red-500' : capUsagePct >= 85 ? 'bg-amber-500' : 'bg-emerald-500'
+                  }`}
+                  style={{ width: `${capUsagePct}%` }}
+                ></div>
+              </div>
+            </div>
+
+            {/* Top Cap Hit Contracts */}
+            <div className="mb-6">
+              <h4 className="text-xs font-mono font-bold text-white uppercase tracking-wider mb-3">TOP CAP HIT CONTRACTS</h4>
+              <div className="space-y-1.5">
+                {sortedTopContracts.map(player => (
+                  <div key={player.id} className="bg-[#05070a] border border-[#1a222e] p-3 flex justify-between items-center text-xs font-mono">
+                    <div className="flex items-center gap-3">
+                      <span className="text-cyan-400 font-bold w-8">{player.position}</span>
+                      <span className="text-white font-bold">{player.name}</span>
+                      <span className="text-slate-500 text-[10px]">({player.overall} OVR)</span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <span className="text-slate-400 text-[10px]">{player.contract?.yearsLeft || 1} YRS LEFT</span>
+                      <span className="text-amber-400 font-bold">${player.contract?.capHit || player.contract?.salary || 0}M / YR</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Financial Recommendations */}
+            <div className="bg-[#05070a] border border-[#1a222e] p-4 flex items-start gap-3 text-xs font-mono">
+              <Info className="text-cyan-400 flex-shrink-0 mt-0.5" size={18} />
+              <p className="text-slate-300 leading-relaxed">
+                {capHealthStatus === 'CRITICAL'
+                  ? 'CRITICAL ADVISORY: Your team is within 7% of the hard cap. Consider converting base salary to signing bonus for top veterans in Roster View, or releasing high dead-cap contracts before signing Free Agents.'
+                  : capHealthStatus === 'WARNING'
+                  ? 'CAP WARNING: Cap space is tightening. Monitor upcoming extension demands and structure multi-year contracts with back-loaded base salaries.'
+                  : 'HEALTHY STATUS: Roster payroll is well structured. You have full operational flexibility to target star Free Agents or absorb contract trades.'}
+              </p>
+            </div>
+
+            <div className="mt-6 text-right">
+              <button
+                onClick={() => setShowCapModal(false)}
+                className="px-6 py-2 bg-cyan-500 hover:bg-cyan-400 text-black font-mono font-bold text-xs uppercase tracking-wider transition-all"
+              >
+                CLOSE DIAGNOSTICS
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* League Health Ticker: Major League-Wide Star Injuries for Trade / FA Context */}
+      <div className="bg-[#0a0e14] border border-[#1a222e] p-3 mb-6 font-mono flex items-center gap-4 overflow-hidden relative group">
+        <div className="flex items-center gap-2 px-3 py-1 bg-red-500/10 border border-red-500/30 text-red-400 font-bold text-[10px] uppercase tracking-wider flex-shrink-0">
+          <HeartPulse size={14} className="animate-pulse text-red-500" />
+          LEAGUE_HEALTH_TICKER
+        </div>
+
+        <div className="flex-1 overflow-x-auto whitespace-nowrap scrollbar-none flex items-center gap-6 text-xs">
+          {leagueInjuries.map((inj, idx) => (
+            <div key={idx} className="flex items-center gap-2.5 bg-[#05070a] border border-[#1a222e] px-3 py-1.5 hover:border-red-500/40 transition-colors flex-shrink-0">
+              <span className="text-cyan-400 font-bold text-[10px]">{inj.team}</span>
+              <span className="text-white font-bold">{inj.name} ({inj.pos})</span>
+              <span className="text-red-400 font-mono text-[10px] bg-red-500/10 px-1.5 py-0.5 border border-red-500/20">{inj.injury} • {inj.duration}</span>
+              <span className="text-slate-400 text-[10px] italic">[{inj.impact}]</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Row 1: Upcoming Match & Weekly Preview Card + Unit Matrix */}
       <div className="grid grid-cols-12 gap-1 mb-6">
-        {/* Next Opponent Card */}
+        {/* Next Opponent & Weekly Preview Card */}
         <div className="col-span-12 lg:col-span-8 bg-[#0a0e14] border border-[#1a222e] p-8 relative overflow-hidden group">
           <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
             <Activity size={180} />
           </div>
-          {/* Corner Accents */}
           <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-cyan-500/50"></div>
           <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-cyan-500/50"></div>
 
@@ -285,7 +598,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase, curr
                 <div className="absolute inset-0 bg-gradient-to-tr from-cyan-500/5 to-transparent"></div>
               </div>
               <div>
-                <span className="text-[10px] font-bold text-cyan-500 tracking-[0.4em] uppercase mb-2 block font-mono">TERMINAL::UPCOMING_ENGAGEMENT</span>
+                <span className="text-[10px] font-bold text-cyan-500 tracking-[0.4em] uppercase mb-2 block font-mono">WEEKLY_PREVIEW :: UPCOMING_ENGAGEMENT</span>
                 <h3 className="text-5xl font-bold text-white header-font mb-2 tracking-tighter">{team.nextOpp.name}</h3>
                 <div className="text-slate-500 font-mono text-xs flex items-center gap-3 tracking-widest uppercase font-bold">
                   <MapPin size={14} className="text-cyan-500" /> {team.nextOpp.location} // {team.nextOpp.date}
@@ -298,20 +611,58 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase, curr
             </div>
           </div>
           
-          <div className="mt-12 grid grid-cols-3 gap-1 relative z-10">
-            <div className="bg-[#05070a] p-6 border border-[#1a222e] group-hover:border-red-500/30 transition-colors">
-              <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-2 font-bold font-mono">THREAT_VECTOR</div>
-              <div className={`text-xl font-bold font-mono tracking-widest ${team.nextOpp.threat === 'EXTREME' ? 'text-red-500' : team.nextOpp.threat === 'HIGH' ? 'text-amber-500' : 'text-emerald-500'}`}>
+          {/* Key Players To Watch (Weekly Preview Analysis) */}
+          <div className="mt-8 pt-6 border-t border-[#1a222e] relative z-10 font-mono">
+            <div className="text-[10px] font-bold text-amber-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+              <Flame size={14} />
+              WEEKLY_OPPONENT_PREVIEW :: TOP-RANKED PLAYERS TO WATCH
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              {/* Top Offensive Threat */}
+              <div className="bg-[#05070a] border border-[#1a222e] p-4 group-hover:border-amber-500/40 transition-colors">
+                <span className="text-[9px] text-slate-500 uppercase font-bold tracking-widest block mb-1">TOP OFFENSIVE THREAT</span>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <span className="text-sm font-bold text-white block">{topOffense.name}</span>
+                    <span className="text-[10px] text-cyan-400 font-bold">{topOffense.position} // {topOffense.overall} OVR</span>
+                  </div>
+                  <div className="px-2 py-1 bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[9px] font-bold">
+                    PRIMARY TARGET
+                  </div>
+                </div>
+              </div>
+
+              {/* Top Defensive Anchor */}
+              <div className="bg-[#05070a] border border-[#1a222e] p-4 group-hover:border-cyan-500/40 transition-colors">
+                <span className="text-[9px] text-slate-500 uppercase font-bold tracking-widest block mb-1">TOP DEFENSIVE ANCHOR</span>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <span className="text-sm font-bold text-white block">{topDefense.name}</span>
+                    <span className="text-[10px] text-cyan-400 font-bold">{topDefense.position} // {topDefense.overall} OVR</span>
+                  </div>
+                  <div className="px-2 py-1 bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-[9px] font-bold">
+                    PASS RUSH THREAT
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-6 grid grid-cols-3 gap-1 relative z-10">
+            <div className="bg-[#05070a] p-4 border border-[#1a222e] group-hover:border-red-500/30 transition-colors">
+              <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-1 font-bold font-mono">THREAT_VECTOR</div>
+              <div className={`text-lg font-bold font-mono tracking-widest ${team.nextOpp.threat === 'EXTREME' ? 'text-red-500' : team.nextOpp.threat === 'HIGH' ? 'text-amber-500' : 'text-emerald-500'}`}>
                 {team.nextOpp.threat}
               </div>
             </div>
-            <div className="bg-[#05070a] p-6 border border-[#1a222e] group-hover:border-cyan-500/30 transition-colors">
-              <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-2 font-bold font-mono">WIN_PROBABILITY</div>
-              <div className="text-xl font-bold text-cyan-400 font-mono tracking-widest">{team.nextOpp.winProb}%</div>
+            <div className="bg-[#05070a] p-4 border border-[#1a222e] group-hover:border-cyan-500/30 transition-colors">
+              <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-1 font-bold font-mono">WIN_PROBABILITY</div>
+              <div className="text-lg font-bold text-cyan-400 font-mono tracking-widest">{team.nextOpp.winProb}%</div>
             </div>
-            <div className="bg-[#05070a] p-6 border border-[#1a222e] group-hover:border-emerald-500/30 transition-colors">
-              <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-2 font-bold font-mono">ROSTER_INTEGRITY</div>
-              <div className="text-xl font-bold text-emerald-400 font-mono tracking-widest">94%</div>
+            <div className="bg-[#05070a] p-4 border border-[#1a222e] group-hover:border-emerald-500/30 transition-colors">
+              <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-1 font-bold font-mono">ROSTER_INTEGRITY</div>
+              <div className="text-lg font-bold text-emerald-400 font-mono tracking-widest">94%</div>
             </div>
           </div>
         </div>
@@ -331,9 +682,9 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase, curr
                   contentStyle={{backgroundColor: '#05070a', borderColor: '#1a222e', color: '#fff', borderRadius: '0px', fontFamily: 'JetBrains Mono', fontSize: '10px'}} 
                   cursor={{fill: 'rgba(0,209,255,0.05)'}}
                 />
-                <Bar dataKey="val" radius={[0, 0, 0, 0]}>
+                <Bar dataKey="val" radius={[0, 2, 2, 0]} isAnimationActive={true} animationDuration={1000}>
                   {teamStats.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} fillOpacity={0.80} />
+                    <Cell key={`cell-${index}`} fill={entry.color} fillOpacity={0.80} className="transition-all duration-300 hover:opacity-100 cursor-pointer" />
                   ))}
                 </Bar>
               </BarChart>
@@ -342,7 +693,121 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase, curr
         </div>
       </div>
 
-      {/* Row 2: Standings, Salary Cap Distribution, and League News (3-Column Bento Map) */}
+      {/* Row 2: Seasonal Statistical Leaderboard (Recharts Visualization) */}
+      <div className="bg-[#0a0e14] border border-[#1a222e] p-6 mb-6 shadow-2xl">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center pb-4 mb-6 border-b border-[#1a222e] gap-4">
+          <div>
+            <h3 className="text-lg font-bold text-white header-font tracking-tight uppercase italic flex items-center gap-2">
+              <Award className="text-cyan-400" size={20} />
+              SEASONAL_STATISTICAL_LEADERBOARD
+            </h3>
+            <p className="text-[9px] text-slate-500 font-mono uppercase tracking-widest mt-0.5">
+              League-wide statistical leaders visualizer powered by Recharts engine.
+            </p>
+          </div>
+
+          <div className="flex bg-[#05070a] border border-[#1a222e] p-1">
+            <button
+              onClick={() => setLeaderboardCategory('passing')}
+              className={`px-4 py-1.5 text-[9px] font-bold font-mono uppercase tracking-wider transition-all ${
+                leaderboardCategory === 'passing' ? 'bg-cyan-500 text-black' : 'text-slate-500 hover:text-white'
+              }`}
+            >
+              PASSING YARDS
+            </button>
+            <button
+              onClick={() => setLeaderboardCategory('rushing')}
+              className={`px-4 py-1.5 text-[9px] font-bold font-mono uppercase tracking-wider transition-all ${
+                leaderboardCategory === 'rushing' ? 'bg-emerald-500 text-black' : 'text-slate-500 hover:text-white'
+              }`}
+            >
+              RUSHING YARDS
+            </button>
+            <button
+              onClick={() => setLeaderboardCategory('sacks')}
+              className={`px-4 py-1.5 text-[9px] font-bold font-mono uppercase tracking-wider transition-all ${
+                leaderboardCategory === 'sacks' ? 'bg-fuchsia-500 text-black' : 'text-slate-500 hover:text-white'
+              }`}
+            >
+              SACKS
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-12 gap-6 items-center">
+          {/* Recharts Visualizer */}
+          <div className="col-span-12 lg:col-span-7 h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={leaderData} layout="vertical" margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
+                <XAxis type="number" tick={{ fill: '#475569', fontSize: 10, fontFamily: 'JetBrains Mono' }} axisLine={false} tickLine={false} />
+                <YAxis dataKey="name" type="category" tick={{ fill: '#ffffff', fontSize: 11, fontFamily: 'JetBrains Mono', fontWeight: 'bold' }} axisLine={false} tickLine={false} width={110} />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#05070a', borderColor: '#1a222e', color: '#fff', borderRadius: '0px', fontFamily: 'JetBrains Mono', fontSize: '10px' }} 
+                  cursor={{ fill: 'rgba(0,209,255,0.03)' }}
+                  formatter={(val: any) => [
+                    `${val} ${leaderboardCategory === 'sacks' ? 'Sacks' : 'Yards'}`,
+                    leaderboardCategory.toUpperCase()
+                  ]}
+                />
+                <Bar 
+                  dataKey="val" 
+                  radius={[0, 4, 4, 0]}
+                  isAnimationActive={true}
+                  animationDuration={1200}
+                  animationEasing="ease-out"
+                >
+                  {leaderData.map((entry, index) => (
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={primaryLeaderColor} 
+                      fillOpacity={index === 0 ? 1 : 0.8 - index * 0.12}
+                      className="transition-all duration-300 hover:opacity-100 hover:brightness-125 cursor-pointer"
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Table Leaderboard Details */}
+          <div className="col-span-12 lg:col-span-5 bg-[#05070a] border border-[#1a222e] p-4 flex flex-col justify-between">
+            <div className="text-[9px] font-mono font-bold text-slate-500 uppercase tracking-widest mb-3 border-b border-[#1a222e] pb-2 flex justify-between">
+              <span>RANK // PLAYER</span>
+              <span>TOTAL // SEC</span>
+            </div>
+
+            <div className="space-y-2">
+              {leaderData.map((player, idx) => {
+                const isFirst = idx === 0;
+                return (
+                  <div key={idx} className={`flex justify-between items-center p-2 border transition-all ${
+                    isFirst ? 'bg-cyan-500/10 border-cyan-500/40 text-cyan-400' : 'bg-[#0a0e14] border-[#1a222e] text-slate-300'
+                  }`}>
+                    <div className="flex items-center gap-3">
+                      <span className={`w-5 text-center font-mono font-bold text-xs ${isFirst ? 'text-amber-400' : 'text-slate-600'}`}>
+                        #{idx + 1}
+                      </span>
+                      <div>
+                        <div className="text-xs font-bold font-mono uppercase tracking-wider">{player.name}</div>
+                        <div className="text-[8px] font-mono text-slate-500">{player.team} // {player.ovr} OVR</div>
+                      </div>
+                    </div>
+
+                    <div className="text-right font-mono">
+                      <div className="text-sm font-bold tracking-tight">
+                        {player.val} <span className="text-[9px] text-slate-500 font-normal">{leaderboardCategory === 'sacks' ? 'SK' : 'YDS'}</span>
+                      </div>
+                      <div className="text-[8px] text-slate-500">{player.secondary}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Row 3: Standings, Salary Cap Distribution, and League News (3-Column Bento Map) */}
       <div className="grid grid-cols-12 gap-1 mb-6">
         {/* Division Standings */}
         <div className="col-span-12 lg:col-span-4 bg-[#0a0e14] border border-[#1a222e] flex flex-col justify-between overflow-hidden">
@@ -398,9 +863,9 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase, curr
                   cursor={{fill: 'rgba(0,209,255,0.02)'}}
                   formatter={(value: any) => [`$${value}M`, 'Cap Hit']}
                 />
-                <Bar dataKey="val" radius={[0, 2, 2, 0]}>
+                <Bar dataKey="val" radius={[0, 2, 2, 0]} isAnimationActive={true} animationDuration={1000}>
                   {capDistribution.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} fillOpacity={0.8} />
+                    <Cell key={`cell-${index}`} fill={entry.color} fillOpacity={0.8} className="transition-all duration-300 hover:opacity-100 cursor-pointer" />
                   ))}
                 </Bar>
               </BarChart>
@@ -431,7 +896,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase, curr
         </div>
       </div>
 
-      {/* Row 3: Advisor & Priority Protocols */}
+      {/* Row 4: Advisor & Priority Protocols */}
       <div className="grid grid-cols-12 gap-6 mt-6">
         <div className="col-span-12 grid grid-cols-1 md:grid-cols-2 gap-1">
           {/* Advisor Widget */}

@@ -1,9 +1,79 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { OFFENSIVE_PLAYS, TEAMS_DB, MOCK_PLAYERS } from '../constants';
 import { SCHEDULE_2027 } from '../schedule';
-import { Play, GameEvent, Player, Position, AppView } from '../types';
-import { Play as PlayIcon, Clock, ShieldAlert, Wind, ChevronUp, CloudRain, Sun, Zap, Activity, Trophy, BarChart2, Award, ListFilter, RotateCcw } from 'lucide-react';
+import { Play, GameEvent, Player, Position, AppView, HighlightPackage } from '../types';
+import { Play as PlayIcon, Clock, ShieldAlert, Wind, ChevronUp, CloudRain, Sun, Zap, Activity, Trophy, BarChart2, Award, ListFilter, RotateCcw, Video, Film, Sparkles, Radio, Tv, Maximize2, RefreshCw, Thermometer, CloudSnow, Shield } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+
+export interface WeatherConfig {
+  type: 'Clear' | 'Snow' | 'Windy' | 'Rain' | 'Dome';
+  label: string;
+  temp: number;
+  windSpeed: number;
+  passModifier: number;
+  rushModifier: number;
+  fumbleRisk: number;
+  kickingModifier: number;
+  description: string;
+}
+
+const WEATHER_PRESETS: Record<string, WeatherConfig> = {
+  Clear: {
+    type: 'Clear',
+    label: 'CLEAR & MILD',
+    temp: 72,
+    windSpeed: 6,
+    passModifier: 1.0,
+    rushModifier: 1.0,
+    fumbleRisk: 0.015,
+    kickingModifier: 1.0,
+    description: 'Optimal playing conditions. Standard playbook efficiency.'
+  },
+  Snow: {
+    type: 'Snow',
+    label: 'FREEZING SNOWSTORM',
+    temp: 22,
+    windSpeed: 18,
+    passModifier: 0.82,
+    rushModifier: 1.15,
+    fumbleRisk: 0.03,
+    kickingModifier: 0.8,
+    description: 'Freezing pitch. Passing accuracy -18%; power run attack favored.'
+  },
+  Windy: {
+    type: 'Windy',
+    label: 'HIGH WIND GUSTS',
+    temp: 54,
+    windSpeed: 30,
+    passModifier: 0.72,
+    rushModifier: 1.05,
+    fumbleRisk: 0.02,
+    kickingModifier: 0.65,
+    description: '30+ MPH gusts. Deep passing & field goal accuracy severely penalized.'
+  },
+  Rain: {
+    type: 'Rain',
+    label: 'HEAVY DOWNPOUR',
+    temp: 46,
+    windSpeed: 16,
+    passModifier: 0.88,
+    rushModifier: 1.02,
+    fumbleRisk: 0.035,
+    kickingModifier: 0.85,
+    description: 'Slippery turf. Higher fumble risk & dropped receptions.'
+  },
+  Dome: {
+    type: 'Dome',
+    label: 'INDOOR DOME',
+    temp: 70,
+    windSpeed: 0,
+    passModifier: 1.08,
+    rushModifier: 1.0,
+    fumbleRisk: 0.01,
+    kickingModifier: 1.1,
+    description: 'Climate controlled. Enhanced passing precision & kicking range.'
+  }
+};
 
 interface MatchSimProps {
   selectedTeamId: string;
@@ -30,6 +100,50 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
   const [opponentTeamId, setOpponentTeamId] = useState<string>('');
   const [isGameOver, setIsGameOver] = useState(false);
   const [scoringSummary, setScoringSummary] = useState<ScoringEvent[]>([]);
+
+  // Highlight Video Package State
+  const [highlightPackage, setHighlightPackage] = useState<HighlightPackage | null>(null);
+  const [isGeneratingHighlight, setIsGeneratingHighlight] = useState(false);
+  const [showHighlightModal, setShowHighlightModal] = useState(false);
+  const [isVideoPlaying, setIsVideoPlaying] = useState(true);
+
+  const team = teams[selectedTeamId] || TEAMS_DB[selectedTeamId];
+  const opponentTeam = teams[opponentTeamId] || TEAMS_DB[opponentTeamId] || { name: 'Opponent', city: 'NFL' };
+
+  const fetchHighlightVideoPackage = async () => {
+    setIsGeneratingHighlight(true);
+    setShowHighlightModal(true);
+    try {
+      const response = await fetch('/api/highlights/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          homeTeamName: team ? `${team.city} ${team.name}` : 'Home Team',
+          awayTeamName: opponentTeam ? `${opponentTeam.city} ${opponentTeam.name}` : 'Away Team',
+          homeScore: gameState.homeScore,
+          awayScore: gameState.awayScore,
+          week: 1,
+          scoringSummary,
+          keyPlays: playHistory.slice(0, 8)
+        })
+      });
+      const data = await response.json();
+      if (data.success && data.script) {
+        setHighlightPackage({
+          headline: data.script.headline,
+          commentary: data.script.commentary,
+          videoPrompt: data.script.videoPrompt,
+          topPlay: data.script.topPlay,
+          videoUrl: data.videoUrl,
+          videoStatus: data.videoStatus
+        });
+      }
+    } catch (err) {
+      console.error('Failed to generate highlight video package:', err);
+    } finally {
+      setIsGeneratingHighlight(false);
+    }
+  };
 
   // Detailed Match Statistics State
   const [matchStats, setMatchStats] = useState({
@@ -73,6 +187,7 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
     }
   }, [selectedTeamId, teams]);
   
+  const [activeWeatherPreset, setActiveWeatherPreset] = useState<WeatherConfig>(WEATHER_PRESETS['Clear']);
   const [gameState, setGameState] = useState({
     down: 1,
     distance: 10,
@@ -81,11 +196,7 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
     homeScore: 0,
     awayScore: 0,
     possession: 'HOME', // User is HOME
-    weather: {
-      type: 'Clear' as 'Clear' | 'Rain' | 'Windy',
-      windSpeed: 8,
-      multiplier: 1.0
-    }
+    weather: WEATHER_PRESETS['Clear']
   });
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -95,14 +206,12 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
   const [winProb, setWinProb] = useState(50);
   const [timeRemaining, setTimeRemaining] = useState(15 * 60);
 
-  // Initialize random weather
-  useEffect(() => {
-    const types: ('Clear' | 'Rain' | 'Windy')[] = ['Clear', 'Rain', 'Windy'];
-    const type = types[Math.floor(Math.random() * types.length)];
-    const wind = type === 'Windy' ? Math.floor(Math.random() * 15) + 10 : Math.floor(Math.random() * 8);
-    const multiplier = type === 'Rain' ? 0.85 : 1.0;
-    setGameState(prev => ({ ...prev, weather: { type, windSpeed: wind, multiplier } }));
-  }, []);
+  // Function to change weather condition preset
+  const handleWeatherToggle = (key: string) => {
+    const preset = WEATHER_PRESETS[key] || WEATHER_PRESETS['Clear'];
+    setActiveWeatherPreset(preset);
+    setGameState(prev => ({ ...prev, weather: preset }));
+  };
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -120,10 +229,14 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
     const qb = roster.find(p => p.position === Position.QB) || roster[0] || { name: 'Quarterback', overall: 80, schemeOvr: 80 };
     const topWr = roster.find(p => p.position === Position.WR) || roster[0] || { name: 'Wide Receiver', overall: 80 };
     
-    // Global Multipliers
+    // Global Multipliers based on Climate Weather Preset
     const hfaBoost = isUserOffense ? 3 : 0; // Home Field Advantage
-    const weatherMult = gameState.weather.multiplier;
-    const windPen = gameState.weather.windSpeed > 12 ? (gameState.weather.windSpeed - 12) * 0.01 : 0;
+    const weather = gameState.weather || activeWeatherPreset;
+    const passAccMod = weather.passModifier ?? 1.0;
+    const rushEffMod = weather.rushModifier ?? 1.0;
+    const fumbleRiskMod = weather.fumbleRisk ?? 0.015;
+    const kickingMod = weather.kickingModifier ?? 1.0;
+    const windPen = weather.windSpeed > 12 ? (weather.windSpeed - 12) * 0.008 : 0;
 
     let yardage = 0;
     let description = '';
@@ -133,40 +246,39 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
     if (play.type === 'Special') {
       if (play.name === 'Field Goal') {
         const distance = 100 - gameState.ballOn + 17;
-        const accuracyMult = (gameState.weather.windSpeed / 30);
-        const successProb = (distance < 40 ? 0.95 : distance < 50 ? 0.75 : 0.45) - accuracyMult;
+        const successProb = ((distance < 40 ? 0.95 : distance < 50 ? 0.75 : 0.45) - windPen) * kickingMod;
         
-        if (Math.random() < successProb) {
+        if (Math.random() < Math.max(0.05, successProb)) {
           isScore = true;
-          description = `FIELD GOAL GOOD! A ${distance}-yard kick splits the uprights.`;
+          description = `FIELD GOAL GOOD! A ${distance}-yard kick splits the uprights despite ${weather.type.toLowerCase()} weather.`;
         } else {
-          description = `MISSED FIELD GOAL! The ${distance}-yard attempt is wide.`;
+          description = `MISSED FIELD GOAL! The ${distance}-yard attempt is blown off course by ${weather.windSpeed} MPH winds.`;
           type = 'Turnover';
         }
       } else if (play.name === 'Punt') {
-        yardage = Math.floor(Math.random() * 15) + 35 - (gameState.weather.windSpeed / 2);
+        yardage = Math.floor((Math.random() * 15 + 35 - (weather.windSpeed / 3)) * kickingMod);
         description = `PUNT! A high spiraling kick for ${Math.floor(yardage)} yards.`;
         type = 'Turnover';
       }
       return { description, yardage, isScore, type };
     }
 
-    // GDD Refined Simulation Engine Formulas
+    // GDD Refined Simulation Engine Formulas with Weather Climate Modifiers
     if (play.type === 'Pass') {
-      const qbAcc = ((qb.schemeOvr || qb.overall) + hfaBoost) / 100;
-      const wrCth = (topWr.overall) / 100;
+      const qbAcc = (((qb.schemeOvr || qb.overall) + hfaBoost) / 100) * passAccMod;
+      const wrCth = ((topWr.overall) / 100) * passAccMod;
       const dbCov = 0.82;
       const pressure = Math.random() * 0.3;
       
-      const pComp = (0.45 + (qbAcc * 0.3) + (wrCth * 0.2) - (dbCov * 0.4) - (pressure * 0.15)) * weatherMult - windPen;
+      const pComp = (0.45 + (qbAcc * 0.3) + (wrCth * 0.2) - (dbCov * 0.4) - (pressure * 0.15)) - windPen;
       const roll = Math.random();
 
-      if (roll < 0.025) {
+      if (roll < (0.025 + (1 - passAccMod) * 0.05)) {
         type = 'Turnover';
-        description = `INTERCEPTED! The QB misread the coverage.`;
+        description = `INTERCEPTED! The QB misread coverage in adverse ${weather.type} climate.`;
         yardage = 0;
       } else if (roll < pComp) {
-        const isBigPlay = Math.random() < (qb.overall / 300);
+        const isBigPlay = Math.random() < ((qb.overall / 300) * passAccMod);
         yardage = isBigPlay ? Math.floor(Math.random() * 25) + 20 : Math.floor(Math.random() * 12) + 4;
         description = `Complete to ${topWr.name} for ${yardage} yards.`;
       } else {
@@ -180,18 +292,18 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
       }
     } else if (play.type === 'Run') {
       const rb = roster.find(p => p.position === Position.RB) || roster[0] || { name: 'Running Back', overall: 80 };
-      const rbPower = (rb.overall + hfaBoost) / 100;
-      const linePush = 0.75;
+      const rbPower = ((rb.overall + hfaBoost) / 100) * rushEffMod;
+      const linePush = 0.75 * rushEffMod;
       
       const successProb = 0.55 + (rbPower * 0.1) + (linePush * 0.1);
       const roll = Math.random();
 
-      if (roll < 0.015) {
+      if (roll < fumbleRiskMod) {
         type = 'Turnover';
-        description = `FUMBLE! The ball was stripped at the point of attack.`;
-        yardage = 2;
+        description = `FUMBLE! Loose ball stripped on slippery field conditions during ${weather.label}.`;
+        yardage = 1;
       } else if (roll < successProb) {
-        const isBigPlay = Math.random() < (rb.overall / 400);
+        const isBigPlay = Math.random() < ((rb.overall / 400) * rushEffMod);
         yardage = isBigPlay ? Math.floor(Math.random() * 30) + 15 : Math.floor(Math.random() * 7) + 2;
         description = `${rb.name} clears a path for ${yardage} yards.`;
       } else {
@@ -548,19 +660,82 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
                     </div>
                 </div>
 
-                {/* Environmental Readout */}
-                <div className="absolute top-10 right-10 flex gap-4">
-                     <div className="bg-[#0a0e14]/90 border border-[#1a222e] p-4 backdrop-blur shadow-2xl flex items-center gap-4 text-slate-500 font-mono">
-                        <div className="p-2 bg-cyan-500/5 border border-cyan-500/20 text-cyan-500 animate-pulse">
-                            {gameState.weather.type === 'Clear' ? <Sun size={20} /> : 
-                             gameState.weather.type === 'Rain' ? <CloudRain size={20} /> : 
-                             <Wind size={20} />}
-                        </div>
-                        <div>
-                            <div className="text-[10px] uppercase tracking-widest font-bold font-mono">ENV_STATUS</div>
-                            <div className="text-xs text-white tracking-tighter">
-                                {gameState.weather.type} // {gameState.weather.windSpeed} MPH_VECTOR
+                {/* Environmental Readout & Climate Selector Toggle */}
+                <div className="absolute top-10 right-10 flex flex-col items-end gap-2 z-20">
+                     <div className="bg-[#0a0e14]/95 border border-[#1a222e] p-4 backdrop-blur shadow-2xl flex flex-col gap-3 font-mono max-w-sm">
+                        <div className="flex items-center justify-between gap-4 border-b border-[#1a222e] pb-2">
+                            <div className="flex items-center gap-2">
+                                <div className="p-1.5 bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
+                                    {gameState.weather.type === 'Clear' ? <Sun size={16} /> : 
+                                     gameState.weather.type === 'Rain' ? <CloudRain size={16} /> : 
+                                     gameState.weather.type === 'Snow' ? <CloudSnow size={16} /> : 
+                                     gameState.weather.type === 'Dome' ? <Shield size={16} /> :
+                                     <Wind size={16} />}
+                                </div>
+                                <div>
+                                    <div className="text-[9px] uppercase tracking-widest font-bold text-slate-500">CLIMATE_SIMULATOR</div>
+                                    <div className="text-xs text-white font-bold tracking-tight">
+                                        {gameState.weather.label} ({gameState.weather.temp}°F)
+                                    </div>
+                                </div>
                             </div>
+                            <div className="text-right">
+                                <span className="text-[10px] text-cyan-400 font-bold block">{gameState.weather.windSpeed} MPH</span>
+                                <span className="text-[9px] text-slate-500 block">WIND VECTOR</span>
+                            </div>
+                        </div>
+
+                        {/* Climate Selector Toggles */}
+                        <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-none">
+                            {Object.keys(WEATHER_PRESETS).map((key) => {
+                                const preset = WEATHER_PRESETS[key];
+                                const isActive = gameState.weather.type === preset.type;
+                                return (
+                                    <button
+                                        key={key}
+                                        onClick={() => handleWeatherToggle(key)}
+                                        className={`px-2 py-1 text-[9px] font-bold uppercase transition-all whitespace-nowrap border ${
+                                            isActive 
+                                                ? 'bg-cyan-500 text-black border-cyan-400 shadow-[0_0_10px_rgba(0,209,255,0.4)]' 
+                                                : 'bg-[#05070a] text-slate-400 border-[#1a222e] hover:border-slate-700 hover:text-white'
+                                        }`}
+                                    >
+                                        {preset.type}
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        {/* Tactical Climate Impact Chips */}
+                        <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-[#1a222e]">
+                            <div className="bg-[#05070a] px-2 py-1 border border-[#1a222e] flex justify-between items-center text-[9px]">
+                                <span className="text-slate-500">PASS ACC</span>
+                                <span className={`font-bold ${gameState.weather.passModifier >= 1 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                    {gameState.weather.passModifier >= 1 ? `+${Math.round((gameState.weather.passModifier - 1) * 100)}%` : `${Math.round((gameState.weather.passModifier - 1) * 100)}%`}
+                                </span>
+                            </div>
+                            <div className="bg-[#05070a] px-2 py-1 border border-[#1a222e] flex justify-between items-center text-[9px]">
+                                <span className="text-slate-500">RUSH EFF</span>
+                                <span className={`font-bold ${gameState.weather.rushModifier >= 1 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                    {gameState.weather.rushModifier >= 1 ? `+${Math.round((gameState.weather.rushModifier - 1) * 100)}%` : `${Math.round((gameState.weather.rushModifier - 1) * 100)}%`}
+                                </span>
+                            </div>
+                            <div className="bg-[#05070a] px-2 py-1 border border-[#1a222e] flex justify-between items-center text-[9px]">
+                                <span className="text-slate-500">KICK RANGE</span>
+                                <span className={`font-bold ${gameState.weather.kickingModifier >= 1 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                    {gameState.weather.kickingModifier >= 1 ? `+${Math.round((gameState.weather.kickingModifier - 1) * 100)}%` : `${Math.round((gameState.weather.kickingModifier - 1) * 100)}%`}
+                                </span>
+                            </div>
+                            <div className="bg-[#05070a] px-2 py-1 border border-[#1a222e] flex justify-between items-center text-[9px]">
+                                <span className="text-slate-500">FUMBLE RISK</span>
+                                <span className={`font-bold ${gameState.weather.fumbleRisk > 0.02 ? 'text-red-400 animate-pulse' : 'text-slate-300'}`}>
+                                    {gameState.weather.fumbleRisk > 0.02 ? 'HIGH' : 'NORMAL'}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div className="text-[9px] text-slate-400 italic leading-tight pt-1 border-t border-[#1a222e]">
+                            💡 {gameState.weather.description}
                         </div>
                      </div>
                 </div>
@@ -789,14 +964,129 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
                     <Activity size={14} className="text-cyan-500 animate-pulse" />
                     <span>HQ DATABASE SYNC STABLE // W-L STANDINGS COMMITTED // CAREER STATISTICS MODIFIED S_RECORD</span>
                   </div>
-                  <button 
-                    onClick={saveAndExitGame}
-                    className="bg-cyan-500 hover:bg-cyan-400 text-black font-bold uppercase tracking-[0.3em] text-[10px] px-8 py-3.5 shadow-[0_0_20px_rgba(6,182,212,0.3)] transition-all font-mono"
-                  >
-                    COMMENCE STATS SYNC & EXIT TO HQ
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={fetchHighlightVideoPackage}
+                      className="bg-amber-500 hover:bg-amber-400 text-black font-bold uppercase tracking-[0.2em] text-[10px] px-6 py-3.5 border border-amber-400 flex items-center gap-2 transition-all font-mono shadow-lg"
+                    >
+                      <Film size={14} />
+                      VEO 3 HIGHLIGHT PACKAGE
+                    </button>
+                    <button 
+                      onClick={saveAndExitGame}
+                      className="bg-cyan-500 hover:bg-cyan-400 text-black font-bold uppercase tracking-[0.3em] text-[10px] px-8 py-3.5 shadow-[0_0_20px_rgba(6,182,212,0.3)] transition-all font-mono"
+                    >
+                      EXIT TO HQ
+                    </button>
+                  </div>
                 </div>
               </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* 16:9 Weekly Highlight Video Package Modal */}
+        <AnimatePresence>
+          {showHighlightModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4"
+            >
+              <div className="bg-[#0a0e14] border border-amber-500/50 w-full max-w-4xl p-6 shadow-2xl relative font-mono">
+                <button
+                  onClick={() => setShowHighlightModal(false)}
+                  className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors text-sm"
+                >
+                  ✕ CLOSE
+                </button>
+
+                <div className="flex items-center gap-3 mb-4 pb-3 border-b border-[#1a222e]">
+                  <Film className="text-amber-400 animate-pulse" size={24} />
+                  <div>
+                    <span className="text-[9px] text-amber-400 font-bold uppercase tracking-widest block">
+                      VEO 3.1 AI HIGHLIGHT VIDEO ENGINE // 16:9 BROADCAST REEL
+                    </span>
+                    <h3 className="text-xl font-bold text-white header-font uppercase italic">
+                      {highlightPackage?.headline || `${team.name} vs ${opponentTeam.name} Weekly Highlights`}
+                    </h3>
+                  </div>
+                </div>
+
+                {isGeneratingHighlight ? (
+                  <div className="aspect-video bg-[#05070a] border border-[#1a222e] flex flex-col items-center justify-center space-y-4 p-8">
+                    <RefreshCw className="animate-spin text-amber-400" size={36} />
+                    <p className="text-xs font-bold text-amber-400 uppercase tracking-widest">
+                      GENERATING VEO 3.1 BROADCAST HIGHLIGHT REEL...
+                    </p>
+                    <p className="text-[10px] text-slate-500 max-w-md text-center">
+                      Synthesizing 16:9 slow-motion touchdown sequences, stadium crowd ambience, and AI commentary broadcast script...
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* 16:9 Video Player Container */}
+                    <div className="aspect-video bg-gradient-to-br from-slate-950 via-[#0a0e14] to-amber-950/30 border border-amber-500/30 relative overflow-hidden flex flex-col justify-between p-6 group">
+                      {/* Stadium Floodlight Grid Lines Visual */}
+                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(245,158,11,0.15),transparent_60%)] pointer-events-none"></div>
+
+                      {/* Header Overlays */}
+                      <div className="flex justify-between items-center relative z-10">
+                        <span className="px-2.5 py-1 bg-red-600/90 text-white font-bold text-[9px] uppercase tracking-widest flex items-center gap-1.5 animate-pulse">
+                          <Radio size={12} /> LIVE BROADCAST REEL
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-bold">16:9 HIGH DEFINITION</span>
+                      </div>
+
+                      {/* Simulated Motion Play / Video Canvas overlay */}
+                      <div className="my-auto text-center relative z-10 py-6">
+                        <div className="w-16 h-16 rounded-full bg-amber-500/20 border-2 border-amber-400 flex items-center justify-center mx-auto mb-4 cursor-pointer hover:scale-110 transition-transform shadow-[0_0_20px_rgba(245,158,11,0.4)]" onClick={() => setIsVideoPlaying(!isVideoPlaying)}>
+                          {isVideoPlaying ? <Tv className="text-amber-400" size={28} /> : <PlayIcon className="text-amber-400 ml-1" size={28} />}
+                        </div>
+                        <h4 className="text-2xl font-bold text-white header-font uppercase tracking-tight italic">
+                          {highlightPackage?.topPlay || '4th Quarter Game-Winning Touchdown Drive'}
+                        </h4>
+                        <p className="text-xs text-amber-300 mt-1 uppercase font-bold">
+                          {team.name} {gameState.homeScore} — {opponentTeam.name} {gameState.awayScore}
+                        </p>
+                      </div>
+
+                      {/* Video Player Bottom Controls Bar */}
+                      <div className="flex justify-between items-center pt-2 border-t border-amber-500/20 relative z-10 text-[10px] text-slate-300">
+                        <div className="flex items-center gap-3">
+                          <button onClick={() => setIsVideoPlaying(!isVideoPlaying)} className="hover:text-amber-400 font-bold">
+                            {isVideoPlaying ? 'PAUSE' : 'PLAY'}
+                          </button>
+                          <span>00:45 / 01:30</span>
+                        </div>
+                        <span className="text-[9px] text-slate-500 italic">VEO 3.1 FAST GENERATE PREVIEW (16:9)</span>
+                      </div>
+                    </div>
+
+                    {/* AI Anchor Commentary Script */}
+                    <div className="bg-[#05070a] border border-[#1a222e] p-4 space-y-2 text-xs text-slate-300">
+                      <span className="text-[9px] text-amber-400 font-bold uppercase tracking-widest block">
+                        NFL NETWORK HIGHLIGHT DESK COMMENTARY SCRIPT
+                      </span>
+                      {highlightPackage?.commentary?.map((line, i) => (
+                        <p key={i} className="leading-relaxed">
+                          • {line}
+                        </p>
+                      ))}
+                    </div>
+
+                    <div className="text-right">
+                      <button
+                        onClick={() => setShowHighlightModal(false)}
+                        className="px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs uppercase tracking-wider transition-all"
+                      >
+                        CLOSE HIGHLIGHT REEL
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
