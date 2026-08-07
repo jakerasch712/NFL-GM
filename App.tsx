@@ -16,14 +16,20 @@ import { DRAFT_CLASS, INITIAL_PICKS, MOCK_SCOUTS, TEAMS_DB, MOCK_PLAYERS, MOCK_C
 import { nflverseService } from './services/nflverseService';
 import { LEAGUE_PLAYERS, LEAGUE_SCHEDULE } from './data/leagueData';
 import { GameResult, applyCompletedGame, simulateWeek } from './services/leagueSimService';
+import { loadSave, persistSave } from './services/saveService';
+
+// Read the save file once per page load; every initializer below falls back to seed data.
+const savedState = loadSave();
 
 const App: React.FC = () => {
-  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
+  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(savedState?.selectedTeamId ?? null);
   const [currentView, setCurrentView] = useState<AppView>(AppView.DASHBOARD);
-  const [teams, setTeams] = useState<Record<string, any>>(TEAMS_DB);
-  const [allPlayers, setAllPlayers] = useState<Player[]>(LEAGUE_PLAYERS.length ? LEAGUE_PLAYERS : MOCK_PLAYERS);
-  const [coaches, setCoaches] = useState<Coach[]>(MOCK_COACHES);
-  const [tradeHistory, setTradeHistory] = useState<TradeRecord[]>([]);
+  const [teams, setTeams] = useState<Record<string, any>>(savedState?.teams ?? TEAMS_DB);
+  const [allPlayers, setAllPlayers] = useState<Player[]>(
+    savedState?.allPlayers ?? (LEAGUE_PLAYERS.length ? LEAGUE_PLAYERS : MOCK_PLAYERS)
+  );
+  const [coaches, setCoaches] = useState<Coach[]>(savedState?.coaches ?? MOCK_COACHES);
+  const [tradeHistory, setTradeHistory] = useState<TradeRecord[]>(savedState?.tradeHistory ?? []);
   const [loading, setLoading] = useState(true);
 
   
@@ -61,17 +67,30 @@ const App: React.FC = () => {
   }, []);
   
   // Global State
-  const [prospects, setProspects] = useState<DraftProspect[]>(DRAFT_CLASS);
-  const [scouts, setScouts] = useState<Scout[]>(MOCK_SCOUTS);
-  const [picks, setPicks] = useState<DraftPick[]>(INITIAL_PICKS);
-  const [schedule, setSchedule] = useState<ScheduleMatch[]>(LEAGUE_SCHEDULE);
-  const [leagueState, setLeagueState] = useState<LeagueState>({
+  const [prospects, setProspects] = useState<DraftProspect[]>(savedState?.prospects ?? DRAFT_CLASS);
+  const [scouts, setScouts] = useState<Scout[]>(savedState?.scouts ?? MOCK_SCOUTS);
+  const [picks, setPicks] = useState<DraftPick[]>(savedState?.picks ?? INITIAL_PICKS);
+  const [schedule, setSchedule] = useState<ScheduleMatch[]>(savedState?.schedule ?? LEAGUE_SCHEDULE);
+  const [leagueState, setLeagueState] = useState<LeagueState>(savedState?.leagueState ?? {
     currentPhase: LeaguePhase.REGULAR_SEASON,
     week: 1,
     year: 2027,
     salaryCap: 255.4,
     difficulty: 'Simulation'
   });
+
+  // Debounced auto-save of the whole franchise. Skipped until a team is
+  // selected so an empty session never overwrites a real save.
+  useEffect(() => {
+    if (loading || !selectedTeamId) return;
+    const timer = setTimeout(() => {
+      persistSave({
+        selectedTeamId, teams, allPlayers, coaches, tradeHistory,
+        prospects, scouts, picks, leagueState, schedule
+      });
+    }, 750);
+    return () => clearTimeout(timer);
+  }, [loading, selectedTeamId, teams, allPlayers, coaches, tradeHistory, prospects, scouts, picks, leagueState, schedule]);
 
   const rollWeekForward = () => {
     setLeagueState(prev => {

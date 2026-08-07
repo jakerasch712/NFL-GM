@@ -3,6 +3,7 @@ import { LayoutDashboard, Users, ClipboardList, Play, Briefcase, ShoppingBag, Ar
 import { AppView, Player } from '../types';
 import { TEAMS_DB } from '../constants';
 import { getTeamCapSpace } from '../services/financeService';
+import { clearSave } from '../services/saveService';
 
 interface NavigationProps {
   currentView: AppView;
@@ -66,12 +67,17 @@ const Navigation: React.FC<NavigationProps> = ({ currentView, setView, selectedT
             <span className="tracking-widest">CAP_SPACE</span>
             <span className={capSpace < 0 ? 'text-red-500' : 'text-white'}>${capSpace.toFixed(1)}M</span>
         </div>
-        <button 
-          onClick={() => window.location.reload()} 
+        <button
+          onClick={() => {
+            if (window.confirm('Start a new franchise? Your current save will be erased.')) {
+              clearSave();
+              window.location.reload();
+            }
+          }}
           className="mt-6 w-full flex items-center justify-center gap-2 py-2 text-[9px] font-bold uppercase tracking-[0.2em] text-slate-600 hover:text-red-500 transition-all border border-[#1a222e] rounded-sm hover:bg-red-500/5 hover:border-red-500/30"
         >
           <LogOut size={12} />
-          TERMINATE_SESSION
+          NEW_FRANCHISE
         </button>
       </div>
     </div>
