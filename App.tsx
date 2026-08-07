@@ -11,10 +11,11 @@ import StaffView from './components/StaffView';
 import ScoutingView from './components/ScoutingView';
 import HallOfFame from './components/HallOfFame';
 import TeamSelection from './components/TeamSelection';
-import { AppView, DraftProspect, DraftPick, Scout, LeagueState, LeaguePhase, Player, Coach, TradeRecord } from './types';
+import { AppView, DraftProspect, DraftPick, Scout, LeagueState, LeaguePhase, Player, Coach, TradeRecord, ScheduleMatch } from './types';
 import { DRAFT_CLASS, INITIAL_PICKS, MOCK_SCOUTS, TEAMS_DB, MOCK_PLAYERS, MOCK_COACHES } from './constants';
 import { nflverseService } from './services/nflverseService';
-import { LEAGUE_PLAYERS } from './data/leagueData';
+import { LEAGUE_PLAYERS, LEAGUE_SCHEDULE } from './data/leagueData';
+import { GameResult, applyCompletedGame, simulateWeek } from './services/leagueSimService';
 
 const App: React.FC = () => {
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
@@ -63,6 +64,7 @@ const App: React.FC = () => {
   const [prospects, setProspects] = useState<DraftProspect[]>(DRAFT_CLASS);
   const [scouts, setScouts] = useState<Scout[]>(MOCK_SCOUTS);
   const [picks, setPicks] = useState<DraftPick[]>(INITIAL_PICKS);
+  const [schedule, setSchedule] = useState<ScheduleMatch[]>(LEAGUE_SCHEDULE);
   const [leagueState, setLeagueState] = useState<LeagueState>({
     currentPhase: LeaguePhase.REGULAR_SEASON,
     week: 1,
@@ -71,13 +73,34 @@ const App: React.FC = () => {
     difficulty: 'Simulation'
   });
 
-  const nextWeek = () => {
+  const rollWeekForward = () => {
     setLeagueState(prev => {
       if (prev.week >= 18) {
         return { ...prev, week: 1, currentPhase: LeaguePhase.PLAYOFFS };
       }
       return { ...prev, week: prev.week + 1 };
     });
+  };
+
+  // Advance Week button: resolve every remaining game this week (including the
+  // user's, if unplayed), then move the calendar.
+  const advanceWeek = () => {
+    if (leagueState.currentPhase === LeaguePhase.REGULAR_SEASON) {
+      const simmed = simulateWeek(leagueState.week, schedule, teams, allPlayers);
+      setSchedule(simmed.schedule);
+      setTeams(simmed.teams);
+    }
+    rollWeekForward();
+  };
+
+  // Called by MatchSim when the user finishes playing their game: record the
+  // real result, sim the rest of the league's week, and advance.
+  const completeUserGame = (result: GameResult) => {
+    const afterUserGame = applyCompletedGame(schedule, teams, result);
+    const simmed = simulateWeek(leagueState.week, afterUserGame.schedule, afterUserGame.teams, allPlayers);
+    setSchedule(simmed.schedule);
+    setTeams(simmed.teams);
+    rollWeekForward();
   };
 
   const renderView = () => {
@@ -87,7 +110,7 @@ const App: React.FC = () => {
 
     switch (currentView) {
       case AppView.DASHBOARD:
-        return <Dashboard selectedTeamId={selectedTeamId} leaguePhase={leagueState.currentPhase} currentWeek={leagueState.week} teams={teams} allPlayers={allPlayers} />;
+        return <Dashboard selectedTeamId={selectedTeamId} leaguePhase={leagueState.currentPhase} currentWeek={leagueState.week} teams={teams} allPlayers={allPlayers} schedule={schedule} />;
       case AppView.ROSTER:
         return <RosterView selectedTeamId={selectedTeamId} allPlayers={allPlayers} setAllPlayers={setAllPlayers} teams={teams} />;
       case AppView.FREE_AGENCY:
@@ -108,20 +131,23 @@ const App: React.FC = () => {
         return (
           <GamePlan 
             selectedTeamId={selectedTeamId} 
-            currentWeek={leagueState.week} 
-            allPlayers={allPlayers} 
+            currentWeek={leagueState.week}
+            allPlayers={allPlayers}
             setAllPlayers={setAllPlayers}
-            teams={teams} 
+            teams={teams}
+            schedule={schedule}
           />
         );
       case AppView.MATCH:
         return (
-          <MatchSim 
-            selectedTeamId={selectedTeamId} 
-            allPlayers={allPlayers} 
+          <MatchSim
+            selectedTeamId={selectedTeamId}
+            allPlayers={allPlayers}
             setAllPlayers={setAllPlayers}
             teams={teams}
-            setTeams={setTeams}
+            currentWeek={leagueState.week}
+            schedule={schedule}
+            onGameComplete={completeUserGame}
             setView={setCurrentView}
           />
         );
@@ -158,7 +184,7 @@ const App: React.FC = () => {
           />
         );
       default:
-        return <Dashboard selectedTeamId={selectedTeamId} leaguePhase={leagueState.currentPhase} currentWeek={leagueState.week} teams={teams} allPlayers={allPlayers} />;
+        return <Dashboard selectedTeamId={selectedTeamId} leaguePhase={leagueState.currentPhase} currentWeek={leagueState.week} teams={teams} allPlayers={allPlayers} schedule={schedule} />;
     }
   };
 
@@ -188,8 +214,8 @@ const App: React.FC = () => {
               </div>
             </div>
             
-            <button 
-              onClick={nextWeek}
+            <button
+              onClick={advanceWeek}
               className="bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-2 shadow-[0_0_15px_rgba(8,145,178,0.3)]"
             >
               ADVANCE WEEK
