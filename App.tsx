@@ -14,13 +14,13 @@ import TeamSelection from './components/TeamSelection';
 import { AppView, DraftProspect, DraftPick, Scout, LeagueState, LeaguePhase, Player, Coach, TradeRecord } from './types';
 import { DRAFT_CLASS, INITIAL_PICKS, MOCK_SCOUTS, TEAMS_DB, MOCK_PLAYERS, MOCK_COACHES } from './constants';
 import { nflverseService } from './services/nflverseService';
-import { SCHEDULE_2027 } from './schedule';
+import { LEAGUE_PLAYERS } from './data/leagueData';
 
 const App: React.FC = () => {
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   const [currentView, setCurrentView] = useState<AppView>(AppView.DASHBOARD);
   const [teams, setTeams] = useState<Record<string, any>>(TEAMS_DB);
-  const [allPlayers, setAllPlayers] = useState<Player[]>(MOCK_PLAYERS);
+  const [allPlayers, setAllPlayers] = useState<Player[]>(LEAGUE_PLAYERS.length ? LEAGUE_PLAYERS : MOCK_PLAYERS);
   const [coaches, setCoaches] = useState<Coach[]>(MOCK_COACHES);
   const [tradeHistory, setTradeHistory] = useState<TradeRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,11 +30,8 @@ const App: React.FC = () => {
     const initData = async () => {
       setLoading(true);
       try {
-        const [nflTeams, nflPlayers] = await Promise.all([
-          nflverseService.fetchTeams().catch(() => []),
-          nflverseService.fetchRosters(2024).catch(() => [])
-        ]);
-        
+        const nflTeams = await nflverseService.fetchTeams().catch(() => []);
+
         if (nflTeams && nflTeams.length > 0) {
           setTeams(prev => {
             const newTeams = { ...prev };
@@ -52,10 +49,6 @@ const App: React.FC = () => {
             });
             return newTeams;
           });
-        }
-
-        if (nflPlayers && nflPlayers.length > 0) {
-          setAllPlayers(nflPlayers);
         }
       } catch (err) {
         console.warn('Initialization using default local databases:', err);
