@@ -101,7 +101,7 @@ app.post('/api/draft/strategy', async (req, res) => {
     Provide a detailed, professional reasoning. Use Markdown for formatting.`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.6-flash',
+      model: 'gemini-3.5-flash',
       contents: prompt
     });
 

@@ -11,18 +11,25 @@ import StaffView from './components/StaffView';
 import ScoutingView from './components/ScoutingView';
 import HallOfFame from './components/HallOfFame';
 import TeamSelection from './components/TeamSelection';
-import { AppView, DraftProspect, DraftPick, Scout, LeagueState, LeaguePhase, Player, Coach, TradeRecord } from './types';
+import { AppView, DraftProspect, DraftPick, Scout, LeagueState, LeaguePhase, Player, Coach, TradeRecord, ScheduleMatch } from './types';
 import { DRAFT_CLASS, INITIAL_PICKS, MOCK_SCOUTS, TEAMS_DB, MOCK_PLAYERS, MOCK_COACHES } from './constants';
 import { nflverseService } from './services/nflverseService';
-import { SCHEDULE_2027 } from './schedule';
+import { LEAGUE_PLAYERS, LEAGUE_SCHEDULE } from './data/leagueData';
+import { GameResult, applyCompletedGame, simulateWeek } from './services/leagueSimService';
+import { loadSave, persistSave } from './services/saveService';
+
+// Read the save file once per page load; every initializer below falls back to seed data.
+const savedState = loadSave();
 
 const App: React.FC = () => {
-  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
+  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(savedState?.selectedTeamId ?? null);
   const [currentView, setCurrentView] = useState<AppView>(AppView.DASHBOARD);
-  const [teams, setTeams] = useState<Record<string, any>>(TEAMS_DB);
-  const [allPlayers, setAllPlayers] = useState<Player[]>(MOCK_PLAYERS);
-  const [coaches, setCoaches] = useState<Coach[]>(MOCK_COACHES);
-  const [tradeHistory, setTradeHistory] = useState<TradeRecord[]>([]);
+  const [teams, setTeams] = useState<Record<string, any>>(savedState?.teams ?? TEAMS_DB);
+  const [allPlayers, setAllPlayers] = useState<Player[]>(
+    savedState?.allPlayers ?? (LEAGUE_PLAYERS.length ? LEAGUE_PLAYERS : MOCK_PLAYERS)
+  );
+  const [coaches, setCoaches] = useState<Coach[]>(savedState?.coaches ?? MOCK_COACHES);
+  const [tradeHistory, setTradeHistory] = useState<TradeRecord[]>(savedState?.tradeHistory ?? []);
   const [loading, setLoading] = useState(true);
 
   
@@ -30,11 +37,8 @@ const App: React.FC = () => {
     const initData = async () => {
       setLoading(true);
       try {
-        const [nflTeams, nflPlayers] = await Promise.all([
-          nflverseService.fetchTeams().catch(() => []),
-          nflverseService.fetchRosters(2024).catch(() => [])
-        ]);
-        
+        const nflTeams = await nflverseService.fetchTeams().catch(() => []);
+
         if (nflTeams && nflTeams.length > 0) {
           setTeams(prev => {
             const newTeams = { ...prev };
@@ -53,10 +57,6 @@ const App: React.FC = () => {
             return newTeams;
           });
         }
-
-        if (nflPlayers && nflPlayers.length > 0) {
-          setAllPlayers(nflPlayers);
-        }
       } catch (err) {
         console.warn('Initialization using default local databases:', err);
       } finally {
@@ -67,11 +67,11 @@ const App: React.FC = () => {
   }, []);
   
   // Global State
-  const [prospects, setProspects] = useState<DraftProspect[]>(DRAFT_CLASS);
-  const [scouts, setScouts] = useState<Scout[]>(MOCK_SCOUTS);
-  const [picks, setPicks] = useState<DraftPick[]>(INITIAL_PICKS);
-  const [teamBudget, setTeamBudget] = useState(255.4); // Cap space in millions
-  const [leagueState, setLeagueState] = useState<LeagueState>({
+  const [prospects, setProspects] = useState<DraftProspect[]>(savedState?.prospects ?? DRAFT_CLASS);
+  const [scouts, setScouts] = useState<Scout[]>(savedState?.scouts ?? MOCK_SCOUTS);
+  const [picks, setPicks] = useState<DraftPick[]>(savedState?.picks ?? INITIAL_PICKS);
+  const [schedule, setSchedule] = useState<ScheduleMatch[]>(savedState?.schedule ?? LEAGUE_SCHEDULE);
+  const [leagueState, setLeagueState] = useState<LeagueState>(savedState?.leagueState ?? {
     currentPhase: LeaguePhase.REGULAR_SEASON,
     week: 1,
     year: 2027,
@@ -79,13 +79,47 @@ const App: React.FC = () => {
     difficulty: 'Simulation'
   });
 
-  const nextWeek = () => {
+  // Debounced auto-save of the whole franchise. Skipped until a team is
+  // selected so an empty session never overwrites a real save.
+  useEffect(() => {
+    if (loading || !selectedTeamId) return;
+    const timer = setTimeout(() => {
+      persistSave({
+        selectedTeamId, teams, allPlayers, coaches, tradeHistory,
+        prospects, scouts, picks, leagueState, schedule
+      });
+    }, 750);
+    return () => clearTimeout(timer);
+  }, [loading, selectedTeamId, teams, allPlayers, coaches, tradeHistory, prospects, scouts, picks, leagueState, schedule]);
+
+  const rollWeekForward = () => {
     setLeagueState(prev => {
       if (prev.week >= 18) {
         return { ...prev, week: 1, currentPhase: LeaguePhase.PLAYOFFS };
       }
       return { ...prev, week: prev.week + 1 };
     });
+  };
+
+  // Advance Week button: resolve every remaining game this week (including the
+  // user's, if unplayed), then move the calendar.
+  const advanceWeek = () => {
+    if (leagueState.currentPhase === LeaguePhase.REGULAR_SEASON) {
+      const simmed = simulateWeek(leagueState.week, schedule, teams, allPlayers);
+      setSchedule(simmed.schedule);
+      setTeams(simmed.teams);
+    }
+    rollWeekForward();
+  };
+
+  // Called by MatchSim when the user finishes playing their game: record the
+  // real result, sim the rest of the league's week, and advance.
+  const completeUserGame = (result: GameResult) => {
+    const afterUserGame = applyCompletedGame(schedule, teams, result);
+    const simmed = simulateWeek(leagueState.week, afterUserGame.schedule, afterUserGame.teams, allPlayers);
+    setSchedule(simmed.schedule);
+    setTeams(simmed.teams);
+    rollWeekForward();
   };
 
   const renderView = () => {
@@ -95,11 +129,11 @@ const App: React.FC = () => {
 
     switch (currentView) {
       case AppView.DASHBOARD:
-        return <Dashboard selectedTeamId={selectedTeamId} leaguePhase={leagueState.currentPhase} currentWeek={leagueState.week} teams={teams} allPlayers={allPlayers} />;
+        return <Dashboard selectedTeamId={selectedTeamId} leaguePhase={leagueState.currentPhase} currentWeek={leagueState.week} teams={teams} allPlayers={allPlayers} schedule={schedule} />;
       case AppView.ROSTER:
-        return <RosterView selectedTeamId={selectedTeamId} allPlayers={allPlayers} setAllPlayers={setAllPlayers} teams={teams} />;
+        return <RosterView selectedTeamId={selectedTeamId} allPlayers={allPlayers} setAllPlayers={setAllPlayers} teams={teams} salaryCap={leagueState.salaryCap} />;
       case AppView.FREE_AGENCY:
-        return <FreeAgency selectedTeamId={selectedTeamId} allPlayers={allPlayers} setAllPlayers={setAllPlayers} />;
+        return <FreeAgency selectedTeamId={selectedTeamId} allPlayers={allPlayers} setAllPlayers={setAllPlayers} salaryCap={leagueState.salaryCap} />;
       case AppView.TRADE_CENTER:
         return (
           <TradeCenter 
@@ -116,20 +150,23 @@ const App: React.FC = () => {
         return (
           <GamePlan 
             selectedTeamId={selectedTeamId} 
-            currentWeek={leagueState.week} 
-            allPlayers={allPlayers} 
+            currentWeek={leagueState.week}
+            allPlayers={allPlayers}
             setAllPlayers={setAllPlayers}
-            teams={teams} 
+            teams={teams}
+            schedule={schedule}
           />
         );
       case AppView.MATCH:
         return (
-          <MatchSim 
-            selectedTeamId={selectedTeamId} 
-            allPlayers={allPlayers} 
+          <MatchSim
+            selectedTeamId={selectedTeamId}
+            allPlayers={allPlayers}
             setAllPlayers={setAllPlayers}
             teams={teams}
-            setTeams={setTeams}
+            currentWeek={leagueState.week}
+            schedule={schedule}
+            onGameComplete={completeUserGame}
             setView={setCurrentView}
           />
         );
@@ -140,9 +177,10 @@ const App: React.FC = () => {
             prospects={prospects} 
             setProspects={setProspects} 
             picks={picks} 
-            setPicks={setPicks} 
+            setPicks={setPicks}
             teams={teams}
             allPlayers={allPlayers}
+            setAllPlayers={setAllPlayers}
           />
         );
       case AppView.STAFF:
@@ -166,7 +204,7 @@ const App: React.FC = () => {
           />
         );
       default:
-        return <Dashboard selectedTeamId={selectedTeamId} leaguePhase={leagueState.currentPhase} currentWeek={leagueState.week} teams={teams} allPlayers={allPlayers} />;
+        return <Dashboard selectedTeamId={selectedTeamId} leaguePhase={leagueState.currentPhase} currentWeek={leagueState.week} teams={teams} allPlayers={allPlayers} schedule={schedule} />;
     }
   };
 
@@ -176,7 +214,7 @@ const App: React.FC = () => {
       <div className="absolute inset-0 grid-lines opacity-20 pointer-events-none"></div>
       <div className="scan-line"></div>
 
-      {selectedTeamId && <Navigation currentView={currentView} setView={setCurrentView} selectedTeamId={selectedTeamId} teams={teams} />}
+      {selectedTeamId && <Navigation currentView={currentView} setView={setCurrentView} selectedTeamId={selectedTeamId} teams={teams} allPlayers={allPlayers} salaryCap={leagueState.salaryCap} />}
       <main className="flex-1 relative overflow-hidden flex flex-col z-10">
         {/* League Status Bar */}
         {selectedTeamId && (
@@ -196,8 +234,8 @@ const App: React.FC = () => {
               </div>
             </div>
             
-            <button 
-              onClick={nextWeek}
+            <button
+              onClick={advanceWeek}
               className="bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-2 shadow-[0_0_15px_rgba(8,145,178,0.3)]"
             >
               ADVANCE WEEK

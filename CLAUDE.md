@@ -35,6 +35,7 @@ npm run dev          # tsx server.ts -> Express + Vite middleware on http://0.0.
 npm run lint         # tsc --noEmit  <-- this is the ONLY check in the repo
 npm run build        # vite build  +  esbuild server.ts -> dist/server.cjs
 npm start            # node dist/server.cjs (expects NODE_ENV=production and dist/ present)
+npm run generate:data  # regenerate data/league*.json from nflverse (network required)
 ```
 
 There is **no test framework, no ESLint, no Prettier, and no CI config**. `npm run lint`
@@ -51,26 +52,27 @@ GEMINI_API_KEY=
 
 It is consumed in **two independent ways**, and this trips people up:
 
-- `vite.config.ts` uses `loadEnv` to inline it into the client bundle as
-  `process.env.API_KEY` and `process.env.GEMINI_API_KEY`. Nothing in `components/` or
-  `services/` currently reads those, and nothing should — inlining a key into client JS
-  publishes it. Prefer adding a server route over reaching for the client-side define.
-- `server.ts` reads `process.env.GEMINI_API_KEY` at request time. `tsx` does **not**
-  auto-load `.env`, so the key must be exported in the shell (or passed via
-  `--env-file`) for the `/api/*` routes to work in dev. A missing key throws per-request
-  and surfaces as a 500 — the UI degrades gracefully rather than crashing.
+Only `server.ts` reads it, at request time. `tsx` does **not** auto-load `.env`, so the
+key must be exported in the shell (or passed via `--env-file`) for the `/api/*` routes to
+work in dev. A missing key throws per-request and surfaces as a 500 — the UI degrades
+gracefully rather than crashing.
+
+The key must never reach the client. `vite.config.ts` previously had a `define` block
+inlining it into the client bundle; that was removed. Add a server route rather than
+reintroducing a client-side define.
 
 ## Layout
 
 ```
-index.html            # Tailwind CDN, Google Fonts, CSS custom properties, importmap, #root
+index.html            # Tailwind CDN, Google Fonts, CSS custom properties, #root
 index.tsx             # ReactDOM.createRoot -> <App/>
 App.tsx               # ALL global state + view router (switch on AppView)
 server.ts             # Express: /api/* Gemini routes + Vite middleware / static dist
 types.ts              # every shared type, enum, and interface — single source of truth
 constants.ts          # seed data: TEAMS_DB, MOCK_PLAYERS, MOCK_COACHES, DRAFT_CLASS,
                       #            MOCK_SCOUTS, INITIAL_PICKS, OFFENSIVE_PLAYS
-schedule.ts           # SCHEDULE_2027 (partial — weeks 1-3 full, week 4 stubbed)
+data/                 # GENERATED league data (players + schedule) + leagueData.ts accessor
+scripts/              # generateLeagueData.ts + lib/derivePlayer.ts (build-time only)
 components/           # one default-exported view per file (CapModals.tsx is named exports)
 services/             # data fetching + domain logic
 utils/capUtils.ts     # cut / dead-cap math
@@ -81,15 +83,33 @@ migrated_prompt_history/  # archived original product prompt (JSON); reference o
 ### `App.tsx` is the state container
 
 Every piece of cross-view state lives in `App.tsx` `useState` and is **prop-drilled** to
-views. There is no Redux, Zustand, Context, or router, and **no persistence** — no
-`localStorage`, no save/load. Reloading resets the franchise.
+views. There is no Redux, Zustand, Context, or router.
 
 State owned by `App.tsx`: `selectedTeamId`, `currentView`, `teams`, `allPlayers`,
-`coaches`, `tradeHistory`, `prospects`, `scouts`, `picks`, `teamBudget`, `leagueState`,
+`coaches`, `tradeHistory`, `prospects`, `scouts`, `picks`, `schedule`, `leagueState`,
 `loading`.
 
 Views mutate shared data by calling the `setX` setters they receive as props (e.g.
 `RosterView` gets `setAllPlayers`). Follow that pattern rather than introducing a store.
+
+The franchise **persists to `localStorage`** via `services/saveService.ts` (key
+`nflgm.save.v1`). `App.tsx` reads the save once at module scope and every `useState`
+initializer falls back to seed data; a debounced effect re-saves on change. Anything added
+to the persisted set must go in `FranchiseState` **and** the effect's dependency array.
+Save loading is defensive by contract: corruption, a version mismatch, or a quota error
+must degrade to seed data, never throw.
+
+### Who owns game results
+
+A deliberate split, worth preserving:
+
+- **`MatchSim`** credits per-player stats (via `setAllPlayers`) and reports the final
+  score through the `onGameComplete` callback.
+- **`App.tsx`** owns the schedule, team records, league-wide simulation, and the calendar.
+
+The sim renders the user as HOME internally regardless of the real fixture, so
+`saveAndExitGame` remaps home/away through `isUserHome` before calling `onGameComplete`.
+That remap is the one place a sign flip would corrupt standings — change it carefully.
 
 ### Adding a view requires three edits
 
@@ -97,41 +117,70 @@ Views mutate shared data by calling the `setX` setters they receive as props (e.
 2. Add a `case` to `renderView()` in `App.tsx`.
 3. Add an entry to `navItems` in `components/Navigation.tsx` (label + `lucide-react` icon).
 
-## Data flow at boot
+## League data (generated, not fetched at runtime)
 
-1. State initializes from the local mock databases in `constants.ts`, so the app is fully
-   playable offline.
-2. `App.tsx`'s `useEffect` calls `nflverseService.fetchTeams()` and
-   `nflverseService.fetchRosters(2024)` in parallel against public nflverse CSV releases
-   on GitHub.
-3. Team metadata (nickname, city, logo, colors) is **merged over** `TEAMS_DB`; fetched
-   rosters **replace** `MOCK_PLAYERS` wholesale when non-empty.
-4. Every fetch path swallows its error and returns `[]`, keeping the mock seed. Never let
-   a network failure here become a thrown error — the graceful-degradation contract is
-   deliberate.
+Real NFL data is **vendored at build time**, not fetched when the app boots.
+`npm run generate:data` runs `scripts/generateLeagueData.ts`, which downloads three
+nflverse CSVs and writes two committed JSON files:
 
-Note that nflverse rosters carry no ratings, so `parseRosters` synthesizes `overall` as
-`70 + random(25)` and stubs contracts. Anything depending on realistic ratings should not
-assume the live path produces them.
+| Output | Contents |
+| --- | --- |
+| `data/leaguePlayers.json` | ~3,160 players — 2,916 rostered + ~246 free agents |
+| `data/leagueSchedule.json` | all 272 regular-season games, 18 weeks |
+
+`data/leagueData.ts` is the typed accessor (`LEAGUE_PLAYERS`, `LEAGUE_SCHEDULE`).
+
+Source notes, because the upstream layout is not obvious:
+
+- Rosters come from `roster_2026.csv`. There is **no `age` column** — age is derived from
+  `birth_date`. There are no ratings at all.
+- Schedules are **not** at `schedules_{year}.csv` (that 404s for 2025+). The real asset is
+  a single `games.csv` covering every season, filtered by `season` and `game_type == REG`.
+- nflverse has no free-agent feed. The FA pool is derived by diffing the prior season's
+  roster against the current one: anyone on `roster_2025.csv` who is absent from 2026 and
+  is 34 or younger becomes a free agent (`teamId: 'FA'`).
+
+**The generator must stay deterministic.** Ratings, contracts, and expiration staggering
+are all derived from a hash of the player id — never `Math.random()`. Re-running the
+script against unchanged CSVs must produce byte-identical JSON; that is the regression
+test. Randomness is fine in the *game* simulation, just not in data generation.
+
+Derived values, roughly: `overall` blends draft position (exponential decay from pick 1),
+years of experience (peaking around year 6), and roster status; contracts scale a
+position-specific APY ceiling by overall, with a separate rookie scale for recent draft
+picks. A final normalization pass scales each team's salaries so its Top-51 total fits
+under 95% of the cap, leaving every team roughly $10–14M of space. The script self-checks
+roster sizes, cap space, FA pool size, and NaNs, and exits non-zero on failure.
+
+At boot, `App.tsx` seeds state from `LEAGUE_PLAYERS`/`LEAGUE_SCHEDULE` (or a save) and
+then calls `nflverseService.fetchTeams()` for cosmetic team metadata only — nickname,
+city, logo, colors merged over `TEAMS_DB`. That fetch swallows its error and returns `[]`.
+**Never let a network failure at boot become a thrown error**; the app must stay fully
+playable offline. `MOCK_PLAYERS` remains as a last-ditch fallback if the generated data is
+ever empty.
 
 ## Services
 
 | File | Role | Used by |
 | --- | --- | --- |
-| `services/nflverseService.ts` | nflverse CSV fetch + `normalizePosition` + roster mapping | `App.tsx` |
+| `services/leagueSimService.ts` | `teamStrength`, `simulateGame`, `simulateWeek`, `applyCompletedGame`, `applyResultToRecord` | `App.tsx` |
+| `services/saveService.ts` | versioned `localStorage` load/persist/clear | `App.tsx`, `Navigation` |
+| `services/nflverseService.ts` | `fetchTeams` (cosmetic metadata), `fetchLiveSearchRoster`, `normalizePosition` | `App.tsx`, `RosterView` |
 | `services/geminiService.ts` | thin client wrappers over `/api/*` (`syncTeamRoster`, `getDraftStrategy`) | `RosterView`, `DraftRoom` |
-| `services/financeService.ts` | `calculateCapHit`, `calculateDeadCap`, `restructureContract`, `getTeamCapSpace` (Top-51 rule) | `RosterView` |
+| `services/financeService.ts` | `calculateCapHit`, `restructureContract`, `getTeamCapSpace` (Top-51 rule) | `RosterView`, `FreeAgency`, `Navigation` |
 | `utils/capUtils.ts` | `calculateDeadCap` (post-June-1 aware), `executePlayerRelease` | `CapModals` |
+| `scripts/lib/derivePlayer.ts` | build-time rating/contract/depth derivation | `scripts/generateLeagueData.ts` |
 | `services/aiService.ts` | AI coach play selection by `CoachArchetype`; `aiGMRosterManagement` stub | **unused** |
 | `services/historyService.ts` | HOF eligibility, season awards | **unused** |
 
-Two known duplications/gaps to be aware of before "fixing" them blindly:
+`utils/capUtils.ts` is the single dead-cap implementation (a duplicate in
+`financeService.ts` with different semantics was removed). `aiService.ts` and
+`historyService.ts` are written but wired to nothing — `MatchSim` resolves plays inline
+rather than calling `aiCoachingDecision`. Leave them alone unless you intend to wire them;
+they are not dead code by accident, they are unfinished features.
 
-- `calculateDeadCap` exists in **both** `financeService.ts` and `utils/capUtils.ts` with
-  different signatures and different semantics (the `utils` version models post-June-1
-  splits and returns an object; the service version returns a number).
-- `aiService.ts` and `historyService.ts` are written but wired to nothing. `MatchSim`
-  implements its own play resolution inline rather than calling `aiCoachingDecision`.
+`scripts/` is build-time only. Nothing under `components/` or `services/` may import from
+it, and it must not be pulled into the client bundle.
 
 ## Server API
 
@@ -147,9 +196,8 @@ All routes live in `server.ts`, are `POST` unless noted, and return
 
 Conventions in these handlers:
 
-- Model IDs are hardcoded string literals and are **not consistent** across routes
-  (`gemini-3.5-flash` in two places, `gemini-3.6-flash` in the draft route,
-  `veo-3.1-fast-generate-preview` for video). Check the intended model before copying.
+- Model IDs are hardcoded string literals: `gemini-3.5-flash` for text routes,
+  `veo-3.1-fast-generate-preview` for video.
 - Gemini responses are parsed by regex-extracting the first `[...]` or `{...}` from the
   text, wrapped in try/catch, with a hardcoded fallback object. Keep that shape.
 - `getGenAI()` constructs the client per request; do not hoist it to module scope, since
@@ -158,17 +206,25 @@ Conventions in these handlers:
 ## Simulation and domain conventions
 
 - **Money is in millions** everywhere (`salary: 9.5` means $9.5M). `leagueState.salaryCap`
-  defaults to `255.4`.
+  defaults to `255.4` and is passed down as a `salaryCap` prop — don't hardcode the number
+  in a view.
 - **Cap hit** = base salary + (signing bonus / total contract length, void years included).
-  Cap space uses the **Top-51 rule** (`getTeamCapSpace`).
+  Cap space uses the **Top-51 rule** (`getTeamCapSpace`). Every view that shows cap space
+  derives it from the roster; there are no hardcoded cap figures in the UI.
 - **Free agents** are modeled as players with `teamId === 'FA'`, not a separate collection.
+  Releasing a player moves them to `'FA'` rather than deleting them from the league.
+- **Depth chart**: `depth` is a 1-based rank within (team, position). Anything that needs
+  "the starter" must sort by `depth` then `overall` — never take the first array match.
+- **A week advances** only through `App.tsx`. Both paths (Advance Week, and finishing a
+  game in `MatchSim`) run `simulateWeek`, which resolves every game of that week that is
+  not already `isCompleted`. That flag is the guard against double-simulating.
 - **Ratings** are 0–100 (`overall`, `schemeOvr`, `morale`, `durability`); `fatigue` is
   inverted — **100 is fresh**.
 - **Positions** collapse to ten buckets (`Position` enum: QB RB WR TE OL DL LB CB S K).
   `normalizePosition` maps real-world positions into them and falls back to `WR`.
 - **Weather** presets live in `components/MatchSim.tsx` (`WEATHER_PRESETS`) as multiplier
   bundles (`passModifier`, `rushModifier`, `fumbleRisk`, `kickingModifier`).
-- **Season** is 18 weeks; `nextWeek()` in `App.tsx` rolls week 18 into `PLAYOFFS` and
+- **Season** is 18 weeks; `advanceWeek()` in `App.tsx` rolls week 18 into `PLAYOFFS` and
   resets to week 1. Phases are the `LeaguePhase` enum.
 - `documentation/GDD_REFINEMENT_V2.md` is the design target (play-resolution pipeline,
   interaction weights, coach archetypes, cap mechanics, personality drives). Consult it
@@ -188,6 +244,8 @@ Conventions in these handlers:
 - Views defensively fall back to the seed data (`teams[id] || TEAMS_DB[id]`,
   `allPlayers` → `MOCK_PLAYERS`). Preserve those fallbacks.
 - All new shared types go in `types.ts`. Component-only helper types stay in the component.
+- Generated files under `data/` are build output. Edit `scripts/`, re-run
+  `npm run generate:data`, and commit the result — never hand-edit the JSON.
 
 ### Visual language
 
@@ -208,17 +266,20 @@ The UI is a deliberate dark "tactical operator" aesthetic; keep new UI consisten
 
 Documented so they aren't mistaken for regressions:
 
-- `index.html` links `/index.css`, which does not exist in the repo (harmless 404).
-- `index.html` also declares an `importmap` pointing at esm.sh for react/lucide/recharts.
-  Vite resolves bare specifiers from `node_modules` at build time, so the importmap is
-  vestigial and does not list every dependency.
-- `schedule.ts` only fully covers weeks 1–3; week 4 is two stub games with a
-  "and so on" comment. Views that look ahead by week will find no match past then.
-- `components/Navigation.tsx` renders hardcoded "Stability 88% v2.6" and "CAP_REFLOW
-  $14.2M" chrome — decorative, not wired to state.
 - `TradeCenter` keeps a `localHistory` fallback with a seeded fake trade for when
   `tradeHistory` props are absent.
-- Team records in `TEAMS_DB` are all `'0-0-0'` and are not advanced by `nextWeek()`.
+- The client bundle is ~2.9MB (~450KB gzipped), most of it the generated player JSON.
+  Vite warns about the chunk size on every build; this is expected.
+- Playoffs are a phase label only — there is no bracket. Week 18 flips
+  `currentPhase` to `PLAYOFFS` and resets the week counter; nothing simulates a
+  postseason yet.
+- Player progression, injuries, retirement, and the offseason/draft calendar are not
+  implemented. `documentation/GDD_REFINEMENT_V2.md` specifies them.
+- `DRAFT_CLASS`, `MOCK_SCOUTS`, `INITIAL_PICKS`, and `MOCK_COACHES` are still small
+  hand-written seeds in `constants.ts` — only rosters and the schedule come from real
+  data.
+- Generated-data regressions are caught only by re-running `npm run generate:data` and
+  checking `git diff` is empty; there is no test that runs it in CI (there is no CI).
 
 ## Git workflow
 
