@@ -112,9 +112,9 @@ const App: React.FC = () => {
       case AppView.DASHBOARD:
         return <Dashboard selectedTeamId={selectedTeamId} leaguePhase={leagueState.currentPhase} currentWeek={leagueState.week} teams={teams} allPlayers={allPlayers} schedule={schedule} />;
       case AppView.ROSTER:
-        return <RosterView selectedTeamId={selectedTeamId} allPlayers={allPlayers} setAllPlayers={setAllPlayers} teams={teams} />;
+        return <RosterView selectedTeamId={selectedTeamId} allPlayers={allPlayers} setAllPlayers={setAllPlayers} teams={teams} salaryCap={leagueState.salaryCap} />;
       case AppView.FREE_AGENCY:
-        return <FreeAgency selectedTeamId={selectedTeamId} allPlayers={allPlayers} setAllPlayers={setAllPlayers} />;
+        return <FreeAgency selectedTeamId={selectedTeamId} allPlayers={allPlayers} setAllPlayers={setAllPlayers} salaryCap={leagueState.salaryCap} />;
       case AppView.TRADE_CENTER:
         return (
           <TradeCenter 
@@ -158,9 +158,10 @@ const App: React.FC = () => {
             prospects={prospects} 
             setProspects={setProspects} 
             picks={picks} 
-            setPicks={setPicks} 
+            setPicks={setPicks}
             teams={teams}
             allPlayers={allPlayers}
+            setAllPlayers={setAllPlayers}
           />
         );
       case AppView.STAFF:
@@ -194,7 +195,7 @@ const App: React.FC = () => {
       <div className="absolute inset-0 grid-lines opacity-20 pointer-events-none"></div>
       <div className="scan-line"></div>
 
-      {selectedTeamId && <Navigation currentView={currentView} setView={setCurrentView} selectedTeamId={selectedTeamId} teams={teams} />}
+      {selectedTeamId && <Navigation currentView={currentView} setView={setCurrentView} selectedTeamId={selectedTeamId} teams={teams} allPlayers={allPlayers} salaryCap={leagueState.salaryCap} />}
       <main className="flex-1 relative overflow-hidden flex flex-col z-10">
         {/* League Status Bar */}
         {selectedTeamId && (
