@@ -8,11 +8,17 @@ import { Player, ScheduleMatch } from '../types';
 import { TEAMS_DB } from '../constants';
 import {
   RosterCsvRow, LEAGUE_YEAR, SALARY_CAP,
-  buildPlayer, assignDepth, top51Total, normalizeTeamCap,
+  buildPlayer, assignDepth, deriveAge, top51Total, normalizeTeamCap,
 } from './lib/derivePlayer';
 
 const ROSTER_URL = `https://github.com/nflverse/nflverse-data/releases/download/rosters/roster_${LEAGUE_YEAR}.csv`;
+// Prior-season roster: anyone on it who is absent from the current roster is
+// treated as an unsigned free agent (nflverse has no free-agent feed).
+const PRIOR_ROSTER_URL = `https://github.com/nflverse/nflverse-data/releases/download/rosters/roster_${LEAGUE_YEAR - 1}.csv`;
 const GAMES_URL = 'https://github.com/nflverse/nflverse-data/releases/download/schedules/games.csv';
+
+// Free agents older than this are treated as retired rather than available.
+const MAX_FA_AGE = 34;
 
 // nflverse abbreviations that differ from TEAMS_DB keys
 const TEAM_ABBR_MAP: Record<string, string> = { LA: 'LAR', WSH: 'WAS' };
@@ -52,6 +58,24 @@ const buildPlayers = (rows: RosterCsvRow[]): Player[] => {
   return players;
 };
 
+// Players on last season's roster who are absent from this season's are the
+// unsigned free-agent pool. Free agents are modeled as players with teamId 'FA'.
+const buildFreeAgents = (priorRows: RosterCsvRow[], signed: Player[]): Player[] => {
+  const signedIds = new Set(signed.map(p => p.id));
+  const freeAgents: Player[] = [];
+  const seen = new Set<string>();
+  for (const row of priorRows) {
+    const id = row.gsis_id;
+    if (!id || !row.full_name || signedIds.has(id) || seen.has(id)) continue;
+    if (row.status !== 'ACT' && row.status !== 'RES') continue;
+    if (deriveAge(row.birth_date) > MAX_FA_AGE) continue;
+    seen.add(id);
+    freeAgents.push(buildPlayer({ ...row, status: 'ACT' }, 'FA'));
+  }
+  freeAgents.sort((a, b) => a.id.localeCompare(b.id));
+  return freeAgents;
+};
+
 const buildSchedule = (games: any[]): ScheduleMatch[] => {
   const season = games.filter(g => g.season === String(LEAGUE_YEAR) && g.game_type === 'REG');
   if (season.length !== 272) fail(`Expected 272 REG games for ${LEAGUE_YEAR}, got ${season.length}`);
@@ -83,16 +107,21 @@ const selfCheck = (players: Player[], schedule: ScheduleMatch[]): void => {
   }
   const weeks = new Set(schedule.map(m => m.week));
   if (weeks.size !== 18) fail(`Schedule covers ${weeks.size} weeks, expected 18`);
+  const faCount = players.filter(p => p.teamId === 'FA').length;
+  if (faCount < 50) fail(`Only ${faCount} free agents generated; the FA market would be empty`);
   console.log(`\nOK: ${players.length} players, ${schedule.length} games across 18 weeks.`);
 };
 
 const main = async () => {
-  const [rosterRows, gameRows] = await Promise.all([
+  const [rosterRows, priorRosterRows, gameRows] = await Promise.all([
     fetchCsv<RosterCsvRow>(ROSTER_URL),
+    fetchCsv<RosterCsvRow>(PRIOR_ROSTER_URL),
     fetchCsv<any>(GAMES_URL),
   ]);
 
-  const players = buildPlayers(rosterRows);
+  const rostered = buildPlayers(rosterRows);
+  const freeAgents = buildFreeAgents(priorRosterRows, rostered);
+  const players = [...rostered, ...freeAgents];
   const schedule = buildSchedule(gameRows);
 
   const capTarget = 0.95 * SALARY_CAP;
@@ -101,6 +130,7 @@ const main = async () => {
   }
 
   selfCheck(players, schedule);
+  console.log(`Free agents available: ${freeAgents.length}`);
 
   const dataDir = path.join(process.cwd(), 'data');
   fs.mkdirSync(dataDir, { recursive: true });
