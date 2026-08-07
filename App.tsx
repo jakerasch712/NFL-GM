@@ -70,7 +70,6 @@ const App: React.FC = () => {
   const [prospects, setProspects] = useState<DraftProspect[]>(DRAFT_CLASS);
   const [scouts, setScouts] = useState<Scout[]>(MOCK_SCOUTS);
   const [picks, setPicks] = useState<DraftPick[]>(INITIAL_PICKS);
-  const [teamBudget, setTeamBudget] = useState(255.4); // Cap space in millions
   const [leagueState, setLeagueState] = useState<LeagueState>({
     currentPhase: LeaguePhase.REGULAR_SEASON,
     week: 1,
