@@ -13,8 +13,17 @@ interface ScoutingViewProps {
 const ScoutingView: React.FC<ScoutingViewProps> = ({ selectedTeamId, prospects, setProspects, scouts, setScouts }) => {
   const [activeTab, setActiveTab] = useState<'prospects' | 'scouts' | 'assignments' | 'summary'>('prospects');
   const [selectedProspectId, setSelectedProspectId] = useState<string | null>(null);
+  const [prospectSearch, setProspectSearch] = useState('');
 
   const selectedProspect = prospects.find(p => p.id === selectedProspectId);
+
+  const filteredProspects = prospects.filter(p => {
+    const q = prospectSearch.trim().toLowerCase();
+    if (!q) return true;
+    return p.name.toLowerCase().includes(q)
+      || p.position.toLowerCase().includes(q)
+      || p.school.toLowerCase().includes(q);
+  });
 
   const handleSimulateWeek = () => {
     // Advance scouting progress for all assigned scouts
@@ -26,16 +35,16 @@ const ScoutingView: React.FC<ScoutingViewProps> = ({ selectedTeamId, prospects, 
       return scout;
     }));
 
-    // Update prospect scouting progress based on scout assignments
+    // Update prospect scouting progress. Every scout assigned to the region
+    // contributes, so stacking scouts on one region is actually faster.
     setProspects(prevProspects => prevProspects.map(prospect => {
-      const assignedScout = scouts.find(s => s.assignment?.region === prospect.region);
-      if (assignedScout) {
-        // If scout specialty matches position, double progress
-        const bonus = assignedScout.specialty === prospect.position ? 15 : 10;
-        const newProgress = Math.min(100, prospect.scoutingProgress + bonus);
-        return { ...prospect, scoutingProgress: newProgress };
-      }
-      return prospect;
+      const assigned = scouts.filter(s => s.assignment?.region === prospect.region);
+      if (assigned.length === 0) return prospect;
+      const bonus = assigned.reduce(
+        (sum, s) => sum + (s.specialty === prospect.position ? 15 : 10),
+        0
+      );
+      return { ...prospect, scoutingProgress: Math.min(100, prospect.scoutingProgress + bonus) };
     }));
   };
 
@@ -81,9 +90,11 @@ const ScoutingView: React.FC<ScoutingViewProps> = ({ selectedTeamId, prospects, 
               <div className="p-4 border-b border-slate-800 bg-slate-800/30 flex justify-between items-center">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
-                  <input 
-                    type="text" 
-                    placeholder="Search prospects..." 
+                  <input
+                    type="text"
+                    placeholder="Search prospects..."
+                    value={prospectSearch}
+                    onChange={(e) => setProspectSearch(e.target.value)}
                     className="bg-slate-950 border border-slate-800 rounded-lg pl-10 pr-4 py-2 text-sm text-white focus:outline-none focus:border-cyan-500 transition-colors w-64"
                   />
                 </div>
@@ -100,7 +111,7 @@ const ScoutingView: React.FC<ScoutingViewProps> = ({ selectedTeamId, prospects, 
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/50">
-                    {prospects.map(prospect => (
+                    {filteredProspects.map(prospect => (
                       <tr 
                         key={prospect.id} 
                         onClick={() => setSelectedProspectId(prospect.id)}

@@ -4,6 +4,7 @@ import { Search, Filter, DollarSign, TrendingUp, UserPlus, Info } from 'lucide-r
 import ContractNegotiation from './ContractNegotiation';
 import { Player } from '../types';
 import { getTeamCapSpace } from '../services/financeService';
+import { insertIntoDepthChart } from '../utils/rosterUtils';
 
 interface FreeAgencyProps {
   selectedTeamId: string;
@@ -34,17 +35,20 @@ const FreeAgency: React.FC<FreeAgencyProps> = ({ selectedTeamId, allPlayers, set
   };
 
   const handleSignContract = (playerId: string, newContract: any) => {
-    // Sign player to our team
-    setAllPlayers(prev => prev.map(p => {
-        if (p.id === playerId) {
-            return {
-                ...p,
-                teamId: selectedTeamId,
-                contract: { ...p.contract, ...newContract }
-            };
-        }
-        return p;
-    }));
+    // Sign player to our team, clear the now-satisfied demand, and slot them
+    // into the depth chart by rating.
+    setAllPlayers(prev => {
+      const target = prev.find(p => p.id === playerId);
+      if (!target) return prev;
+      const signed: Player = {
+        ...target,
+        teamId: selectedTeamId,
+        contract: { ...target.contract, ...newContract },
+        contractDemand: undefined,
+        depth: undefined
+      };
+      return insertIntoDepthChart(prev, signed);
+    });
     setNegotiatingPlayerId(null);
   };
 

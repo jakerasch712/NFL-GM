@@ -98,6 +98,25 @@ interface ScoringEvent {
   };
 }
 
+// Explicit outcome flags. Stat crediting and game-state updates key off these
+// rather than substring-matching the commentary text.
+interface PlayOutcome extends GameEvent {
+  completion?: boolean;
+  sack?: boolean;
+  interception?: boolean;
+  fumble?: boolean;
+  fieldGoal?: boolean;
+  punt?: boolean;
+  touchdown?: boolean;
+}
+
+const GAME_LENGTH_SECONDS = 15 * 60;
+const QUARTERS = 4;
+
+// Quarter derived from elapsed clock so the period advances 1 -> 4.
+const quarterForTime = (timeLeft: number): number =>
+  Math.min(QUARTERS, Math.floor((GAME_LENGTH_SECONDS - timeLeft) / (GAME_LENGTH_SECONDS / QUARTERS)) + 1);
+
 const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllPlayers, teams, currentWeek, schedule, onGameComplete, setView }) => {
   const [opponentTeamId, setOpponentTeamId] = useState<string>('');
   const [isUserHome, setIsUserHome] = useState(true);
@@ -213,7 +232,7 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
   const [isSimulating, setIsSimulating] = useState(false);
   const [lastEvent, setLastEvent] = useState<GameEvent | null>(null);
   const [winProb, setWinProb] = useState(50);
-  const [timeRemaining, setTimeRemaining] = useState(15 * 60);
+  const [timeRemaining, setTimeRemaining] = useState(GAME_LENGTH_SECONDS);
 
   // Function to change weather condition preset
   const handleWeatherToggle = (key: string) => {
@@ -236,14 +255,16 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
       .filter(p => p.position === position)
       .sort((a, b) => (a.depth ?? 99) - (b.depth ?? 99) || b.overall - a.overall)[0];
 
-  const calculateOutcome = (play: Play): GameEvent => {
+  const calculateOutcome = (play: Play): PlayOutcome => {
     const isUserOffense = gameState.possession === 'HOME';
     const offTeamId = isUserOffense ? selectedTeamId : opponentTeamId;
-    
+
+    // Use the depth-chart starters — the same players the scoreboard shows and
+    // that get credited stats afterwards.
     const roster = getTeamRoster(offTeamId);
-    const qb = roster.find(p => p.position === Position.QB) || roster[0] || { name: 'Quarterback', overall: 80, schemeOvr: 80 };
-    const topWr = roster.find(p => p.position === Position.WR) || roster[0] || { name: 'Wide Receiver', overall: 80 };
-    
+    const qb = starterAt(roster, Position.QB) || roster[0] || { name: 'Quarterback', overall: 80, schemeOvr: 80 };
+    const topWr = starterAt(roster, Position.WR) || roster[0] || { name: 'Wide Receiver', overall: 80 };
+
     // Global Multipliers based on Climate Weather Preset
     const hfaBoost = isUserOffense ? 3 : 0; // Home Field Advantage
     const weather = gameState.weather || activeWeatherPreset;
@@ -257,12 +278,14 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
     let description = '';
     let isScore = false;
     let type: GameEvent['type'] = play.type;
+    const flags: Omit<PlayOutcome, keyof GameEvent> = {};
 
     if (play.type === 'Special') {
       if (play.name === 'Field Goal') {
         const distance = 100 - gameState.ballOn + 17;
         const successProb = ((distance < 40 ? 0.95 : distance < 50 ? 0.75 : 0.45) - windPen) * kickingMod;
-        
+        flags.fieldGoal = true;
+
         if (Math.random() < Math.max(0.05, successProb)) {
           isScore = true;
           description = `FIELD GOAL GOOD! A ${distance}-yard kick splits the uprights despite ${weather.type.toLowerCase()} weather.`;
@@ -274,8 +297,9 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
         yardage = Math.floor((Math.random() * 15 + 35 - (weather.windSpeed / 3)) * kickingMod);
         description = `PUNT! A high spiraling kick for ${Math.floor(yardage)} yards.`;
         type = 'Turnover';
+        flags.punt = true;
       }
-      return { description, yardage, isScore, type };
+      return { description, yardage, isScore, type, ...flags };
     }
 
     // GDD Refined Simulation Engine Formulas with Weather Climate Modifiers
@@ -292,21 +316,24 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
         type = 'Turnover';
         description = `INTERCEPTED! The QB misread coverage in adverse ${weather.type} climate.`;
         yardage = 0;
+        flags.interception = true;
       } else if (roll < pComp) {
         const isBigPlay = Math.random() < ((qb.overall / 300) * passAccMod);
         yardage = isBigPlay ? Math.floor(Math.random() * 25) + 20 : Math.floor(Math.random() * 12) + 4;
         description = `Complete to ${topWr.name} for ${yardage} yards.`;
+        flags.completion = true;
       } else {
         const isSack = Math.random() < 0.12;
         if (isSack) {
           yardage = -Math.floor(Math.random() * 7) - 3;
           description = `SACK! The pocket collapsed for a ${Math.abs(yardage)} yard loss.`;
+          flags.sack = true;
         } else {
           description = `Incomplete pass intended for ${topWr.name}.`;
         }
       }
     } else if (play.type === 'Run') {
-      const rb = roster.find(p => p.position === Position.RB) || roster[0] || { name: 'Running Back', overall: 80 };
+      const rb = starterAt(roster, Position.RB) || roster[0] || { name: 'Running Back', overall: 80 };
       const rbPower = ((rb.overall + hfaBoost) / 100) * rushEffMod;
       const linePush = 0.75 * rushEffMod;
       
@@ -316,7 +343,8 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
       if (roll < fumbleRiskMod) {
         type = 'Turnover';
         description = `FUMBLE! Loose ball stripped on slippery field conditions during ${weather.label}.`;
-        yardage = 1;
+        yardage = 0;
+        flags.fumble = true;
       } else if (roll < successProb) {
         const isBigPlay = Math.random() < ((rb.overall / 400) * rushEffMod);
         yardage = isBigPlay ? Math.floor(Math.random() * 30) + 15 : Math.floor(Math.random() * 7) + 2;
@@ -332,9 +360,12 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
       isScore = true;
       yardage = 100 - gameState.ballOn;
       description = `TOUCHDOWN! ${play.name} capped by a brilliant effort!`;
+      flags.touchdown = true;
+      // A scoring pass is still a completion; the TD rewrite must not erase that.
+      if (play.type === 'Pass') flags.completion = true;
     }
 
-    return { description, yardage, isScore, type };
+    return { description, yardage, isScore, type, ...flags };
   };
 
   const handlePlayCall = (play: Play) => {
@@ -358,24 +389,24 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
 
         if (play.type === 'Pass') {
           active.passAtt += 1;
-          if (outcome.description.includes('Complete')) {
+          if (outcome.completion) {
             active.passComp += 1;
             active.passYds += outcome.yardage;
-          } else if (outcome.description.includes('SACK')) {
+          } else if (outcome.sack) {
             active.sacksAllowed += 1;
             active.passYds += outcome.yardage; // Negative yardage
-          } else if (outcome.description.includes('INTERCEPTED')) {
+          } else if (outcome.interception) {
             active.intsThrown += 1;
           }
         } else if (play.type === 'Run') {
           active.rushAtt += 1;
-          if (outcome.description.includes('FUMBLE')) {
+          if (outcome.fumble) {
             active.fumblesLost += 1;
           } else {
             active.rushYds += outcome.yardage;
           }
         } else if (play.type === 'Special') {
-          if (play.name === 'Field Goal') {
+          if (outcome.fieldGoal) {
             active.fgAtt += 1;
             if (outcome.isScore) {
               active.fgMade += 1;
@@ -383,7 +414,7 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
           }
         }
 
-        if (outcome.isScore && !outcome.description.includes('FIELD GOAL')) {
+        if (outcome.touchdown) {
           if (play.type === 'Pass') active.passTds += 1;
           if (play.type === 'Run') active.rushTds += 1;
         }
@@ -393,17 +424,17 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
 
       // Capture scoring timeline
       if (outcome.isScore) {
-        const addedHomePoints = outcome.description.includes('FIELD GOAL') ? 3 : 7;
+        const addedHomePoints = outcome.fieldGoal ? 3 : 7;
         const currentHomeScore = gameState.possession === 'HOME' ? gameState.homeScore + addedHomePoints : gameState.homeScore;
         const currentAwayScore = gameState.possession === 'AWAY' ? gameState.awayScore + addedHomePoints : gameState.awayScore;
 
         setScoringSummary(prev => [
           ...prev,
           {
-            quarter: gameState.quarter,
+            quarter: quarterForTime(nextTime),
             timeLeft: formatTime(nextTime),
             teamId: gameState.possession === 'HOME' ? selectedTeamId : opponentTeamId,
-            type: outcome.description.includes('FIELD GOAL') ? 'FG' : 'TD',
+            type: outcome.fieldGoal ? 'FG' : 'TD',
             description: outcome.description,
             score: {
               home: currentHomeScore,
@@ -413,18 +444,20 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
         ]);
       }
 
-      updateGameState(outcome);
+      updateGameState(outcome, nextTime);
       setTimeRemaining(nextTime);
       setIsSimulating(false);
 
-      // Fluctuating Win Probability calculations
+      // Fluctuating Win Probability calculations. Turnovers are checked before
+      // yardage so a long punt is not scored as a gain for the punting team.
       setWinProb(prev => {
           let change = 0;
           if (outcome.isScore) change = 6;
+          else if (outcome.interception || outcome.fumble) change = -12;
+          else if (outcome.punt) change = -3;
           else if (outcome.yardage > 15) change = 3;
           else if (outcome.yardage < 0) change = -2;
-          else if (outcome.type === 'Turnover') change = -12;
-          
+
           return Math.min(99, Math.max(1, prev + (gameState.possession === 'HOME' ? change : -change)));
       });
 
@@ -435,19 +468,17 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
     }, 1500);
   };
 
-  const updateGameState = (event: GameEvent) => {
+  const updateGameState = (event: PlayOutcome, timeLeft: number) => {
     setGameState(prev => {
         let nextState = { ...prev };
 
-        // Handle Quarters transition dynamically
-        if (timeRemaining <= 7.5 * 60 && prev.quarter === 1) {
-          nextState.quarter = 2;
-        }
+        // Period runs 1 -> 4 across the game clock
+        nextState.quarter = quarterForTime(timeLeft);
 
         if (event.isScore) {
-            if (prev.possession === 'HOME') nextState.homeScore += event.description.includes('FIELD GOAL') ? 3 : 7;
-            else nextState.awayScore += event.description.includes('FIELD GOAL') ? 3 : 7;
-            
+            if (prev.possession === 'HOME') nextState.homeScore += event.fieldGoal ? 3 : 7;
+            else nextState.awayScore += event.fieldGoal ? 3 : 7;
+
             nextState.possession = prev.possession === 'HOME' ? 'AWAY' : 'HOME';
             nextState.ballOn = 25;
             nextState.down = 1;
@@ -457,7 +488,10 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
 
         if (event.type === 'Turnover') {
             nextState.possession = prev.possession === 'HOME' ? 'AWAY' : 'HOME';
-            nextState.ballOn = 100 - (prev.ballOn + event.yardage);
+            // Flip the field for the receiving team. A punt that reaches the end
+            // zone is a touchback rather than a negative yard line.
+            const flipped = 100 - (prev.ballOn + event.yardage);
+            nextState.ballOn = flipped <= 0 ? 20 : Math.min(99, flipped);
             nextState.down = 1;
             nextState.distance = 10;
             return nextState;
@@ -475,7 +509,7 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
 
         if (newDown > 4) {
             nextState.possession = prev.possession === 'HOME' ? 'AWAY' : 'HOME';
-            nextState.ballOn = 100 - newBallOn;
+            nextState.ballOn = Math.min(99, Math.max(1, 100 - newBallOn));
             nextState.down = 1;
             nextState.distance = 10;
             return nextState;
@@ -484,7 +518,7 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
         return {
             ...prev,
             quarter: nextState.quarter,
-            ballOn: newBallOn,
+            ballOn: Math.min(99, Math.max(1, newBallOn)),
             down: newDown,
             distance: newDist
         };

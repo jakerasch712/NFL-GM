@@ -1,4 +1,4 @@
-import { Player, Position, Play, DraftProspect, DraftPick, Coach, Region, Scout } from './types';
+import { Player, Position, Play, DraftProspect, DraftPick, Coach, CoachArchetype, StaffTrait, Region, Scout } from './types';
 
 export const TEAMS_DB: Record<string, any> = {
   ARI: { id: 'ARI', city: 'Arizona', name: 'Cardinals', record: '0-0-0', division: 'NFC West', stats: { off: 78, def: 74, st: 72 }, logo: 'https://a.espncdn.com/i/teamlogos/nfl/500/ari.png' },
@@ -126,7 +126,7 @@ export const MOCK_PLAYERS: Player[] = [
   }
 ];
 
-export const MOCK_COACHES: Coach[] = [
+const NAMED_COACHES: Coach[] = [
   {
     id: 'c1', name: 'DeMeco Ryans', role: 'HC', specialty: 'Defense', archetype: 'The Mercenary', experience: 3, scheme: '4-3 Under', teamId: 'HOU',
     traits: [
@@ -140,6 +140,61 @@ export const MOCK_COACHES: Coach[] = [
     ]
   }
 ];
+
+// Every franchise needs a staff, otherwise 31 of 32 teams open the Staff view
+// to an empty directory. Generated deterministically from the team id.
+const STAFF_TEMPLATE: { role: Coach['role']; specialty: string; archetype: CoachArchetype; scheme: string; trait: StaffTrait }[] = [
+  {
+    role: 'HC', specialty: 'Program Management', archetype: 'The Architect', scheme: 'Balanced',
+    trait: { name: 'Program Builder', description: 'Steady development across the roster', bonus: { stat: 'overall', value: 1 } }
+  },
+  {
+    role: 'OC', specialty: 'Offense', archetype: 'The Innovator', scheme: 'West Coast',
+    trait: { name: 'Play Designer', description: 'Improves offensive efficiency', bonus: { stat: 'yards', value: 5 } }
+  },
+  {
+    role: 'DC', specialty: 'Defense', archetype: 'The Conservative', scheme: '4-3 Under',
+    trait: { name: 'Front Seven Guru', description: 'Improves pass rush production', bonus: { stat: 'sacks', value: 2 } }
+  },
+  {
+    role: 'ST', specialty: 'Special Teams', archetype: 'The Conservative', scheme: 'Standard',
+    trait: { name: 'Hidden Yardage', description: 'Improves field position battles', bonus: { stat: 'overall', value: 1 } }
+  },
+];
+
+const COACH_SURNAMES = [
+  'Callahan', 'Whitfield', 'Brennan', 'Okafor', 'Delgado', 'MacLeod', 'Vasquez', 'Sinclair',
+  'Rutherford', 'Nakamura', 'Ellington', 'Barlow', 'Kowalski', 'Ferreira', 'Ashcroft', 'Duval',
+];
+const COACH_FIRST_NAMES = [
+  'Marcus', 'Dean', 'Elliot', 'Terrance', 'Vince', 'Sam', 'Gary', 'Ronnie',
+  'Curtis', 'Wes', 'Andre', 'Lionel', 'Grant', 'Miles', 'Trent', 'Rico',
+];
+
+const buildDefaultStaff = (): Coach[] => {
+  const staff: Coach[] = [];
+  Object.keys(TEAMS_DB).forEach((teamId, teamIdx) => {
+    STAFF_TEMPLATE.forEach((tpl, roleIdx) => {
+      // Houston keeps its hand-written staff for HC/OC
+      if (NAMED_COACHES.some(c => c.teamId === teamId && c.role === tpl.role)) return;
+      const seed = teamIdx * STAFF_TEMPLATE.length + roleIdx;
+      staff.push({
+        id: `coach-${teamId}-${tpl.role}`,
+        name: `${COACH_FIRST_NAMES[seed % COACH_FIRST_NAMES.length]} ${COACH_SURNAMES[(seed * 7) % COACH_SURNAMES.length]}`,
+        role: tpl.role,
+        specialty: tpl.specialty,
+        archetype: tpl.archetype,
+        traits: [tpl.trait],
+        experience: 2 + (seed % 12),
+        scheme: tpl.scheme,
+        teamId,
+      });
+    });
+  });
+  return staff;
+};
+
+export const MOCK_COACHES: Coach[] = [...NAMED_COACHES, ...buildDefaultStaff()];
 
 export const DRAFT_CLASS: DraftProspect[] = [
   { 

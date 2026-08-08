@@ -5,7 +5,8 @@ import ContractNegotiation from './ContractNegotiation';
 import { RestructureModal, ReleasePlayerModal } from './CapModals';
 import { Player, Position, InjuryRecord } from '../types';
 import { syncTeamRoster } from '../services/geminiService';
-import { getTeamCapSpace, restructureContract } from '../services/financeService';
+import { getTeamCapSpace } from '../services/financeService';
+import { calculateRestructure } from '../utils/capUtils';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface RosterViewProps {
@@ -155,22 +156,12 @@ const RosterView: React.FC<RosterViewProps> = ({ selectedTeamId, allPlayers, set
   const handleRestructure = (voidYears: number) => {
     if (!activeRestructurePlayer) return;
 
-    const amountToRestructure = activeRestructurePlayer.contract.salary - 1.21;
-    const prorationTerm = activeRestructurePlayer.contract.yearsLeft + voidYears;
-    const yearlyProration = amountToRestructure / prorationTerm;
-    const savings = amountToRestructure - yearlyProration;
-
+    // Uses the same calculation the preview modal shows. Converting base salary
+    // down to the veteran minimum makes the move self-limiting: repeating it
+    // yields no further savings instead of driving the cap hit negative.
     setAllPlayers(prev => prev.map(p => {
         if (p.id === activeRestructurePlayer.id) {
-            return {
-                ...p,
-                contract: {
-                    ...p.contract,
-                    capHit: parseFloat((p.contract.capHit - savings).toFixed(2)),
-                    voidYears: p.contract.voidYears + voidYears,
-                    totalLength: p.contract.totalLength + voidYears
-                }
-            };
+            return { ...p, contract: calculateRestructure(p.contract, voidYears).newContract };
         }
         return p;
     }));

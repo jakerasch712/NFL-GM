@@ -114,7 +114,7 @@ const ContractNegotiation: React.FC<ContractNegotiationProps> = ({ player, onClo
                             <span>
                                 "{player.name} is looking for <span className="text-white font-bold">{player.contractDemand?.interest}</span>. 
                                 We are seeking a <span className="text-white font-bold">{player.contractDemand?.years} year</span> commitment around 
-                                <span className="text-white font-bold"> ${(player.contractDemand!.salary * player.contractDemand!.years + player.contractDemand!.bonus).toFixed(1)}M</span> total value."
+                                <span className="text-white font-bold"> ${player.contractDemand ? (player.contractDemand.salary * player.contractDemand.years + player.contractDemand.bonus).toFixed(1) : '0.0'}M</span> total value."
                             </span>
                         )}
                     </div>
