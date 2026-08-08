@@ -14,7 +14,6 @@ interface DraftRoomProps {
   setPicks: React.Dispatch<React.SetStateAction<DraftPick[]>>;
   teams: Record<string, any>;
   allPlayers?: Player[];
-  setAllPlayers?: React.Dispatch<React.SetStateAction<Player[]>>;
 }
 
 interface TeamNeedItem {
@@ -24,7 +23,7 @@ interface TeamNeedItem {
   depthAvg: number;
 }
 
-const DraftRoom: React.FC<DraftRoomProps> = ({ selectedTeamId, prospects, setProspects, picks, setPicks, teams, allPlayers = [], setAllPlayers }) => {
+const DraftRoom: React.FC<DraftRoomProps> = ({ selectedTeamId, prospects, setProspects, picks, setPicks, teams, allPlayers = [] }) => {
   const [currentPickIndex, setCurrentPickIndex] = useState(0);
   const [selectedProspectId, setSelectedProspectId] = useState<string | null>(null);
   const [selectedNeedPos, setSelectedNeedPos] = useState<string | null>(null);
@@ -87,58 +86,11 @@ const DraftRoom: React.FC<DraftRoomProps> = ({ selectedTeamId, prospects, setPro
   const currentPick = picks[currentPickIndex];
   const selectedProspect = prospects.find(p => p.id === selectedProspectId);
 
-  // Rookie APY ($M) by draft round
-  const ROOKIE_SALARY_BY_ROUND: Record<number, number> = { 1: 8.0, 2: 3.5, 3: 2.0, 4: 1.5, 5: 1.2, 6: 1.0, 7: 0.9 };
-
-  const prospectToPlayer = (prospect: DraftProspect, pick: DraftPick): Player => {
-    const overall = Math.min(84, Math.max(58, Math.round(60 + (prospect.scoutingGrade - 70) * 0.75)));
-    const salary = ROOKIE_SALARY_BY_ROUND[pick.round] ?? 0.9;
-    const bonus = parseFloat((salary * (pick.round === 1 ? 1.5 : 0.5)).toFixed(1));
-    const potentialMap: Record<DraftProspect['potential'], Player['potential']> = {
-      S: 'X-Factor', A: 'Superstar', B: 'Star', C: 'Normal', D: 'Normal'
-    };
-    return {
-      id: `rk_${prospect.id}`,
-      name: prospect.name,
-      position: prospect.position,
-      age: 22,
-      overall,
-      schemeOvr: overall,
-      morale: 85,
-      fatigue: 100,
-      archetype: prospect.traits[0] || 'Standard',
-      personality: 'Normal',
-      scheme: 'Balanced',
-      developmentTrait: 'Normal',
-      potential: potentialMap[prospect.potential],
-      stats: { gamesPlayed: 0 },
-      contract: {
-        years: 4,
-        salary,
-        bonus,
-        guaranteed: parseFloat((bonus + salary * 2).toFixed(1)),
-        yearsLeft: 4,
-        totalValue: parseFloat((salary * 4 + bonus).toFixed(1)),
-        capHit: parseFloat((salary + bonus / 4).toFixed(1)),
-        deadCap: bonus,
-        voidYears: 0,
-        startYear: 2026,
-        totalLength: 4
-      },
-      teamId: pick.currentTeamId
-    };
-  };
-
   const handleDraftPlayer = () => {
     if (!selectedProspect || !currentPick) return;
 
     setDraftHistory([...draftHistory, { pick: currentPick, prospect: selectedProspect }]);
     setProspects(prospects.filter(p => p.id !== selectedProspectId));
-    // Drafted players join the drafting team's roster (AI picks included)
-    if (setAllPlayers) {
-      const rookie = prospectToPlayer(selectedProspect, currentPick);
-      setAllPlayers(prev => [...prev, rookie]);
-    }
     setSelectedProspectId(null);
     setCurrentPickIndex(currentPickIndex + 1);
   };

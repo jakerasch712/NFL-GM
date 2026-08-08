@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Shield, Zap, Target, AlertCircle, Activity, ChevronRight, Clipboard, Flame, Award, TrendingUp, Sparkles, CheckCircle2, Sliders, UserCheck, Check, Brain } from 'lucide-react';
 import { TEAMS_DB } from '../constants';
-import { Player, PositionGroup, ScheduleMatch } from '../types';
+import { Player, PositionGroup } from '../types';
+import { SCHEDULE_2027 } from '../schedule';
 
 interface GamePlanProps {
   selectedTeamId: string;
@@ -9,7 +10,6 @@ interface GamePlanProps {
   allPlayers: Player[];
   setAllPlayers?: React.Dispatch<React.SetStateAction<Player[]>>;
   teams: Record<string, any>;
-  schedule: ScheduleMatch[];
 }
 
 interface GroupFocusSetting {
@@ -36,13 +36,12 @@ const POSITION_FOCUS_OPTIONS: Record<PositionGroup, string[]> = {
   ST: ['Kick Power & Distance', 'Coverage Unit Tackling']
 };
 
-const GamePlan: React.FC<GamePlanProps> = ({
-  selectedTeamId,
-  currentWeek,
-  allPlayers,
-  setAllPlayers,
-  teams,
-  schedule
+const GamePlan: React.FC<GamePlanProps> = ({ 
+  selectedTeamId, 
+  currentWeek, 
+  allPlayers, 
+  setAllPlayers, 
+  teams 
 }) => {
   const players = allPlayers.filter(p => p.teamId === selectedTeamId);
   const [activeTab, setActiveTab] = useState<'tactical' | 'scheme' | 'development'>('tactical');
@@ -135,8 +134,8 @@ const GamePlan: React.FC<GamePlanProps> = ({
   const [drillSuccess, setDrillSuccess] = useState<string | null>(null);
 
   // Find next match
-  const nextMatch = schedule.find(m =>
-    m.week >= currentWeek && !m.isCompleted && (m.homeTeamId === selectedTeamId || m.awayTeamId === selectedTeamId)
+  const nextMatch = SCHEDULE_2027.find(m => 
+    m.week >= currentWeek && (m.homeTeamId === selectedTeamId || m.awayTeamId === selectedTeamId)
   );
 
   let nextOpp: any = { name: 'BYE', code: 'BYE' };
