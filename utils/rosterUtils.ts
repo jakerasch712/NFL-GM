@@ -53,8 +53,13 @@ export const insertIntoDepthChart = (players: Player[], player: Player): Player[
   return rerankDepth(bumped, seeded.teamId, seeded.position);
 };
 
-/** The starter at a position: depth 1 first, then best overall. */
-export const getStarter = (roster: Player[], position: Position): Player | undefined =>
-  roster
+/**
+ * The starter at a position: depth 1 first, then best overall. Injured players
+ * are skipped, so the next man up actually plays and receives the stats.
+ */
+export const getStarter = (roster: Player[], position: Position): Player | undefined => {
+  const byDepth = roster
     .filter(p => p.position === position)
-    .sort((a, b) => (a.depth ?? 99) - (b.depth ?? 99) || b.overall - a.overall)[0];
+    .sort((a, b) => (a.depth ?? 99) - (b.depth ?? 99) || b.overall - a.overall);
+  return byDepth.find(p => !p.injury || p.injury.weeksOut <= 0) ?? byDepth[0];
+};

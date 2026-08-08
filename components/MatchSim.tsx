@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { OFFENSIVE_PLAYS, TEAMS_DB, MOCK_PLAYERS } from '../constants';
 import { Play, GameEvent, Player, Position, AppView, HighlightPackage, ScheduleMatch } from '../types';
 import { GameResult } from '../services/leagueSimService';
+import { getStarter } from '../utils/rosterUtils';
 import { Play as PlayIcon, Clock, ShieldAlert, Wind, ChevronUp, CloudRain, Sun, Zap, Activity, Trophy, BarChart2, Award, ListFilter, RotateCcw, Video, Film, Sparkles, Radio, Tv, Maximize2, RefreshCw, Thermometer, CloudSnow, Shield } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -249,11 +250,9 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
 
   const getTeamRoster = (teamId: string) => allPlayers.filter(p => p.teamId === teamId);
 
-  // Depth-chart starter at a position (depth 1 first, then best overall)
+  // Depth-chart starter at a position, skipping injured players
   const starterAt = (roster: Player[], position: Position): Player | undefined =>
-    roster
-      .filter(p => p.position === position)
-      .sort((a, b) => (a.depth ?? 99) - (b.depth ?? 99) || b.overall - a.overall)[0];
+    getStarter(roster, position);
 
   const calculateOutcome = (play: Play): PlayOutcome => {
     const isUserOffense = gameState.possession === 'HOME';

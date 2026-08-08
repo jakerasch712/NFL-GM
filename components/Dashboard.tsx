@@ -4,6 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 
 import { TEAMS_DB, MOCK_PLAYERS } from '../constants';
 import { LeaguePhase, Player, Position, ScheduleMatch } from '../types';
 import { getTeamCapSpace } from '../services/financeService';
+import { leagueInjuryReport } from '../services/injuryService';
 
 interface DashboardProps {
   selectedTeamId: string;
@@ -100,20 +101,18 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase, curr
   // Calculate Cap Hit by Position Group Dynamically
   const roster = allPlayers.filter(p => p.teamId === selectedTeamId);
 
-  // Helper for League Health Ticker. Injuries are not modelled yet, so this is
-  // a fixed illustrative feed rather than league state.
-  const getLeagueHealthInjuries = () => {
-    const mockInjuries = [
-      { name: 'Patrick Mahomes', team: 'KC', pos: 'QB', ovr: 99, injury: 'Ankle Sprain', duration: 'Out 2 Weeks', impact: 'KC seeking veteran QB depth' },
-      { name: 'Micah Parsons', team: 'DAL', pos: 'EDGE', ovr: 97, injury: 'MCL Strain', duration: 'Out 3 Weeks', impact: 'DAL targeting Pass Rusher FA' },
-      { name: 'Justin Jefferson', team: 'MIN', pos: 'WR', ovr: 98, injury: 'Hamstring Pull', duration: 'Out 4 Weeks', impact: 'MIN active in WR trade market' },
-      { name: 'Christian McCaffrey', team: 'SF', pos: 'RB', ovr: 98, injury: 'Calf Soreness', duration: 'Week-to-Week', impact: 'SF monitoring RB waiver wire' },
-      { name: 'Sauce Gardner', team: 'NYJ', pos: 'CB', ovr: 94, injury: 'Shoulder Subluxation', duration: 'Out 2 Weeks', impact: 'NYJ seeking DB depth' },
-    ];
-    return mockInjuries;
-  };
-
-  const leagueInjuries = getLeagueHealthInjuries();
+  // League Health Ticker, built from the actual injury report
+  const leagueInjuries = leagueInjuryReport(allPlayers, 10).map(p => ({
+    name: p.name,
+    team: p.teamId,
+    pos: p.position,
+    ovr: p.overall,
+    injury: p.injury!.type,
+    duration: p.injury!.weeksOut === 1 ? 'Out 1 Week' : `Out ${p.injury!.weeksOut} Weeks`,
+    impact: p.teamId === selectedTeamId
+      ? 'YOUR ROSTER — next man up'
+      : `${p.teamId} down a ${p.injury!.severity.toLowerCase()} contributor`,
+  }));
 
   // Helper for Weekly Preview Opponent Stars
   const getOpponentStars = () => {
@@ -552,6 +551,11 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase, curr
         </div>
 
         <div className="flex-1 overflow-x-auto whitespace-nowrap scrollbar-none flex items-center gap-6 text-xs">
+          {leagueInjuries.length === 0 && (
+            <span className="text-slate-600 text-[10px] uppercase tracking-widest">
+              No active injuries league-wide
+            </span>
+          )}
           {leagueInjuries.map((inj, idx) => (
             <div key={idx} className="flex items-center gap-2.5 bg-[#05070a] border border-[#1a222e] px-3 py-1.5 hover:border-red-500/40 transition-colors flex-shrink-0">
               <span className="text-cyan-400 font-bold text-[10px]">{inj.team}</span>

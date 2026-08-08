@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Timer, Search, Filter, Star, ArrowRight, History, TrendingUp, RefreshCcw, X, Sparkles, Brain, Loader2, AlertTriangle, ShieldAlert, CheckCircle } from 'lucide-react';
-import { DraftProspect, DraftPick, Player, Position } from '../types';
+import { DraftProspect, DraftPick, Player, Position, DraftSelection } from '../types';
 import { TEAMS_DB } from '../constants';
 import { getDraftStrategy } from '../services/geminiService';
 import { insertIntoDepthChart } from '../utils/rosterUtils';
@@ -16,6 +16,8 @@ interface DraftRoomProps {
   teams: Record<string, any>;
   allPlayers?: Player[];
   setAllPlayers?: React.Dispatch<React.SetStateAction<Player[]>>;
+  draftHistory: DraftSelection[];
+  setDraftHistory: React.Dispatch<React.SetStateAction<DraftSelection[]>>;
 }
 
 interface TeamNeedItem {
@@ -25,11 +27,15 @@ interface TeamNeedItem {
   depthAvg: number;
 }
 
-const DraftRoom: React.FC<DraftRoomProps> = ({ selectedTeamId, prospects, setProspects, picks, setPicks, teams, allPlayers = [], setAllPlayers }) => {
-  const [currentPickIndex, setCurrentPickIndex] = useState(0);
+const DraftRoom: React.FC<DraftRoomProps> = ({
+  selectedTeamId, prospects, setProspects, picks, setPicks, teams,
+  allPlayers = [], setAllPlayers, draftHistory, setDraftHistory
+}) => {
+  // Draft progress is derived from history, so leaving the War Room and
+  // returning resumes where the board actually is instead of restarting.
+  const currentPickIndex = draftHistory.length;
   const [selectedProspectId, setSelectedProspectId] = useState<string | null>(null);
   const [selectedNeedPos, setSelectedNeedPos] = useState<string | null>(null);
-  const [draftHistory, setDraftHistory] = useState<{pick: DraftPick, prospect: DraftProspect}[]>([]);
   const [isTradeModalOpen, setIsTradeModalOpen] = useState(false);
   
   // Trade State
@@ -149,7 +155,6 @@ const DraftRoom: React.FC<DraftRoomProps> = ({ selectedTeamId, prospects, setPro
       setAllPlayers(prev => insertIntoDepthChart(prev, rookie));
     }
     setSelectedProspectId(null);
-    setCurrentPickIndex(prev => prev + 1);
   };
 
   // AI teams pick the best available prospect so the board advances to the
@@ -160,25 +165,14 @@ const DraftRoom: React.FC<DraftRoomProps> = ({ selectedTeamId, prospects, setPro
     const timer = setTimeout(() => {
       const best = [...prospects].sort((a, b) => b.scoutingGrade - a.scoutingGrade)[0];
       makeSelection(best, currentPick);
-    }, 1200);
+    }, 450);
     return () => clearTimeout(timer);
   }, [currentPick, selectedTeamId, prospects]);
 
   const handleDraftPlayer = () => {
     if (!selectedProspect || !currentPick) return;
     if (currentPick.currentTeamId !== selectedTeamId) return;
-
-    setDraftHistory([...draftHistory, { pick: currentPick, prospect: selectedProspect }]);
-    setProspects(prospects.filter(p => p.id !== selectedProspectId));
-    // Drafted players join the drafting team's roster (AI picks included) and
-    // are slotted into the depth chart by rating, so a first-rounder is not
-    // stuck behind the incumbent.
-    if (setAllPlayers) {
-      const rookie = prospectToPlayer(selectedProspect, currentPick);
-      setAllPlayers(prev => insertIntoDepthChart(prev, rookie));
-    }
-    setSelectedProspectId(null);
-    setCurrentPickIndex(currentPickIndex + 1);
+    makeSelection(selectedProspect, currentPick);
   };
 
   const executeTrade = () => {

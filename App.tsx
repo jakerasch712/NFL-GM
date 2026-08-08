@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Navigation from './components/Navigation';
 import Dashboard from './components/Dashboard';
 import RosterView from './components/RosterView';
@@ -11,12 +11,17 @@ import StaffView from './components/StaffView';
 import ScoutingView from './components/ScoutingView';
 import HallOfFame, { INITIAL_HALL_OF_FAMERS } from './components/HallOfFame';
 import TeamSelection from './components/TeamSelection';
-import { AppView, DraftProspect, DraftPick, Scout, LeagueState, LeaguePhase, Player, Coach, TradeRecord, ScheduleMatch, HallOfFamer } from './types';
-import { DRAFT_CLASS, INITIAL_PICKS, MOCK_SCOUTS, TEAMS_DB, MOCK_PLAYERS, MOCK_COACHES } from './constants';
+import { AppView, DraftProspect, DraftPick, Scout, LeagueState, LeaguePhase, Player, Coach, TradeRecord, ScheduleMatch, HallOfFamer, DraftSelection } from './types';
+import { MOCK_SCOUTS, TEAMS_DB, MOCK_PLAYERS, MOCK_COACHES } from './constants';
 import { nflverseService } from './services/nflverseService';
 import { LEAGUE_PLAYERS, LEAGUE_SCHEDULE } from './data/leagueData';
 import { GameResult, applyCompletedGame, simulateWeek } from './services/leagueSimService';
 import { loadSave, persistSave } from './services/saveService';
+import { generateDraftClass, generateDraftOrder } from './services/draftService';
+import { advanceInjuryClocks, rollGameInjuries } from './services/injuryService';
+import { approvalAfterCapReview } from './services/approvalService';
+
+const LEAGUE_YEAR = 2027;
 
 // Read the save file once per page load; every initializer below falls back to seed data.
 const savedState = loadSave();
@@ -67,11 +72,16 @@ const App: React.FC = () => {
   }, []);
   
   // Global State
-  const [prospects, setProspects] = useState<DraftProspect[]>(savedState?.prospects ?? DRAFT_CLASS);
+  const [prospects, setProspects] = useState<DraftProspect[]>(
+    savedState?.prospects ?? generateDraftClass(LEAGUE_YEAR)
+  );
   const [scouts, setScouts] = useState<Scout[]>(savedState?.scouts ?? MOCK_SCOUTS);
-  const [picks, setPicks] = useState<DraftPick[]>(savedState?.picks ?? INITIAL_PICKS);
+  const [picks, setPicks] = useState<DraftPick[]>(
+    savedState?.picks ?? generateDraftOrder(LEAGUE_YEAR, TEAMS_DB)
+  );
   const [schedule, setSchedule] = useState<ScheduleMatch[]>(savedState?.schedule ?? LEAGUE_SCHEDULE);
   const [inductees, setInductees] = useState<HallOfFamer[]>(savedState?.inductees ?? INITIAL_HALL_OF_FAMERS);
+  const [draftHistory, setDraftHistory] = useState<DraftSelection[]>(savedState?.draftHistory ?? []);
   const [leagueState, setLeagueState] = useState<LeagueState>(savedState?.leagueState ?? {
     currentPhase: LeaguePhase.REGULAR_SEASON,
     week: 1,
@@ -82,16 +92,32 @@ const App: React.FC = () => {
 
   // Debounced auto-save of the whole franchise. Skipped until a team is
   // selected so an empty session never overwrites a real save.
+  //
+  // A plain debounce would starve during sustained activity — the AI draft
+  // changes state every ~450ms, so a 750ms debounce would never fire and a
+  // closed tab could lose an entire round. `lastSaveRef` caps how stale the
+  // save is allowed to get regardless of how busy the app is.
+  const lastSaveRef = useRef(Date.now());
+  const MAX_SAVE_STALENESS_MS = 3000;
+
   useEffect(() => {
     if (loading || !selectedTeamId) return;
-    const timer = setTimeout(() => {
-      persistSave({
-        selectedTeamId, teams, allPlayers, coaches, tradeHistory,
-        prospects, scouts, picks, leagueState, schedule, inductees
-      });
-    }, 750);
+    const snapshot = {
+      selectedTeamId, teams, allPlayers, coaches, tradeHistory,
+      prospects, scouts, picks, leagueState, schedule, inductees, draftHistory
+    };
+    const overdue = Date.now() - lastSaveRef.current >= MAX_SAVE_STALENESS_MS;
+    const commit = () => {
+      persistSave(snapshot);
+      lastSaveRef.current = Date.now();
+    };
+    if (overdue) {
+      commit();
+      return;
+    }
+    const timer = setTimeout(commit, 750);
     return () => clearTimeout(timer);
-  }, [loading, selectedTeamId, teams, allPlayers, coaches, tradeHistory, prospects, scouts, picks, leagueState, schedule, inductees]);
+  }, [loading, selectedTeamId, teams, allPlayers, coaches, tradeHistory, prospects, scouts, picks, leagueState, schedule, inductees, draftHistory]);
 
   const rollWeekForward = () => {
     setLeagueState(prev => {
@@ -102,25 +128,57 @@ const App: React.FC = () => {
     });
   };
 
-  // Advance Week button: resolve every remaining game this week (including the
-  // user's, if unplayed), then move the calendar.
-  const advanceWeek = () => {
-    if (leagueState.currentPhase === LeaguePhase.REGULAR_SEASON) {
-      const simmed = simulateWeek(leagueState.week, schedule, teams, allPlayers);
-      setSchedule(simmed.schedule);
-      setTeams(simmed.teams);
-    }
+  // Shared tail for both ways a week can end: resolve the league's remaining
+  // games, roll injuries, review the books, tick injury clocks, then advance.
+  const closeOutWeek = (
+    baseSchedule: ScheduleMatch[],
+    baseTeams: Record<string, any>,
+    basePlayers: Player[]
+  ) => {
+    const week = leagueState.week;
+    const simmed = simulateWeek(week, baseSchedule, baseTeams, basePlayers);
+
+    // Owners review cap health each week
+    const reviewed = { ...simmed.teams };
+    Object.keys(reviewed).forEach(id => {
+      reviewed[id] = {
+        ...reviewed[id],
+        ...approvalAfterCapReview(
+          reviewed[id],
+          basePlayers.filter(p => p.teamId === id),
+          leagueState.salaryCap
+        ),
+      };
+    });
+
+    setSchedule(simmed.schedule);
+    setTeams(reviewed);
+    // Functional update: MatchSim credits per-player stats in this same batch,
+    // so we must build on the latest players rather than the stale closure.
+    setAllPlayers(prev =>
+      advanceInjuryClocks(
+        rollGameInjuries(prev, simmed.playedTeams, week, leagueState.year),
+        week
+      )
+    );
     rollWeekForward();
   };
 
+  // Advance Week button: resolve every remaining game this week (including the
+  // user's, if unplayed), then move the calendar.
+  const advanceWeek = () => {
+    if (leagueState.currentPhase !== LeaguePhase.REGULAR_SEASON) {
+      rollWeekForward();
+      return;
+    }
+    closeOutWeek(schedule, teams, allPlayers);
+  };
+
   // Called by MatchSim when the user finishes playing their game: record the
-  // real result, sim the rest of the league's week, and advance.
+  // real result, then close out the week like any other.
   const completeUserGame = (result: GameResult) => {
     const afterUserGame = applyCompletedGame(schedule, teams, result);
-    const simmed = simulateWeek(leagueState.week, afterUserGame.schedule, afterUserGame.teams, allPlayers);
-    setSchedule(simmed.schedule);
-    setTeams(simmed.teams);
-    rollWeekForward();
+    closeOutWeek(afterUserGame.schedule, afterUserGame.teams, allPlayers);
   };
 
   const renderView = () => {
@@ -182,10 +240,12 @@ const App: React.FC = () => {
             teams={teams}
             allPlayers={allPlayers}
             setAllPlayers={setAllPlayers}
+            draftHistory={draftHistory}
+            setDraftHistory={setDraftHistory}
           />
         );
       case AppView.STAFF:
-        return <StaffView selectedTeamId={selectedTeamId} coaches={coaches} setCoaches={setCoaches} teams={teams} />;
+        return <StaffView selectedTeamId={selectedTeamId} coaches={coaches} setCoaches={setCoaches} teams={teams} schedule={schedule} tradeHistory={tradeHistory} />;
       case AppView.SCOUTING:
         return (
           <ScoutingView 

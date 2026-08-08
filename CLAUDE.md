@@ -164,6 +164,10 @@ ever empty.
 | File | Role | Used by |
 | --- | --- | --- |
 | `services/leagueSimService.ts` | `teamStrength`, `simulateGame`, `simulateWeek`, `applyCompletedGame`, `applyResultToRecord` | `App.tsx` |
+| `services/draftService.ts` | deterministic draft class + 7-round pick order, `gradeForProgress` | `App.tsx`, `ScoutingView` |
+| `services/injuryService.ts` | `rollGameInjuries`, `advanceInjuryClocks`, `isAvailable`, `leagueInjuryReport` | `App.tsx`, `Dashboard` |
+| `services/approvalService.ts` | owner/fan approval from results and cap health, `buildDecisionLedger` | `leagueSimService`, `App.tsx`, `StaffView` |
+| `utils/rosterUtils.ts` | `getStarter`, `rerankDepth`, `insertIntoDepthChart` | `MatchSim`, `DraftRoom`, `FreeAgency`, `TradeCenter` |
 | `services/saveService.ts` | versioned `localStorage` load/persist/clear | `App.tsx`, `Navigation` |
 | `services/nflverseService.ts` | `fetchTeams` (cosmetic metadata), `fetchLiveSearchRoster`, `normalizePosition` | `App.tsx`, `RosterView` |
 | `services/geminiService.ts` | thin client wrappers over `/api/*` (`syncTeamRoster`, `getDraftStrategy`) | `RosterView`, `DraftRoom` |
@@ -213,8 +217,23 @@ Conventions in these handlers:
   derives it from the roster; there are no hardcoded cap figures in the UI.
 - **Free agents** are modeled as players with `teamId === 'FA'`, not a separate collection.
   Releasing a player moves them to `'FA'` rather than deleting them from the league.
-- **Depth chart**: `depth` is a 1-based rank within (team, position). Anything that needs
-  "the starter" must sort by `depth` then `overall` — never take the first array match.
+- **Depth chart**: `depth` is a 1-based rank within (team, position) — *not* a rank on the
+  roster, so `depth <= 4` is "the rotation at that position", not "the top 4 players".
+  Use `getStarter`/`insertIntoDepthChart`/`rerankDepth` from `utils/rosterUtils.ts`; never
+  take the first array match, and always re-rank after a draft pick, signing, or trade or
+  the arriving player keeps a stale rank and never plays.
+- **Injuries**: `player.injury` is the current injury (undefined when healthy);
+  `injuryHistory` is the archive. Clocks tick in `advanceInjuryClocks`, which skips
+  injuries sustained in the week just completed so "2 weeks out" costs two games.
+  `getStarter` skips injured players.
+- **Approval**: `ownerApproval`/`fanApproval` live on the team object and move in
+  `applyGameToTeams` (results) and `approvalAfterCapReview` (books). Fans swing harder
+  per game than owners.
+- **The draft**: class and pick order are generated deterministically per season by
+  `services/draftService.ts` (260 prospects, 224 picks over 7 rounds in reverse-standings
+  order). `DraftProspect.overall` is the *hidden true* rating; `scoutingGrade` is the
+  visible estimate and converges on it as `scoutingProgress` rises. Draft progress is
+  franchise state (`draftHistory`), so the current pick is `draftHistory.length`.
 - **A week advances** only through `App.tsx`. Both paths (Advance Week, and finishing a
   game in `MatchSim`) run `simulateWeek`, which resolves every game of that week that is
   not already `isCompleted`. That flag is the guard against double-simulating.
@@ -273,11 +292,13 @@ Documented so they aren't mistaken for regressions:
 - Playoffs are a phase label only — there is no bracket. Week 18 flips
   `currentPhase` to `PLAYOFFS` and resets the week counter; nothing simulates a
   postseason yet.
-- Player progression, injuries, retirement, and the offseason/draft calendar are not
-  implemented. `documentation/GDD_REFINEMENT_V2.md` specifies them.
-- `DRAFT_CLASS`, `MOCK_SCOUTS`, `INITIAL_PICKS`, and `MOCK_COACHES` are still small
-  hand-written seeds in `constants.ts` — only rosters and the schedule come from real
-  data.
+- Player progression, retirement, and the offseason calendar are not implemented, and
+  the draft is not tied to a phase — the War Room runs whenever you open it.
+  `documentation/GDD_REFINEMENT_V2.md` specifies the rest.
+- `MOCK_SCOUTS` is still a three-scout seed in `constants.ts`; coaching staffs are
+  generated for all 32 teams but from a fixed template.
+- The AI draft picks every ~450ms. The autosave debounce is capped at 3s of staleness
+  (`MAX_SAVE_STALENESS_MS`) precisely so sustained activity like this cannot starve it.
 - Generated-data regressions are caught only by re-running `npm run generate:data` and
   checking `git diff` is empty; there is no test that runs it in CI (there is no CI).
 
