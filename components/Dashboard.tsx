@@ -199,14 +199,27 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase, curr
     const oppCode = team.nextOpp.code;
     const oppPool = allPlayers.filter(p => p.teamId === oppCode);
     
-    let topOffense = oppPool.filter(p => ['QB', 'RB', 'WR', 'TE', 'OL'].includes(p.position)).sort((a, b) => b.overall - a.overall)[0];
-    let topDefense = oppPool.filter(p => ['DL', 'LB', 'CB', 'S', 'EDGE'].includes(p.position)).sort((a, b) => b.overall - a.overall)[0];
+    let topOffense = oppPool
+      .filter(p => ['QB', 'RB', 'WR', 'TE', 'OL'].includes(p.position))
+      .sort((a, b) => b.overall - a.overall)[0];
+    let topDefense = oppPool
+      .filter(p => ['DL', 'LB', 'CB', 'S', 'EDGE'].includes(p.position))
+      .sort((a, b) => b.overall - a.overall)[0];
+
+    if (!topOffense && oppPool.length > 0) {
+      topOffense = [...oppPool].sort((a, b) => b.overall - a.overall)[0];
+    }
+    if (!topDefense && oppPool.length > 0) {
+      topDefense = [...oppPool].filter(p => p.id !== topOffense?.id).sort((a, b) => b.overall - a.overall)[0] || topOffense;
+    }
 
     if (!topOffense) {
-      topOffense = { name: 'C. Stroud', position: 'QB' as any, overall: 91, teamId: oppCode, stats: { yards: 2450 } } as any;
+      const oppName = team.nextOpp.name || 'Opponent';
+      topOffense = { name: `${oppName} Franchise QB`, position: 'QB' as any, overall: 85, teamId: oppCode, stats: { yards: 2200 } } as any;
     }
     if (!topDefense) {
-      topDefense = { name: 'W. Anderson Jr.', position: 'EDGE' as any, overall: 94, teamId: oppCode, stats: { sacks: 8.5 } } as any;
+      const oppName = team.nextOpp.name || 'Opponent';
+      topDefense = { name: `${oppName} Defensive Anchor`, position: 'DL' as any, overall: 86, teamId: oppCode, stats: { sacks: 7.0 } } as any;
     }
 
     return { topOffense, topDefense };

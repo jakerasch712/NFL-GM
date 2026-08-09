@@ -167,6 +167,23 @@ function normalizePosition(pos: string): Position {
   return Position.WR; // fallback
 }
 
+function normalizeTeamAbbr(abbr: string): string {
+  if (!abbr) return 'FA';
+  const a = abbr.toUpperCase().trim();
+  if (['JAC', 'JAX'].includes(a)) return 'JAX';
+  if (['WSH', 'WAS'].includes(a)) return 'WAS';
+  if (['KCC', 'KC'].includes(a)) return 'KC';
+  if (['SFO', 'SF'].includes(a)) return 'SF';
+  if (['LVR', 'LV', 'RAI'].includes(a)) return 'LV';
+  if (['TBB', 'TB'].includes(a)) return 'TB';
+  if (['GNB', 'GB'].includes(a)) return 'GB';
+  if (['NOR', 'NO'].includes(a)) return 'NO';
+  if (['NEP', 'NE'].includes(a)) return 'NE';
+  if (['SDR', 'LAC', 'SD'].includes(a)) return 'LAC';
+  if (['STL', 'LAR', 'RAM'].includes(a)) return 'LAR';
+  return a;
+}
+
 function parseRosters(csvText: string): Promise<any[]> {
   return new Promise((resolve) => {
     Papa.parse(csvText, {
@@ -189,7 +206,7 @@ function parseRosters(csvText: string): Promise<any[]> {
           potential: 'Normal',
           stats: {},
           contract: { years: 1, salary: 1, bonus: 0, guaranteed: 0, yearsLeft: 1, totalValue: 1, capHit: 1, deadCap: 0, voidYears: 0, startYear: 2026, totalLength: 1 },
-          teamId: p.team || p.team_abbr
+          teamId: normalizeTeamAbbr(p.team || p.team_abbr)
         }));
         resolve(players);
       }

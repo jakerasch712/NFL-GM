@@ -13,6 +13,7 @@ import HallOfFame from './components/HallOfFame';
 import TeamSelection from './components/TeamSelection';
 import { AppView, DraftProspect, DraftPick, Scout, LeagueState, LeaguePhase, Player, Coach, TradeRecord } from './types';
 import { DRAFT_CLASS, INITIAL_PICKS, MOCK_SCOUTS, TEAMS_DB, MOCK_PLAYERS, MOCK_COACHES } from './constants';
+import { ensureFullTeamRosters } from './data/nflRosters';
 import { nflverseService } from './services/nflverseService';
 import { SCHEDULE_2027 } from './schedule';
 
@@ -55,7 +56,7 @@ const App: React.FC = () => {
         }
 
         if (nflPlayers && nflPlayers.length > 0) {
-          setAllPlayers(nflPlayers);
+          setAllPlayers(ensureFullTeamRosters([...nflPlayers, ...MOCK_PLAYERS]));
         }
       } catch (err) {
         console.warn('Initialization using default local databases:', err);
