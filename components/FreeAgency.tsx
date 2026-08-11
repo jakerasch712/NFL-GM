@@ -18,7 +18,6 @@ const FreeAgency: React.FC<FreeAgencyProps> = ({ selectedTeamId, allPlayers, set
   const [negotiatingPlayerId, setNegotiatingPlayerId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Real Top-51 cap space; recomputes automatically when a signing flips teamId
   const capSpace = parseFloat(
     getTeamCapSpace(allPlayers.filter(p => p.teamId === selectedTeamId), salaryCap).toFixed(1)
   );
@@ -121,9 +120,9 @@ const FreeAgency: React.FC<FreeAgencyProps> = ({ selectedTeamId, allPlayers, set
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-24 h-[2px] bg-[#1a222e] relative overflow-hidden">
-                          <div className="bg-cyan-500 h-full shadow-[0_0_8px_rgba(0,209,255,0.5)]" style={{ width: `${player.morale}%` }}></div>
+                          <div className="bg-cyan-500 h-full w-[65%] shadow-[0_0_8px_rgba(0,209,255,0.5)]"></div>
                         </div>
-                        <span className="text-[10px] text-cyan-500/80 font-mono tracking-widest">{player.morale}%</span>
+                        <span className="text-[10px] text-cyan-500/80 font-mono tracking-widest">65%</span>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right">

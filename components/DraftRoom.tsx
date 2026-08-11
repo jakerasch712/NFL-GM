@@ -163,7 +163,6 @@ const DraftRoom: React.FC<DraftRoomProps> = ({ selectedTeamId, prospects, setPro
     }, 1200);
     return () => clearTimeout(timer);
   }, [currentPick, selectedTeamId, prospects]);
-
   const handleDraftPlayer = () => {
     if (!selectedProspect || !currentPick) return;
     if (currentPick.currentTeamId !== selectedTeamId) return;
