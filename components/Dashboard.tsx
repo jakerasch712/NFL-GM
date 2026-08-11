@@ -2,14 +2,9 @@ import React, { useState } from 'react';
 import { Calendar, TrendingUp, AlertCircle, Activity, Trophy, ChevronDown, MapPin, UserCheck, HelpCircle, Newspaper, Award, Flame, DollarSign, X, ShieldAlert, Info, ExternalLink, ChevronRight, HeartPulse, Mic, MessageSquare, CheckCircle2, Zap, BarChart3, Users } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { TEAMS_DB, MOCK_PLAYERS } from '../constants';
-<<<<<<< HEAD
 import { LeaguePhase, Player, Position, ScheduleMatch } from '../types';
 import { getTeamCapSpace } from '../services/financeService';
 import { leagueInjuryReport } from '../services/injuryService';
-=======
-import { LeaguePhase, Player, Position } from '../types';
-import { SCHEDULE_2027 } from '../schedule';
->>>>>>> origin/main
 
 interface DashboardProps {
   selectedTeamId: string;
@@ -17,17 +12,11 @@ interface DashboardProps {
   currentWeek: number;
   teams: Record<string, any>;
   allPlayers: Player[];
-<<<<<<< HEAD
   schedule: ScheduleMatch[];
   salaryCap: number;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase, currentWeek, teams, allPlayers, schedule, salaryCap }) => {
-=======
-}
-
-const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase, currentWeek, teams, allPlayers }) => {
->>>>>>> origin/main
   const [leaderboardCategory, setLeaderboardCategory] = useState<'passing' | 'rushing' | 'sacks'>('passing');
   const [showCapToast, setShowCapToast] = useState(true);
   const [showCapModal, setShowCapModal] = useState(false);
@@ -44,8 +33,8 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase, curr
     const divisionTeams = Object.values(teams).filter((t: any) => t.division === team.division);
     
     // Find next match
-    const nextMatch = SCHEDULE_2027.find(m => 
-      m.week >= currentWeek && (m.homeTeamId === teamId || m.awayTeamId === teamId)
+    const nextMatch = schedule.find(m =>
+      m.week >= currentWeek && !m.isCompleted && (m.homeTeamId === teamId || m.awayTeamId === teamId)
     );
 
     let nextOpp: any = { name: 'BYE WEEK', code: 'BYE', record: '-', threat: 'NONE', winProb: 0, location: '-', date: '-', logo: '' };

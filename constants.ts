@@ -1,9 +1,5 @@
-<<<<<<< HEAD
 import { Player, Position, Play, DraftProspect, DraftPick, Coach, CoachArchetype, StaffTrait, Region, Scout } from './types';
-=======
-import { Player, Position, Play, DraftProspect, DraftPick, Coach, Region, Scout } from './types';
 import { REAL_NFL_PLAYERS, ensureFullTeamRosters } from './data/nflRosters';
->>>>>>> origin/main
 
 export const TEAMS_DB: Record<string, any> = {
   ARI: { id: 'ARI', city: 'Arizona', name: 'Cardinals', record: '0-0-0', division: 'NFC West', stats: { off: 78, def: 74, st: 72 }, logo: 'https://a.espncdn.com/i/teamlogos/nfl/500/ari.png' },
