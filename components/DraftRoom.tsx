@@ -15,12 +15,9 @@ interface DraftRoomProps {
   setPicks: React.Dispatch<React.SetStateAction<DraftPick[]>>;
   teams: Record<string, any>;
   allPlayers?: Player[];
-<<<<<<< HEAD
   setAllPlayers?: React.Dispatch<React.SetStateAction<Player[]>>;
   draftHistory: DraftSelection[];
   setDraftHistory: React.Dispatch<React.SetStateAction<DraftSelection[]>>;
-=======
->>>>>>> origin/main
 }
 
 interface TeamNeedItem {
@@ -30,7 +27,6 @@ interface TeamNeedItem {
   depthAvg: number;
 }
 
-<<<<<<< HEAD
 const DraftRoom: React.FC<DraftRoomProps> = ({
   selectedTeamId, prospects, setProspects, picks, setPicks, teams,
   allPlayers = [], setAllPlayers, draftHistory, setDraftHistory
@@ -38,10 +34,6 @@ const DraftRoom: React.FC<DraftRoomProps> = ({
   // Draft progress is derived from history, so leaving the War Room and
   // returning resumes where the board actually is instead of restarting.
   const currentPickIndex = draftHistory.length;
-=======
-const DraftRoom: React.FC<DraftRoomProps> = ({ selectedTeamId, prospects, setProspects, picks, setPicks, teams, allPlayers = [] }) => {
-  const [currentPickIndex, setCurrentPickIndex] = useState(0);
->>>>>>> origin/main
   const [selectedProspectId, setSelectedProspectId] = useState<string | null>(null);
   const [selectedNeedPos, setSelectedNeedPos] = useState<string | null>(null);
   const [isTradeModalOpen, setIsTradeModalOpen] = useState(false);
@@ -111,12 +103,15 @@ const DraftRoom: React.FC<DraftRoomProps> = ({ selectedTeamId, prospects, setPro
   const currentPick = picks[currentPickIndex];
   const selectedProspect = prospects.find(p => p.id === selectedProspectId);
 
-<<<<<<< HEAD
   // Rookie APY ($M) by draft round
   const ROOKIE_SALARY_BY_ROUND: Record<number, number> = { 1: 8.0, 2: 3.5, 3: 2.0, 4: 1.5, 5: 1.2, 6: 1.0, 7: 0.9 };
 
   const prospectToPlayer = (prospect: DraftProspect, pick: DraftPick): Player => {
-    const overall = Math.min(84, Math.max(58, Math.round(60 + (prospect.scoutingGrade - 70) * 0.75)));
+    // Built from the HIDDEN true rating, not the visible grade: scouting reveals
+    // what a prospect is, it does not decide it. This is what makes an
+    // unscouted pick a genuine bust-or-sleeper gamble.
+    const trueOverall = prospect.overall ?? prospect.scoutingGrade;
+    const overall = Math.min(84, Math.max(58, Math.round(60 + (trueOverall - 70) * 0.75)));
     const salary = ROOKIE_SALARY_BY_ROUND[pick.round] ?? 0.9;
     const bonus = parseFloat((salary * (pick.round === 1 ? 1.5 : 0.5)).toFixed(1));
     const potentialMap: Record<DraftProspect['potential'], Player['potential']> = {
@@ -163,13 +158,6 @@ const DraftRoom: React.FC<DraftRoomProps> = ({ selectedTeamId, prospects, setPro
       const rookie = prospectToPlayer(prospect, pick);
       setAllPlayers(prev => insertIntoDepthChart(prev, rookie));
     }
-=======
-  const handleDraftPlayer = () => {
-    if (!selectedProspect || !currentPick) return;
-
-    setDraftHistory([...draftHistory, { pick: currentPick, prospect: selectedProspect }]);
-    setProspects(prospects.filter(p => p.id !== selectedProspectId));
->>>>>>> origin/main
     setSelectedProspectId(null);
   };
 

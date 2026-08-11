@@ -33,7 +33,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase, curr
     const divisionTeams = Object.values(teams).filter((t: any) => t.division === team.division);
     
     // Find next match
-    const nextMatch = schedule.find(m =>
+    const nextMatch = schedule.find(m => 
       m.week >= currentWeek && !m.isCompleted && (m.homeTeamId === teamId || m.awayTeamId === teamId)
     );
 
@@ -262,15 +262,15 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase, curr
     item.val = parseFloat(item.val.toFixed(1));
   });
 
-  // Salary cap health. Uses the Top-51 rule and the league's cap value so this
-  // agrees with Navigation, RosterView, and FreeAgency instead of counting the
-  // whole 90-man roster against a hardcoded limit.
+  // Calculate Salary Cap Health Metrics
+  // Top-51 rule against the league cap, so this agrees with Navigation,
+  // RosterView and FreeAgency instead of counting the whole 90-man roster.
   const MAX_CAP_LIMIT = salaryCap;
   const remainingCapSpace = parseFloat(getTeamCapSpace(roster, salaryCap).toFixed(1));
   const totalPayroll = parseFloat((MAX_CAP_LIMIT - remainingCapSpace).toFixed(1));
   const capUsagePct = Math.min(100, Math.max(0, Math.round((totalPayroll / MAX_CAP_LIMIT) * 100)));
-  // Judged on remaining space, not percentage used: real teams routinely carry
-  // 95% of the cap, so a percentage threshold flags all 32 teams forever.
+  // Judged on remaining space: real teams routinely carry 95% of the cap, so a
+  // percentage threshold would flag all 32 teams permanently.
   const capHealthStatus = remainingCapSpace < 0 ? 'CRITICAL' : remainingCapSpace < 5 ? 'WARNING' : 'HEALTHY';
   const isCapApproachingLimit = capHealthStatus !== 'HEALTHY';
   
@@ -289,9 +289,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase, curr
     allPlayers
       .filter(p => p.position === Position.QB)
       .map(p => ({
-        id: p.id,
-        name: p.name,
-        team: p.teamId,
+        id: p.id, name: p.name, team: p.teamId,
         val: p.stats.yards || 0,
         secondary: `${p.stats.touchdowns || 0} TD`,
         ovr: p.overall
@@ -302,9 +300,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase, curr
     allPlayers
       .filter(p => p.position === Position.RB)
       .map(p => ({
-        id: p.id,
-        name: p.name,
-        team: p.teamId,
+        id: p.id, name: p.name, team: p.teamId,
         val: p.stats.yards || 0,
         secondary: `${p.stats.touchdowns || 0} TD`,
         ovr: p.overall
@@ -315,9 +311,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase, curr
     allPlayers
       .filter(p => p.position === Position.DL || p.position === Position.LB)
       .map(p => ({
-        id: p.id,
-        name: p.name,
-        team: p.teamId,
+        id: p.id, name: p.name, team: p.teamId,
         val: p.stats.sacks || 0,
         secondary: `${p.stats.tackles || 0} TKL`,
         ovr: p.overall
@@ -645,11 +639,6 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase, curr
         </div>
 
         <div className="flex-1 overflow-x-auto whitespace-nowrap scrollbar-none flex items-center gap-6 text-xs">
-          {leagueInjuries.length === 0 && (
-            <span className="text-slate-600 text-[10px] uppercase tracking-widest">
-              No active injuries league-wide
-            </span>
-          )}
           {leagueInjuries.map((inj, idx) => (
             <div key={idx} className="flex items-center gap-2.5 bg-[#05070a] border border-[#1a222e] px-3 py-1.5 hover:border-red-500/40 transition-colors flex-shrink-0">
               <span className="text-cyan-400 font-bold text-[10px]">{inj.team}</span>

@@ -1,5 +1,6 @@
 import { Player, ScheduleMatch } from '../types';
 import { approvalAfterGame } from './approvalService';
+import { isAvailable } from './injuryService';
 
 export interface GameResult {
   week: number;
@@ -18,7 +19,9 @@ export const teamStrength = (
   teams: Record<string, any>,
   allPlayers: Player[]
 ): number => {
-  const roster = allPlayers.filter(p => p.teamId === teamId);
+  // Injured players cannot contribute, so a team genuinely gets worse while
+  // its starters are hurt rather than only losing them in the played game.
+  const roster = allPlayers.filter(p => p.teamId === teamId && isAvailable(p));
   if (roster.length === 0) {
     const t = teams[teamId];
     return t ? (t.stats.off + t.stats.def + t.stats.st) / 3 : 75;

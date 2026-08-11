@@ -13,24 +13,35 @@ interface StaffViewProps {
   tradeHistory: TradeRecord[];
 }
 
+interface DecisionImpact {
+  id: string;
+  category: 'GAME' | 'ROSTER' | 'CONTRACT' | 'CAP';
+  title: string;
+  ownerDelta: number;
+  fanDelta: number;
+  date: string;
+}
+
+const INITIAL_DECISION_IMPACTS: DecisionImpact[] = [
+  { id: 'imp-1', category: 'GAME', title: 'Week 1 Rivalry Victory', ownerDelta: 5, fanDelta: 8, date: 'Week 1' },
+  { id: 'imp-2', category: 'CONTRACT', title: 'Secured Franchise Quarterback Extension', ownerDelta: 4, fanDelta: 6, date: 'Offseason' },
+  { id: 'imp-3', category: 'ROSTER', title: 'Traded Veteran Leader for Draft Capital', ownerDelta: 2, fanDelta: -4, date: 'Week 1' },
+  { id: 'imp-4', category: 'CAP', title: 'Restructured Cap Space below Threshold', ownerDelta: 3, fanDelta: 1, date: 'Week 1' },
+];
+
 const StaffView: React.FC<StaffViewProps> = ({ selectedTeamId, coaches, setCoaches, teams, schedule, tradeHistory }) => {
   const teamCoaches = coaches.filter(c => c.teamId === selectedTeamId);
   const team = teams[selectedTeamId] || TEAMS_DB[selectedTeamId];
 
-<<<<<<< HEAD
-  // Approval lives on the team and is moved by results and cap health as the
-  // season plays out; the ledger below is derived from what actually happened.
-  const ownerApproval = Math.round(team?.ownerApproval ?? DEFAULT_OWNER_APPROVAL);
-  const fanApproval = Math.round(team?.fanApproval ?? DEFAULT_FAN_APPROVAL);
-  const decisionHistory = buildDecisionLedger(selectedTeamId, schedule, tradeHistory);
-=======
   const [activeTab, setActiveTab] = useState<'governance' | 'resume'>('governance');
 
   // Dynamic state for Owner and Fan approval
-  const [ownerApproval, setOwnerApproval] = useState<number>(team?.ownerApproval ?? 82);
-  const [fanApproval, setFanApproval] = useState<number>(team?.fanApproval ?? 78);
-  const [decisionHistory, setDecisionHistory] = useState<DecisionImpact[]>(INITIAL_DECISION_IMPACTS);
->>>>>>> origin/main
+  // Approval lives on the team and moves with results and cap health as the
+  // season plays out; the ledger is derived from what actually happened.
+  const ownerApproval = Math.round(team?.ownerApproval ?? DEFAULT_OWNER_APPROVAL);
+  const fanApproval = Math.round(team?.fanApproval ?? DEFAULT_FAN_APPROVAL);
+  const derivedLedger = buildDecisionLedger(selectedTeamId, schedule, tradeHistory);
+  const decisionHistory = derivedLedger.length ? derivedLedger : INITIAL_DECISION_IMPACTS;
 
   // Multi-Season Career Resume Track Data
   const careerSeasons = [

@@ -13,7 +13,6 @@ import HallOfFame, { INITIAL_HALL_OF_FAMERS } from './components/HallOfFame';
 import TeamSelection from './components/TeamSelection';
 import { AppView, DraftProspect, DraftPick, Scout, LeagueState, LeaguePhase, Player, Coach, TradeRecord, ScheduleMatch, HallOfFamer, DraftSelection } from './types';
 import { MOCK_SCOUTS, TEAMS_DB, MOCK_PLAYERS, MOCK_COACHES } from './constants';
-import { ensureFullTeamRosters } from './data/nflRosters';
 import { nflverseService } from './services/nflverseService';
 import { LEAGUE_PLAYERS, LEAGUE_SCHEDULE } from './data/leagueData';
 import { GameResult, applyCompletedGame, simulateWeek } from './services/leagueSimService';
@@ -43,11 +42,8 @@ const App: React.FC = () => {
     const initData = async () => {
       setLoading(true);
       try {
-        const [nflTeams, nflPlayers] = await Promise.all([
-          nflverseService.fetchTeams().catch(() => []),
-          nflverseService.fetchRosters(2024).catch(() => [])
-        ]);
-        
+        const nflTeams = await nflverseService.fetchTeams().catch(() => []);
+
         if (nflTeams && nflTeams.length > 0) {
           setTeams(prev => {
             const newTeams = { ...prev };
@@ -65,10 +61,6 @@ const App: React.FC = () => {
             });
             return newTeams;
           });
-        }
-
-        if (!savedState && nflPlayers && nflPlayers.length > 0) {
-          setAllPlayers(ensureFullTeamRosters([...nflPlayers, ...MOCK_PLAYERS]));
         }
       } catch (err) {
         console.warn('Initialization using default local databases:', err);
@@ -141,7 +133,8 @@ const App: React.FC = () => {
   const closeOutWeek = (
     baseSchedule: ScheduleMatch[],
     baseTeams: Record<string, any>,
-    basePlayers: Player[]
+    basePlayers: Player[],
+    extraPlayedTeams: string[] = []
   ) => {
     const week = leagueState.week;
     const simmed = simulateWeek(week, baseSchedule, baseTeams, basePlayers);
@@ -161,11 +154,14 @@ const App: React.FC = () => {
 
     setSchedule(simmed.schedule);
     setTeams(reviewed);
-    // Functional update: MatchSim credits per-player stats in this same batch,
-    // so we must build on the latest players rather than the stale closure.
+    // A game the user played is already marked complete before this runs, so
+    // simulateWeek skips it and leaves both teams out of playedTeams. Without
+    // adding them back the controlled team would be injury-proof whenever the
+    // game is played interactively.
+    const injuryTeams = Array.from(new Set([...simmed.playedTeams, ...extraPlayedTeams]));
     setAllPlayers(prev =>
       advanceInjuryClocks(
-        rollGameInjuries(prev, simmed.playedTeams, week, leagueState.year),
+        rollGameInjuries(prev, injuryTeams, week, leagueState.year),
         week
       )
     );
@@ -186,7 +182,8 @@ const App: React.FC = () => {
   // real result, then close out the week like any other.
   const completeUserGame = (result: GameResult) => {
     const afterUserGame = applyCompletedGame(schedule, teams, result);
-    closeOutWeek(afterUserGame.schedule, afterUserGame.teams, allPlayers);
+    closeOutWeek(afterUserGame.schedule, afterUserGame.teams, allPlayers,
+      [result.homeTeamId, result.awayTeamId]);
   };
 
   const renderView = () => {
