@@ -5,7 +5,16 @@ export const VETERAN_MINIMUM = 1.21;
 
 /**
  * Models a restructure: convert base salary above the veteran minimum into
- * signing bonus, prorated over the remaining years plus any void years.
+ * signing bonus, prorated over the years that are actually LEFT (plus any void
+ * years added). Money cannot be pushed into seasons already played, so the
+ * proration term is `yearsLeft + voidYears` — not the original contract length.
+ * With one year remaining and no void years a restructure therefore saves
+ * nothing, which is correct: there is no future season to spread it over.
+ *
+ * The contract is re-expressed in remaining-money terms (`bonus` is the
+ * unamortized bonus still to be charged, `totalLength` the remaining
+ * proration term), which keeps the `capHit = salary + bonus / totalLength`
+ * invariant that `financeService.calculateCapHit` relies on.
  *
  * The returned contract is the single source of truth — the preview modal and
  * the code that applies the move both use it, so they cannot disagree. Because
@@ -15,8 +24,14 @@ export const VETERAN_MINIMUM = 1.21;
 export const calculateRestructure = (contract: Contract, voidYears: number) => {
   const amountToRestructure = Math.max(0, contract.salary - VETERAN_MINIMUM);
   const salary = parseFloat((contract.salary - amountToRestructure).toFixed(2));
-  const bonus = parseFloat((contract.bonus + amountToRestructure).toFixed(2));
-  const totalLength = contract.totalLength + voidYears;
+
+  // Bonus money still to be charged, spread over the years that remain
+  const annualProration = contract.totalLength > 0 ? contract.bonus / contract.totalLength : 0;
+  const remainingTerm = Math.max(1, contract.yearsLeft + contract.voidYears);
+  const unamortizedBonus = annualProration * remainingTerm;
+
+  const totalLength = remainingTerm + voidYears;
+  const bonus = parseFloat((unamortizedBonus + amountToRestructure).toFixed(2));
   const capHit = parseFloat((salary + bonus / totalLength).toFixed(2));
 
   const newContract: Contract = {
@@ -26,7 +41,8 @@ export const calculateRestructure = (contract: Contract, voidYears: number) => {
     voidYears: contract.voidYears + voidYears,
     totalLength,
     capHit,
-    deadCap: parseFloat(((bonus / totalLength) * (contract.yearsLeft + contract.voidYears + voidYears)).toFixed(2)),
+    // Cutting now accelerates every remaining prorated dollar
+    deadCap: parseFloat(bonus.toFixed(2)),
   };
 
   return {

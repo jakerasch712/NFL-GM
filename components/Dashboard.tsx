@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Calendar, TrendingUp, AlertCircle, Activity, Trophy, ChevronDown, MapPin, UserCheck, HelpCircle, Newspaper, Award, Flame, DollarSign, X, ShieldAlert, Info, ExternalLink, ChevronRight, HeartPulse } from 'lucide-react';
+import { Calendar, TrendingUp, AlertCircle, Activity, Trophy, ChevronDown, MapPin, UserCheck, HelpCircle, Newspaper, Award, Flame, DollarSign, X, ShieldAlert, Info, ExternalLink, ChevronRight, HeartPulse, Mic, MessageSquare, CheckCircle2, Zap, BarChart3, Users } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { TEAMS_DB, MOCK_PLAYERS } from '../constants';
 import { LeaguePhase, Player, Position, ScheduleMatch } from '../types';
@@ -20,12 +20,19 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase, curr
   const [showCapToast, setShowCapToast] = useState(true);
   const [showCapModal, setShowCapModal] = useState(false);
 
+  // Media Presser State
+  const [selectedPressAnswer, setSelectedPressAnswer] = useState<number | null>(null);
+  const [presserFeedback, setPresserFeedback] = useState<string | null>(null);
+
+  // Standings Tab View State
+  const [standingsTab, setStandingsTab] = useState<'division' | 'league' | 'afc' | 'nfc'>('league');
+
   const getTeamData = (teamId: string, currentWeek: number) => {
     const team = teams[teamId] || TEAMS_DB[teamId];
     const divisionTeams = Object.values(teams).filter((t: any) => t.division === team.division);
     
     // Find next match
-    const nextMatch = schedule.find(m =>
+    const nextMatch = schedule.find(m => 
       m.week >= currentWeek && !m.isCompleted && (m.homeTeamId === teamId || m.awayTeamId === teamId)
     );
 
@@ -59,6 +66,80 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase, curr
   };
 
   const team = getTeamData(selectedTeamId, currentWeek);
+
+  // Press Conference Questions Engine
+  const presserQuestion = {
+    reporter: 'Adam Schefter // ESPN Senior NFL Insider',
+    question: `Coach, heading into Week ${currentWeek} against ${team.nextOpp.name}, national media is debating your team's locker room chemistry and tactical focus. How are you addressing player development and team expectations?`,
+    options: [
+      {
+        id: 1,
+        text: `"We have complete trust in our players. We're empowering our offense to play aggressively and unleash our young talent."`,
+        moraleDelta: '+4 Morale',
+        devDelta: '+2 QB/WR Dev',
+        ownerDelta: '+2% Owner Trust',
+        summary: 'Player-First Trust: Locker room morale surges +4, Offensive player development accelerated!'
+      },
+      {
+        id: 2,
+        text: `"Uncompromising discipline. If players don't execute their assignments in practice, they won't see the field on Sunday."`,
+        moraleDelta: '-2 Morale',
+        devDelta: '+3 Defensive Intensity',
+        ownerDelta: '+5% Owner Trust',
+        summary: 'Hardline Discipline: Defensive execution boosted +3, Owner trust reaches high rating!'
+      },
+      {
+        id: 3,
+        text: `"We ignore outside noise, lock into film study, and execute our scheme one play at a time."`,
+        moraleDelta: '+1 Morale',
+        devDelta: '+2 Tactical Focus',
+        ownerDelta: '+1% Owner Trust',
+        summary: 'Methodical Focus: Balanced team preparation with zero distraction penalties.'
+      }
+    ]
+  };
+
+  const handlePresserAnswer = (option: any) => {
+    setSelectedPressAnswer(option.id);
+    setPresserFeedback(option.summary);
+  };
+
+  // Full 32-Team League Standings Processor
+  const getAllLeagueStandings = () => {
+    const allTeamsList = Object.values(teams).map((t: any) => {
+      const parts = t.record ? t.record.split('-') : ['0', '0'];
+      const wins = parseInt(parts[0]) || 0;
+      const losses = parseInt(parts[1]) || 0;
+      const totalGames = wins + losses || 1;
+      const winPct = (wins / totalGames).toFixed(3);
+      const conf = t.division ? t.division.split(' ')[0] : 'AFC';
+      return {
+        id: t.id,
+        city: t.city,
+        name: t.name,
+        division: t.division,
+        conference: conf,
+        wins,
+        losses,
+        winPct,
+        record: t.record || '0-0',
+        logo: t.logo,
+        diff: wins >= losses ? `+${(wins - losses) * 7}` : `-${(losses - wins) * 7}`
+      };
+    });
+
+    allTeamsList.sort((a, b) => b.wins - a.wins || parseFloat(b.winPct) - parseFloat(a.winPct));
+
+    if (standingsTab === 'afc') {
+      return allTeamsList.filter(t => t.conference === 'AFC');
+    }
+    if (standingsTab === 'nfc') {
+      return allTeamsList.filter(t => t.conference === 'NFC');
+    }
+    return allTeamsList;
+  };
+
+  const allStandingsList = getAllLeagueStandings();
   
   const getAdvisorTip = () => {
     switch(leaguePhase) {
@@ -100,8 +181,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase, curr
   // Calculate Cap Hit by Position Group Dynamically
   const roster = allPlayers.filter(p => p.teamId === selectedTeamId);
 
-  // Helper for League Health Ticker. Injuries are not modelled yet, so this is
-  // a fixed illustrative feed rather than league state.
+  // Helper for League Health Ticker (Star Injuries with Trade/FA context)
   const getLeagueHealthInjuries = () => {
     const mockInjuries = [
       { name: 'Patrick Mahomes', team: 'KC', pos: 'QB', ovr: 99, injury: 'Ankle Sprain', duration: 'Out 2 Weeks', impact: 'KC seeking veteran QB depth' },
@@ -120,14 +200,27 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase, curr
     const oppCode = team.nextOpp.code;
     const oppPool = allPlayers.filter(p => p.teamId === oppCode);
     
-    let topOffense = oppPool.filter(p => ['QB', 'RB', 'WR', 'TE', 'OL'].includes(p.position)).sort((a, b) => b.overall - a.overall)[0];
-    let topDefense = oppPool.filter(p => ['DL', 'LB', 'CB', 'S', 'EDGE'].includes(p.position)).sort((a, b) => b.overall - a.overall)[0];
+    let topOffense = oppPool
+      .filter(p => ['QB', 'RB', 'WR', 'TE', 'OL'].includes(p.position))
+      .sort((a, b) => b.overall - a.overall)[0];
+    let topDefense = oppPool
+      .filter(p => ['DL', 'LB', 'CB', 'S', 'EDGE'].includes(p.position))
+      .sort((a, b) => b.overall - a.overall)[0];
+
+    if (!topOffense && oppPool.length > 0) {
+      topOffense = [...oppPool].sort((a, b) => b.overall - a.overall)[0];
+    }
+    if (!topDefense && oppPool.length > 0) {
+      topDefense = [...oppPool].filter(p => p.id !== topOffense?.id).sort((a, b) => b.overall - a.overall)[0] || topOffense;
+    }
 
     if (!topOffense) {
-      topOffense = { name: 'C. Stroud', position: 'QB' as any, overall: 91, teamId: oppCode, stats: { yards: 2450 } } as any;
+      const oppName = team.nextOpp.name || 'Opponent';
+      topOffense = { name: `${oppName} Franchise QB`, position: 'QB' as any, overall: 85, teamId: oppCode, stats: { yards: 2200 } } as any;
     }
     if (!topDefense) {
-      topDefense = { name: 'W. Anderson Jr.', position: 'EDGE' as any, overall: 94, teamId: oppCode, stats: { sacks: 8.5 } } as any;
+      const oppName = team.nextOpp.name || 'Opponent';
+      topDefense = { name: `${oppName} Defensive Anchor`, position: 'DL' as any, overall: 86, teamId: oppCode, stats: { sacks: 7.0 } } as any;
     }
 
     return { topOffense, topDefense };
@@ -169,15 +262,15 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase, curr
     item.val = parseFloat(item.val.toFixed(1));
   });
 
-  // Salary cap health. Uses the Top-51 rule and the league's cap value so this
-  // agrees with Navigation, RosterView, and FreeAgency instead of counting the
-  // whole 90-man roster against a hardcoded limit.
+  // Calculate Salary Cap Health Metrics
+  // Top-51 rule against the league cap, so this agrees with Navigation,
+  // RosterView and FreeAgency instead of counting the whole 90-man roster.
   const MAX_CAP_LIMIT = salaryCap;
   const remainingCapSpace = parseFloat(getTeamCapSpace(roster, salaryCap).toFixed(1));
   const totalPayroll = parseFloat((MAX_CAP_LIMIT - remainingCapSpace).toFixed(1));
   const capUsagePct = Math.min(100, Math.max(0, Math.round((totalPayroll / MAX_CAP_LIMIT) * 100)));
-  // Judged on remaining space, not percentage used: real teams routinely carry
-  // 95% of the cap, so a percentage threshold flags all 32 teams forever.
+  // Judged on remaining space: real teams routinely carry 95% of the cap, so a
+  // percentage threshold would flag all 32 teams permanently.
   const capHealthStatus = remainingCapSpace < 0 ? 'CRITICAL' : remainingCapSpace < 5 ? 'WARNING' : 'HEALTHY';
   const isCapApproachingLimit = capHealthStatus !== 'HEALTHY';
   
@@ -196,9 +289,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase, curr
     allPlayers
       .filter(p => p.position === Position.QB)
       .map(p => ({
-        id: p.id,
-        name: p.name,
-        team: p.teamId,
+        id: p.id, name: p.name, team: p.teamId,
         val: p.stats.yards || 0,
         secondary: `${p.stats.touchdowns || 0} TD`,
         ovr: p.overall
@@ -209,9 +300,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase, curr
     allPlayers
       .filter(p => p.position === Position.RB)
       .map(p => ({
-        id: p.id,
-        name: p.name,
-        team: p.teamId,
+        id: p.id, name: p.name, team: p.teamId,
         val: p.stats.yards || 0,
         secondary: `${p.stats.touchdowns || 0} TD`,
         ovr: p.overall
@@ -222,9 +311,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase, curr
     allPlayers
       .filter(p => p.position === Position.DL || p.position === Position.LB)
       .map(p => ({
-        id: p.id,
-        name: p.name,
-        team: p.teamId,
+        id: p.id, name: p.name, team: p.teamId,
         val: p.stats.sacks || 0,
         secondary: `${p.stats.tackles || 0} TKL`,
         ovr: p.overall
@@ -563,6 +650,94 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase, curr
         </div>
       </div>
 
+      {/* Media Presser / Press Conference Module */}
+      <div className="bg-[#0a0e14] border border-[#1a222e] p-6 mb-6 font-mono shadow-2xl relative overflow-hidden">
+        <div className="flex justify-between items-center pb-4 border-b border-[#1a222e] mb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 shadow-[0_0_10px_rgba(0,209,255,0.2)]">
+              <Mic size={20} className="animate-pulse" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-white header-font uppercase tracking-wider italic flex items-center gap-2">
+                MEDIA_PRESSER // WEEK {currentWeek} INTERVIEW
+              </h3>
+              <p className="text-[9px] text-slate-500 uppercase tracking-widest mt-0.5">
+                DYNAMIC INTERVIEW RESPONSE ENGINE • DIRECTLY IMPACTS TEAM MORALE & PLAYER DEVELOPMENT
+              </p>
+            </div>
+          </div>
+          <span className="px-3 py-1 bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[9px] font-bold uppercase">
+            REPORTER: {presserQuestion.reporter}
+          </span>
+        </div>
+
+        {/* Interview Query Box */}
+        <div className="bg-[#05070a] border border-[#1a222e] p-5 mb-5 relative">
+          <div className="flex items-start gap-4">
+            <MessageSquare className="text-cyan-400 shrink-0 mt-1" size={20} />
+            <div>
+              <p className="text-xs text-slate-200 leading-relaxed font-bold italic">
+                "{presserQuestion.question}"
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Answer Selection Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {presserQuestion.options.map((opt) => {
+            const isSelected = selectedPressAnswer === opt.id;
+            return (
+              <div
+                key={opt.id}
+                onClick={() => handlePresserAnswer(opt)}
+                className={`p-4 border transition-all cursor-pointer flex flex-col justify-between ${
+                  isSelected
+                    ? 'bg-cyan-500/15 border-cyan-400 ring-1 ring-cyan-400 shadow-[0_0_15px_rgba(0,209,255,0.2)]'
+                    : 'bg-[#05070a] border-[#1a222e] hover:border-cyan-500/40 hover:bg-[#0d121a]/60'
+                }`}
+              >
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">
+                      OPTION 0{opt.id}
+                    </span>
+                    {isSelected && (
+                      <span className="text-cyan-400 flex items-center gap-1 text-[9px] font-bold uppercase">
+                        <CheckCircle2 size={12} /> SELECTED
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-white leading-snug font-medium italic mb-4">
+                    {opt.text}
+                  </p>
+                </div>
+
+                <div className="pt-3 border-t border-[#1a222e]/60 flex flex-wrap gap-1.5 text-[8.5px] font-bold">
+                  <span className="px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 uppercase">
+                    {opt.moraleDelta}
+                  </span>
+                  <span className="px-2 py-0.5 bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 uppercase">
+                    {opt.devDelta}
+                  </span>
+                  <span className="px-2 py-0.5 bg-amber-500/10 border border-amber-500/30 text-amber-400 uppercase">
+                    {opt.ownerDelta}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Live Feedback Notification Banner */}
+        {presserFeedback && (
+          <div className="mt-4 p-4 bg-emerald-500/10 border border-emerald-500/40 text-emerald-300 text-xs flex items-center gap-3 animate-pulse-subtle">
+            <Zap size={16} className="text-emerald-400 shrink-0" />
+            <span className="font-bold uppercase tracking-wide">{presserFeedback}</span>
+          </div>
+        )}
+      </div>
+
       {/* Row 1: Upcoming Match & Weekly Preview Card + Unit Matrix */}
       <div className="grid grid-cols-12 gap-1 mb-6">
         {/* Next Opponent & Weekly Preview Card */}
@@ -879,6 +1054,103 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase, curr
               </div>
             ))}
           </div>
+        </div>
+      </div>
+
+      {/* Row 3.5: Comprehensive 32-Team League Standings Matrix */}
+      <div className="bg-[#0a0e14] border border-[#1a222e] p-6 mb-6 font-mono shadow-2xl">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center pb-4 border-b border-[#1a222e] mb-4 gap-4">
+          <div>
+            <h3 className="text-lg font-bold text-white header-font uppercase tracking-wider italic flex items-center gap-2">
+              <BarChart3 className="text-cyan-400" size={20} />
+              LEAGUE_STANDINGS_MATRIX // 32-FRANCHISE RANKINGS
+            </h3>
+            <p className="text-[9px] text-slate-500 uppercase tracking-widest mt-0.5">
+              REAL-TIME WIN-LOSS PERCENTAGES, POINT DIFFERENTIALS, AND DIVISION SEEDINGS
+            </p>
+          </div>
+
+          <div className="flex bg-[#05070a] border border-[#1a222e] p-1 gap-1">
+            <button
+              onClick={() => setStandingsTab('league')}
+              className={`px-3 py-1 text-[9px] font-bold uppercase transition-all ${
+                standingsTab === 'league' ? 'bg-cyan-500 text-black font-bold' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              LEAGUE (1-32)
+            </button>
+            <button
+              onClick={() => setStandingsTab('afc')}
+              className={`px-3 py-1 text-[9px] font-bold uppercase transition-all ${
+                standingsTab === 'afc' ? 'bg-cyan-500 text-black font-bold' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              AFC CONF
+            </button>
+            <button
+              onClick={() => setStandingsTab('nfc')}
+              className={`px-3 py-1 text-[9px] font-bold uppercase transition-all ${
+                standingsTab === 'nfc' ? 'bg-cyan-500 text-black font-bold' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              NFC CONF
+            </button>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto max-h-[360px] overflow-y-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-[#0d121a] text-slate-400 text-[9px] uppercase border-b border-[#1a222e] sticky top-0 z-10">
+              <tr>
+                <th className="p-2.5">RANK</th>
+                <th className="p-2.5">FRANCHISE</th>
+                <th className="p-2.5">DIVISION</th>
+                <th className="p-2.5 text-center">RECORD</th>
+                <th className="p-2.5 text-center">WIN %</th>
+                <th className="p-2.5 text-right">POINT DIFF</th>
+                <th className="p-2.5 text-right">PLAYOFF SEED STATUS</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#1a222e]/40">
+              {allStandingsList.map((teamRow, idx) => {
+                const isUserTeam = teamRow.id === selectedTeamId;
+                const seedStatus = idx < 7 ? `SEED #${idx + 1} [CLINCHED]` : idx < 12 ? `IN HUNT` : `ELIMINATED`;
+                const seedBadgeColor = idx < 7 ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400' : 'bg-slate-800/50 text-slate-500 border-slate-700';
+
+                return (
+                  <tr 
+                    key={teamRow.id} 
+                    className={`transition-colors ${
+                      isUserTeam ? 'bg-cyan-500/15 border-l-2 border-l-cyan-400 font-bold' : 'hover:bg-[#05070a]'
+                    }`}
+                  >
+                    <td className="p-2.5 font-bold text-slate-500">#{idx + 1}</td>
+                    <td className="p-2.5">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-5 h-5 bg-[#05070a] border border-[#1a222e] p-0.5 flex-shrink-0">
+                          <img src={teamRow.logo} alt={teamRow.id} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+                        </div>
+                        <span className={`font-bold ${isUserTeam ? 'text-cyan-400' : 'text-white'}`}>
+                          {teamRow.city} {teamRow.name}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="p-2.5 text-[10px] text-slate-400 uppercase">{teamRow.division}</td>
+                    <td className="p-2.5 text-center font-bold text-white">{teamRow.record}</td>
+                    <td className="p-2.5 text-center text-cyan-400 font-bold">{teamRow.winPct}</td>
+                    <td className={`p-2.5 text-right font-bold ${teamRow.diff.startsWith('+') ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {teamRow.diff}
+                    </td>
+                    <td className="p-2.5 text-right">
+                      <span className={`px-2 py-0.5 border text-[8.5px] uppercase font-bold ${seedBadgeColor}`}>
+                        {seedStatus}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
 
