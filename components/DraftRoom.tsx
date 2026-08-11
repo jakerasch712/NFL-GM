@@ -15,9 +15,12 @@ interface DraftRoomProps {
   setPicks: React.Dispatch<React.SetStateAction<DraftPick[]>>;
   teams: Record<string, any>;
   allPlayers?: Player[];
+<<<<<<< HEAD
   setAllPlayers?: React.Dispatch<React.SetStateAction<Player[]>>;
   draftHistory: DraftSelection[];
   setDraftHistory: React.Dispatch<React.SetStateAction<DraftSelection[]>>;
+=======
+>>>>>>> origin/main
 }
 
 interface TeamNeedItem {
@@ -27,6 +30,7 @@ interface TeamNeedItem {
   depthAvg: number;
 }
 
+<<<<<<< HEAD
 const DraftRoom: React.FC<DraftRoomProps> = ({
   selectedTeamId, prospects, setProspects, picks, setPicks, teams,
   allPlayers = [], setAllPlayers, draftHistory, setDraftHistory
@@ -34,6 +38,10 @@ const DraftRoom: React.FC<DraftRoomProps> = ({
   // Draft progress is derived from history, so leaving the War Room and
   // returning resumes where the board actually is instead of restarting.
   const currentPickIndex = draftHistory.length;
+=======
+const DraftRoom: React.FC<DraftRoomProps> = ({ selectedTeamId, prospects, setProspects, picks, setPicks, teams, allPlayers = [] }) => {
+  const [currentPickIndex, setCurrentPickIndex] = useState(0);
+>>>>>>> origin/main
   const [selectedProspectId, setSelectedProspectId] = useState<string | null>(null);
   const [selectedNeedPos, setSelectedNeedPos] = useState<string | null>(null);
   const [isTradeModalOpen, setIsTradeModalOpen] = useState(false);
@@ -103,6 +111,7 @@ const DraftRoom: React.FC<DraftRoomProps> = ({
   const currentPick = picks[currentPickIndex];
   const selectedProspect = prospects.find(p => p.id === selectedProspectId);
 
+<<<<<<< HEAD
   // Rookie APY ($M) by draft round
   const ROOKIE_SALARY_BY_ROUND: Record<number, number> = { 1: 8.0, 2: 3.5, 3: 2.0, 4: 1.5, 5: 1.2, 6: 1.0, 7: 0.9 };
 
@@ -154,6 +163,13 @@ const DraftRoom: React.FC<DraftRoomProps> = ({
       const rookie = prospectToPlayer(prospect, pick);
       setAllPlayers(prev => insertIntoDepthChart(prev, rookie));
     }
+=======
+  const handleDraftPlayer = () => {
+    if (!selectedProspect || !currentPick) return;
+
+    setDraftHistory([...draftHistory, { pick: currentPick, prospect: selectedProspect }]);
+    setProspects(prospects.filter(p => p.id !== selectedProspectId));
+>>>>>>> origin/main
     setSelectedProspectId(null);
   };
 
