@@ -284,6 +284,13 @@ export interface DraftProspect {
   interviewStatus?: 'NONE' | 'SCHEDULED' | 'COMPLETED';
 }
 
+/** One completed draft selection, kept in franchise state so the board and its
+ *  history survive leaving the War Room. */
+export interface DraftSelection {
+  pick: DraftPick;
+  prospect: DraftProspect;
+}
+
 export interface TradeRecord {
   id: string;
   date: string;

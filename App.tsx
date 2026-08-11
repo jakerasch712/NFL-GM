@@ -11,7 +11,7 @@ import StaffView from './components/StaffView';
 import ScoutingView from './components/ScoutingView';
 import HallOfFame, { INITIAL_HALL_OF_FAMERS } from './components/HallOfFame';
 import TeamSelection from './components/TeamSelection';
-import { AppView, DraftProspect, DraftPick, Scout, LeagueState, LeaguePhase, Player, Coach, TradeRecord, ScheduleMatch, HallOfFamer } from './types';
+import { AppView, DraftProspect, DraftPick, Scout, LeagueState, LeaguePhase, Player, Coach, TradeRecord, ScheduleMatch, HallOfFamer, DraftSelection } from './types';
 import { DRAFT_CLASS, INITIAL_PICKS, MOCK_SCOUTS, TEAMS_DB, MOCK_PLAYERS, MOCK_COACHES } from './constants';
 import { nflverseService } from './services/nflverseService';
 import { LEAGUE_PLAYERS, LEAGUE_SCHEDULE } from './data/leagueData';
@@ -72,6 +72,7 @@ const App: React.FC = () => {
   const [picks, setPicks] = useState<DraftPick[]>(savedState?.picks ?? INITIAL_PICKS);
   const [schedule, setSchedule] = useState<ScheduleMatch[]>(savedState?.schedule ?? LEAGUE_SCHEDULE);
   const [inductees, setInductees] = useState<HallOfFamer[]>(savedState?.inductees ?? INITIAL_HALL_OF_FAMERS);
+  const [draftHistory, setDraftHistory] = useState<DraftSelection[]>(savedState?.draftHistory ?? []);
   const [leagueState, setLeagueState] = useState<LeagueState>(savedState?.leagueState ?? {
     currentPhase: LeaguePhase.REGULAR_SEASON,
     week: 1,
@@ -87,11 +88,11 @@ const App: React.FC = () => {
     const timer = setTimeout(() => {
       persistSave({
         selectedTeamId, teams, allPlayers, coaches, tradeHistory,
-        prospects, scouts, picks, leagueState, schedule, inductees
+        prospects, scouts, picks, leagueState, schedule, inductees, draftHistory
       });
     }, 750);
     return () => clearTimeout(timer);
-  }, [loading, selectedTeamId, teams, allPlayers, coaches, tradeHistory, prospects, scouts, picks, leagueState, schedule, inductees]);
+  }, [loading, selectedTeamId, teams, allPlayers, coaches, tradeHistory, prospects, scouts, picks, leagueState, schedule, inductees, draftHistory]);
 
   const rollWeekForward = () => {
     setLeagueState(prev => {
@@ -182,6 +183,8 @@ const App: React.FC = () => {
             teams={teams}
             allPlayers={allPlayers}
             setAllPlayers={setAllPlayers}
+            draftHistory={draftHistory}
+            setDraftHistory={setDraftHistory}
           />
         );
       case AppView.STAFF:

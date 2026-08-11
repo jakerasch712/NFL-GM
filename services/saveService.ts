@@ -1,4 +1,4 @@
-import { Player, Coach, TradeRecord, DraftProspect, Scout, DraftPick, LeagueState, ScheduleMatch, HallOfFamer } from '../types';
+import { Player, Coach, TradeRecord, DraftProspect, Scout, DraftPick, LeagueState, ScheduleMatch, HallOfFamer, DraftSelection } from '../types';
 
 const SAVE_KEY = 'nflgm.save.v1';
 const SAVE_VERSION = 1;
@@ -15,6 +15,7 @@ export interface FranchiseState {
   leagueState: LeagueState;
   schedule: ScheduleMatch[];
   inductees: HallOfFamer[];
+  draftHistory: DraftSelection[];
 }
 
 interface SaveFile {
