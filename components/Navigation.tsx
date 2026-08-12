@@ -1,17 +1,22 @@
 import React from 'react';
 import { LayoutDashboard, Users, ClipboardList, Play, Briefcase, ShoppingBag, ArrowLeftRight, Shield, Zap, Microscope, LogOut, Award } from 'lucide-react';
-import { AppView } from '../types';
+import { AppView, Player } from '../types';
 import { TEAMS_DB } from '../constants';
+import { getTeamCapSpace } from '../services/financeService';
+import { clearSave } from '../services/saveService';
 
 interface NavigationProps {
   currentView: AppView;
   setView: (view: AppView) => void;
   selectedTeamId: string;
   teams: Record<string, any>;
+  allPlayers: Player[];
+  salaryCap: number;
 }
 
-const Navigation: React.FC<NavigationProps> = ({ currentView, setView, selectedTeamId, teams }) => {
+const Navigation: React.FC<NavigationProps> = ({ currentView, setView, selectedTeamId, teams, allPlayers, salaryCap }) => {
   const team = teams[selectedTeamId] || TEAMS_DB[selectedTeamId];
+  const capSpace = getTeamCapSpace(allPlayers.filter(p => p.teamId === selectedTeamId), salaryCap);
   const navItems = [
     { id: AppView.DASHBOARD, label: 'HQ Dashboard', icon: LayoutDashboard },
     { id: AppView.ROSTER, label: 'Roster & Depth', icon: Users },
@@ -58,23 +63,21 @@ const Navigation: React.FC<NavigationProps> = ({ currentView, setView, selectedT
       </div>
 
       <div className="p-6 border-t border-[#1a222e] bg-[#0d121a]/50">
-        <div className="flex justify-between items-end mb-2">
-            <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Stability</span>
-            <span className="text-[10px] text-emerald-400 font-mono">88% v2.6</span>
+        <div className="flex justify-between text-[10px] mono-font text-slate-500">
+            <span className="tracking-widest">CAP_SPACE</span>
+            <span className={capSpace < 0 ? 'text-red-500' : 'text-white'}>${capSpace.toFixed(1)}M</span>
         </div>
-        <div className="w-full bg-[#05070a] h-1 rounded-full overflow-hidden border border-[#1a222e]">
-            <div className="bg-emerald-500 h-full w-[88%] shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
-        </div>
-        <div className="mt-4 flex justify-between text-[10px] mono-font text-slate-500">
-            <span className="tracking-widest">CAP_REFLOW</span>
-            <span className="text-white">$14.2M</span>
-        </div>
-        <button 
-          onClick={() => window.location.reload()} 
+        <button
+          onClick={() => {
+            if (window.confirm('Start a new franchise? Your current save will be erased.')) {
+              clearSave();
+              window.location.reload();
+            }
+          }}
           className="mt-6 w-full flex items-center justify-center gap-2 py-2 text-[9px] font-bold uppercase tracking-[0.2em] text-slate-600 hover:text-red-500 transition-all border border-[#1a222e] rounded-sm hover:bg-red-500/5 hover:border-red-500/30"
         >
           <LogOut size={12} />
-          TERMINATE_SESSION
+          NEW_FRANCHISE
         </button>
       </div>
     </div>

@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
 import { MOCK_COACHES, TEAMS_DB } from '../constants';
 import { Shield, Zap, Award, Users, ChevronRight, Star, HeartHandshake, Crown, Flame, AlertTriangle, TrendingUp, TrendingDown, Sparkles, CheckCircle2 } from 'lucide-react';
-import { Coach } from '../types';
+import { Coach, ScheduleMatch, TradeRecord } from '../types';
+import { buildDecisionLedger, DEFAULT_OWNER_APPROVAL, DEFAULT_FAN_APPROVAL } from '../services/approvalService';
 
 interface StaffViewProps {
   selectedTeamId: string;
   coaches: Coach[];
   setCoaches: React.Dispatch<React.SetStateAction<Coach[]>>;
   teams: Record<string, any>;
+  schedule: ScheduleMatch[];
+  tradeHistory: TradeRecord[];
 }
 
 interface DecisionImpact {
@@ -26,16 +29,19 @@ const INITIAL_DECISION_IMPACTS: DecisionImpact[] = [
   { id: 'imp-4', category: 'CAP', title: 'Restructured Cap Space below Threshold', ownerDelta: 3, fanDelta: 1, date: 'Week 1' },
 ];
 
-const StaffView: React.FC<StaffViewProps> = ({ selectedTeamId, coaches, setCoaches, teams }) => {
+const StaffView: React.FC<StaffViewProps> = ({ selectedTeamId, coaches, setCoaches, teams, schedule, tradeHistory }) => {
   const teamCoaches = coaches.filter(c => c.teamId === selectedTeamId);
   const team = teams[selectedTeamId] || TEAMS_DB[selectedTeamId];
 
   const [activeTab, setActiveTab] = useState<'governance' | 'resume'>('governance');
 
   // Dynamic state for Owner and Fan approval
-  const [ownerApproval, setOwnerApproval] = useState<number>(team?.ownerApproval ?? 82);
-  const [fanApproval, setFanApproval] = useState<number>(team?.fanApproval ?? 78);
-  const [decisionHistory, setDecisionHistory] = useState<DecisionImpact[]>(INITIAL_DECISION_IMPACTS);
+  // Approval lives on the team and moves with results and cap health as the
+  // season plays out; the ledger is derived from what actually happened.
+  const ownerApproval = Math.round(team?.ownerApproval ?? DEFAULT_OWNER_APPROVAL);
+  const fanApproval = Math.round(team?.fanApproval ?? DEFAULT_FAN_APPROVAL);
+  const derivedLedger = buildDecisionLedger(selectedTeamId, schedule, tradeHistory);
+  const decisionHistory = derivedLedger.length ? derivedLedger : INITIAL_DECISION_IMPACTS;
 
   // Multi-Season Career Resume Track Data
   const careerSeasons = [

@@ -1,8 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Timer, Search, Filter, Star, ArrowRight, History, TrendingUp, RefreshCcw, X, Sparkles, Brain, Loader2, AlertTriangle, ShieldAlert, CheckCircle } from 'lucide-react';
-import { DraftProspect, DraftPick, Player } from '../types';
+import { DraftProspect, DraftPick, Player, Position, DraftSelection } from '../types';
 import { TEAMS_DB } from '../constants';
 import { getDraftStrategy } from '../services/geminiService';
+import { insertIntoDepthChart } from '../utils/rosterUtils';
 import Markdown from 'react-markdown';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -14,6 +15,9 @@ interface DraftRoomProps {
   setPicks: React.Dispatch<React.SetStateAction<DraftPick[]>>;
   teams: Record<string, any>;
   allPlayers?: Player[];
+  setAllPlayers?: React.Dispatch<React.SetStateAction<Player[]>>;
+  draftHistory: DraftSelection[];
+  setDraftHistory: React.Dispatch<React.SetStateAction<DraftSelection[]>>;
 }
 
 interface TeamNeedItem {
@@ -23,11 +27,15 @@ interface TeamNeedItem {
   depthAvg: number;
 }
 
-const DraftRoom: React.FC<DraftRoomProps> = ({ selectedTeamId, prospects, setProspects, picks, setPicks, teams, allPlayers = [] }) => {
-  const [currentPickIndex, setCurrentPickIndex] = useState(0);
+const DraftRoom: React.FC<DraftRoomProps> = ({
+  selectedTeamId, prospects, setProspects, picks, setPicks, teams,
+  allPlayers = [], setAllPlayers, draftHistory, setDraftHistory
+}) => {
+  // Draft progress is derived from history, so leaving the War Room and
+  // returning resumes where the board actually is instead of restarting.
+  const currentPickIndex = draftHistory.length;
   const [selectedProspectId, setSelectedProspectId] = useState<string | null>(null);
   const [selectedNeedPos, setSelectedNeedPos] = useState<string | null>(null);
-  const [draftHistory, setDraftHistory] = useState<{pick: DraftPick, prospect: DraftProspect}[]>([]);
   const [isTradeModalOpen, setIsTradeModalOpen] = useState(false);
   
   // Trade State
@@ -42,36 +50,45 @@ const DraftRoom: React.FC<DraftRoomProps> = ({ selectedTeamId, prospects, setPro
   const myTeamPlayers = useMemo(() => allPlayers.filter(p => p.teamId === selectedTeamId), [allPlayers, selectedTeamId]);
   
   const teamNeeds: TeamNeedItem[] = useMemo(() => {
-    if (!myTeamPlayers.length) {
-      return [
-        { position: 'EDGE', priority: 'CRITICAL', reason: 'Contract Expirations & Depth Hole', depthAvg: 74 },
-        { position: 'OL', priority: 'HIGH', reason: 'Roster Rating Deficit (76 OVR)', depthAvg: 76 },
-        { position: 'CB', priority: 'HIGH', reason: 'Expiring Starters (Contract Warning)', depthAvg: 78 },
-        { position: 'WR', priority: 'MEDIUM', reason: 'Developmental Target Need', depthAvg: 80 },
-      ];
-    }
+    if (!myTeamPlayers.length) return [];
 
-    const posGroups = ['QB', 'RB', 'WR', 'TE', 'OL', 'DL', 'EDGE', 'LB', 'CB', 'S'];
+    // Typical number of starters per position bucket. Need is judged on
+    // STARTER strength, not the average of a 90-man roster (which is dragged
+    // down by depth players and would flag every position as critical).
+    const STARTER_COUNT: Record<string, number> = {
+      QB: 1, RB: 2, WR: 3, TE: 2, OL: 5, DL: 4, LB: 3, CB: 3, S: 2, K: 1
+    };
     const needs: TeamNeedItem[] = [];
 
-    posGroups.forEach(pos => {
-      const posPlayers = myTeamPlayers.filter(p => p.position === pos);
-      const count = posPlayers.length;
-      const avgOvr = count ? Math.round(posPlayers.reduce((a, b) => a + b.overall, 0) / count) : 70;
-      const expiringCount = posPlayers.filter(p => (p.contract && p.contract.yearsLeft === 1) || p.age >= 31).length;
+    Object.values(Position).forEach(pos => {
+      const starterCount = STARTER_COUNT[pos] ?? 2;
+      const posPlayers = myTeamPlayers
+        .filter(p => p.position === pos)
+        .sort((a, b) => (a.depth ?? 99) - (b.depth ?? 99) || b.overall - a.overall);
+      const starters = posPlayers.slice(0, starterCount);
+      const avgOvr = starters.length
+        ? Math.round(starters.reduce((a, b) => a + b.overall, 0) / starters.length)
+        : 0;
+      const expiringCount = starters.filter(p => (p.contract && p.contract.yearsLeft === 1) || p.age >= 31).length;
 
       let priority: 'CRITICAL' | 'HIGH' | 'MEDIUM' | null = null;
       let reason = '';
 
-      if (count <= 1 || (expiringCount >= 2 && avgOvr < 82)) {
+      // Thresholds sit near the 10th / 25th / 50th percentile of league-wide
+      // starter strength, so needs stay meaningfully ranked.
+      if (posPlayers.length < starterCount || avgOvr < 72) {
         priority = 'CRITICAL';
-        reason = expiringCount >= 1 ? `Expiring Contracts (${expiringCount}) & Thin Depth` : `Critical Roster Weakness (${count} rostered)`;
-      } else if (avgOvr < 78 || expiringCount >= 1) {
+        reason = posPlayers.length < starterCount
+          ? `Cannot field the position (${posPlayers.length} of ${starterCount})`
+          : `Starter Rating Deficit (${avgOvr} OVR)`;
+      } else if (avgOvr < 77) {
         priority = 'HIGH';
-        reason = avgOvr < 78 ? `Roster Rating Deficit (${avgOvr} OVR)` : `Expiring Contract Warning`;
+        reason = `Below-Average Starters (${avgOvr} OVR)`;
       } else if (avgOvr < 81) {
         priority = 'MEDIUM';
-        reason = `Developmental Target Area`;
+        reason = expiringCount >= 1
+          ? `Developmental Target — ${expiringCount} expiring starter${expiringCount > 1 ? 's' : ''}`
+          : `Developmental Target Area`;
       }
 
       if (priority) {
@@ -86,13 +103,80 @@ const DraftRoom: React.FC<DraftRoomProps> = ({ selectedTeamId, prospects, setPro
   const currentPick = picks[currentPickIndex];
   const selectedProspect = prospects.find(p => p.id === selectedProspectId);
 
+  // Rookie APY ($M) by draft round
+  const ROOKIE_SALARY_BY_ROUND: Record<number, number> = { 1: 8.0, 2: 3.5, 3: 2.0, 4: 1.5, 5: 1.2, 6: 1.0, 7: 0.9 };
+
+  const prospectToPlayer = (prospect: DraftProspect, pick: DraftPick): Player => {
+    // Built from the HIDDEN true rating, not the visible grade: scouting reveals
+    // what a prospect is, it does not decide it. This is what makes an
+    // unscouted pick a genuine bust-or-sleeper gamble.
+    const trueOverall = prospect.overall ?? prospect.scoutingGrade;
+    const overall = Math.min(84, Math.max(58, Math.round(60 + (trueOverall - 70) * 0.75)));
+    const salary = ROOKIE_SALARY_BY_ROUND[pick.round] ?? 0.9;
+    const bonus = parseFloat((salary * (pick.round === 1 ? 1.5 : 0.5)).toFixed(1));
+    const potentialMap: Record<DraftProspect['potential'], Player['potential']> = {
+      S: 'X-Factor', A: 'Superstar', B: 'Star', C: 'Normal', D: 'Normal'
+    };
+    return {
+      id: `rk_${prospect.id}`,
+      name: prospect.name,
+      position: prospect.position,
+      age: 22,
+      overall,
+      schemeOvr: overall,
+      morale: 85,
+      fatigue: 100,
+      archetype: prospect.traits[0] || 'Standard',
+      personality: 'Normal',
+      scheme: 'Balanced',
+      developmentTrait: 'Normal',
+      potential: potentialMap[prospect.potential],
+      stats: { gamesPlayed: 0 },
+      contract: {
+        years: 4,
+        salary,
+        bonus,
+        guaranteed: parseFloat((bonus + salary * 2).toFixed(1)),
+        yearsLeft: 4,
+        totalValue: parseFloat((salary * 4 + bonus).toFixed(1)),
+        capHit: parseFloat((salary + bonus / 4).toFixed(1)),
+        deadCap: bonus,
+        voidYears: 0,
+        startYear: 2026,
+        totalLength: 4
+      },
+      teamId: pick.currentTeamId
+    };
+  };
+
+  // Resolves one pick for the team that owns it. Shared by the user's
+  // selection and the AI auto-pick below.
+  const makeSelection = (prospect: DraftProspect, pick: DraftPick) => {
+    setDraftHistory(prev => [...prev, { pick, prospect }]);
+    setProspects(prev => prev.filter(p => p.id !== prospect.id));
+    if (setAllPlayers) {
+      const rookie = prospectToPlayer(prospect, pick);
+      setAllPlayers(prev => insertIntoDepthChart(prev, rookie));
+    }
+    setSelectedProspectId(null);
+  };
+
+  // AI teams pick the best available prospect so the board advances to the
+  // user's turn instead of freezing on a pick they do not own.
+  useEffect(() => {
+    if (!currentPick || currentPick.currentTeamId === selectedTeamId) return;
+    if (prospects.length === 0) return;
+    const timer = setTimeout(() => {
+      const best = [...prospects].sort((a, b) => b.scoutingGrade - a.scoutingGrade)[0];
+      makeSelection(best, currentPick);
+    }, 450);
+    return () => clearTimeout(timer);
+  }, [currentPick, selectedTeamId, prospects]);
+
   const handleDraftPlayer = () => {
     if (!selectedProspect || !currentPick) return;
-
-    setDraftHistory([...draftHistory, { pick: currentPick, prospect: selectedProspect }]);
-    setProspects(prospects.filter(p => p.id !== selectedProspectId));
-    setSelectedProspectId(null);
-    setCurrentPickIndex(currentPickIndex + 1);
+    if (currentPick.currentTeamId !== selectedTeamId) return;
+    makeSelection(selectedProspect, currentPick);
   };
 
   const executeTrade = () => {

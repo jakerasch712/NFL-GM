@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Search, Filter, Target, Microscope, BarChart3, ChevronRight, AlertCircle, Sparkles, UserPlus, MapPin, Briefcase, Play } from 'lucide-react';
 import { DraftProspect, Scout, Region, Position } from '../types';
+import { gradeForProgress } from '../services/draftService';
 
 interface ScoutingViewProps {
   selectedTeamId: string;
@@ -13,8 +14,39 @@ interface ScoutingViewProps {
 const ScoutingView: React.FC<ScoutingViewProps> = ({ selectedTeamId, prospects, setProspects, scouts, setScouts }) => {
   const [activeTab, setActiveTab] = useState<'prospects' | 'scouts' | 'assignments' | 'summary'>('prospects');
   const [selectedProspectId, setSelectedProspectId] = useState<string | null>(null);
+  const [prospectSearch, setProspectSearch] = useState('');
 
   const selectedProspect = prospects.find(p => p.id === selectedProspectId);
+
+  // Evaluation accuracy, measured as the gap between what scouts currently
+  // grade a prospect at and his true rating. Only worked prospects count.
+  const gradeAccuracy = (p: DraftProspect): number =>
+    Math.max(0, 100 - Math.abs(p.scoutingGrade - (p.overall ?? p.scoutingGrade)) * 6);
+
+  const scoutedProspects = prospects.filter(p => p.scoutingProgress > 0);
+  const overallAccuracy = scoutedProspects.length
+    ? scoutedProspects.reduce((s, p) => s + gradeAccuracy(p), 0) / scoutedProspects.length
+    : 0;
+  // A "hit" is a grade within 3 points of the true rating
+  const hits = scoutedProspects.filter(p => Math.abs(p.scoutingGrade - (p.overall ?? 0)) <= 3).length;
+  const fullyScouted = prospects.filter(p => p.scoutingProgress >= 100).length;
+
+  const scoutPerformance = scouts.map(scout => {
+    const worked = prospects.filter(p => (p.scoutedBy ?? []).includes(scout.id));
+    const accuracy = worked.length
+      ? worked.reduce((s, p) => s + gradeAccuracy(p), 0) / worked.length
+      : 0;
+    const scoutHits = worked.filter(p => Math.abs(p.scoutingGrade - (p.overall ?? 0)) <= 3).length;
+    return { scout, worked: worked.length, accuracy, hits: scoutHits, misses: worked.length - scoutHits };
+  });
+
+  const filteredProspects = prospects.filter(p => {
+    const q = prospectSearch.trim().toLowerCase();
+    if (!q) return true;
+    return p.name.toLowerCase().includes(q)
+      || p.position.toLowerCase().includes(q)
+      || p.school.toLowerCase().includes(q);
+  });
 
   const handleSimulateWeek = () => {
     // Advance scouting progress for all assigned scouts
@@ -26,16 +58,23 @@ const ScoutingView: React.FC<ScoutingViewProps> = ({ selectedTeamId, prospects, 
       return scout;
     }));
 
-    // Update prospect scouting progress based on scout assignments
+    // Update prospect scouting progress. Every scout assigned to the region
+    // contributes, so stacking scouts on one region is actually faster. As
+    // progress rises the visible grade converges on the prospect's true rating,
+    // and each contributing scout is recorded so accuracy can be attributed.
     setProspects(prevProspects => prevProspects.map(prospect => {
-      const assignedScout = scouts.find(s => s.assignment?.region === prospect.region);
-      if (assignedScout) {
-        // If scout specialty matches position, double progress
-        const bonus = assignedScout.specialty === prospect.position ? 15 : 10;
-        const newProgress = Math.min(100, prospect.scoutingProgress + bonus);
-        return { ...prospect, scoutingProgress: newProgress };
-      }
-      return prospect;
+      const assigned = scouts.filter(s => s.assignment?.region === prospect.region);
+      if (assigned.length === 0) return prospect;
+      const bonus = assigned.reduce(
+        (sum, s) => sum + (s.specialty === prospect.position ? 15 : 10),
+        0
+      );
+      const advanced: DraftProspect = {
+        ...prospect,
+        scoutingProgress: Math.min(100, prospect.scoutingProgress + bonus),
+        scoutedBy: Array.from(new Set([...(prospect.scoutedBy ?? []), ...assigned.map(s => s.id)])),
+      };
+      return { ...advanced, scoutingGrade: gradeForProgress(advanced) };
     }));
   };
 
@@ -81,9 +120,11 @@ const ScoutingView: React.FC<ScoutingViewProps> = ({ selectedTeamId, prospects, 
               <div className="p-4 border-b border-slate-800 bg-slate-800/30 flex justify-between items-center">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
-                  <input 
-                    type="text" 
-                    placeholder="Search prospects..." 
+                  <input
+                    type="text"
+                    placeholder="Search prospects..."
+                    value={prospectSearch}
+                    onChange={(e) => setProspectSearch(e.target.value)}
                     className="bg-slate-950 border border-slate-800 rounded-lg pl-10 pr-4 py-2 text-sm text-white focus:outline-none focus:border-cyan-500 transition-colors w-64"
                   />
                 </div>
@@ -100,7 +141,7 @@ const ScoutingView: React.FC<ScoutingViewProps> = ({ selectedTeamId, prospects, 
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/50">
-                    {prospects.map(prospect => (
+                    {filteredProspects.map(prospect => (
                       <tr 
                         key={prospect.id} 
                         onClick={() => setSelectedProspectId(prospect.id)}
@@ -222,36 +263,45 @@ const ScoutingView: React.FC<ScoutingViewProps> = ({ selectedTeamId, prospects, 
                       Historical correlation between scout potential projections and actual draft/NFL performance
                     </p>
                   </div>
-                  <div className="bg-emerald-500/10 border border-emerald-500/40 px-4 py-2 text-emerald-400 font-bold text-lg">
-                    89.4% OVERALL ACCURACY
+                  <div className={`px-4 py-2 font-bold text-lg border ${
+                    scoutedProspects.length === 0
+                      ? 'bg-slate-800/40 border-slate-700 text-slate-500'
+                      : 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400'
+                  }`}>
+                    {scoutedProspects.length === 0 ? 'NO SCOUTING DATA' : `${overallAccuracy.toFixed(1)}% OVERALL ACCURACY`}
                   </div>
                 </div>
 
                 <div className="grid grid-cols-3 gap-4 mb-6">
                   <div className="bg-slate-900 border border-slate-800 p-4">
                     <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">PROSPECT HIT RATE</span>
-                    <span className="text-2xl font-bold text-white">18 / 20</span>
-                    <span className="text-[10px] text-emerald-400 block mt-1 font-bold">90.0% Grade Accuracy</span>
+                    <span className="text-2xl font-bold text-white">{hits} / {scoutedProspects.length}</span>
+                    <span className="text-[10px] text-emerald-400 block mt-1 font-bold">
+                      Graded within 3 OVR of true rating
+                    </span>
                   </div>
                   <div className="bg-slate-900 border border-slate-800 p-4">
-                    <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">BUST IDENTIFICATION</span>
-                    <span className="text-2xl font-bold text-white">94.2%</span>
-                    <span className="text-[10px] text-cyan-400 block mt-1 font-bold">Low Risk Tolerance</span>
+                    <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">PROSPECTS WORKED</span>
+                    <span className="text-2xl font-bold text-white">{scoutedProspects.length}</span>
+                    <span className="text-[10px] text-cyan-400 block mt-1 font-bold">
+                      {fullyScouted} fully scouted
+                    </span>
                   </div>
                   <div className="bg-slate-900 border border-slate-800 p-4">
-                    <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">GEM DISCOVERY INDEX</span>
-                    <span className="text-2xl font-bold text-white">+14.2 OVR</span>
-                    <span className="text-[10px] text-amber-400 block mt-1 font-bold">Late-Round Upside</span>
+                    <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">AVG GRADE ERROR</span>
+                    <span className="text-2xl font-bold text-white">
+                      {scoutedProspects.length
+                        ? (scoutedProspects.reduce((s, p) => s + Math.abs(p.scoutingGrade - (p.overall ?? 0)), 0) / scoutedProspects.length).toFixed(1)
+                        : '—'} OVR
+                    </span>
+                    <span className="text-[10px] text-amber-400 block mt-1 font-bold">Shrinks as scouts work</span>
                   </div>
                 </div>
 
                 {/* Individual Scout Performance Table */}
                 <h4 className="text-xs font-bold text-white uppercase tracking-wider mb-3">SCOUTING STAFF ACCURACY LEADERBOARD</h4>
                 <div className="space-y-3">
-                  {scouts.map((scout, idx) => {
-                    const accuracy = 94 - idx * 4;
-                    const hits = 15 - idx * 2;
-                    const misses = idx;
+                  {scoutPerformance.map(({ scout, worked, accuracy, hits: scoutHits, misses }) => {
                     return (
                       <div key={scout.id} className="bg-slate-900 border border-slate-800 p-4 flex justify-between items-center">
                         <div className="flex items-center gap-3">
@@ -267,12 +317,14 @@ const ScoutingView: React.FC<ScoutingViewProps> = ({ selectedTeamId, prospects, 
                         <div className="flex items-center gap-6">
                           <div className="text-right">
                             <span className="text-[10px] text-slate-500 uppercase block font-bold">GRADE HITS / MISSES</span>
-                            <span className="text-xs text-slate-200 font-bold">{hits} HITS // {misses} MISSES</span>
+                            <span className="text-xs text-slate-200 font-bold">
+                              {worked === 0 ? 'NO ASSIGNMENTS YET' : `${scoutHits} HITS // ${misses} MISSES`}
+                            </span>
                           </div>
                           <div className="text-right min-w-[100px]">
                             <span className="text-[10px] text-slate-500 uppercase block font-bold">ACCURACY</span>
                             <span className={`text-sm font-bold ${accuracy >= 90 ? 'text-emerald-400' : accuracy >= 80 ? 'text-amber-400' : 'text-slate-300'}`}>
-                              {accuracy}.0%
+                              {worked === 0 ? '—' : `${accuracy.toFixed(1)}%`}
                             </span>
                           </div>
                         </div>

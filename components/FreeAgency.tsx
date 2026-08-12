@@ -3,18 +3,25 @@ import { MOCK_PLAYERS } from '../constants';
 import { Search, Filter, DollarSign, TrendingUp, UserPlus, Info } from 'lucide-react';
 import ContractNegotiation from './ContractNegotiation';
 import { Player } from '../types';
+import { getTeamCapSpace } from '../services/financeService';
+import { insertIntoDepthChart } from '../utils/rosterUtils';
 
 interface FreeAgencyProps {
   selectedTeamId: string;
   allPlayers: Player[];
   setAllPlayers: React.Dispatch<React.SetStateAction<Player[]>>;
+  salaryCap: number;
 }
 
-const FreeAgency: React.FC<FreeAgencyProps> = ({ selectedTeamId, allPlayers, setAllPlayers }) => {
+const FreeAgency: React.FC<FreeAgencyProps> = ({ selectedTeamId, allPlayers, setAllPlayers, salaryCap }) => {
   const players = allPlayers.filter(p => !p.teamId || p.teamId === 'FA');
   const [negotiatingPlayerId, setNegotiatingPlayerId] = useState<string | null>(null);
-  const [capSpace, setCapSpace] = useState(14.2);
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Real Top-51 cap space; recomputes automatically when a signing flips teamId
+  const capSpace = parseFloat(
+    getTeamCapSpace(allPlayers.filter(p => p.teamId === selectedTeamId), salaryCap).toFixed(1)
+  );
 
   const activeNegotiationPlayer = players.find(p => p.id === negotiatingPlayerId);
 
@@ -28,18 +35,20 @@ const FreeAgency: React.FC<FreeAgencyProps> = ({ selectedTeamId, allPlayers, set
   };
 
   const handleSignContract = (playerId: string, newContract: any) => {
-    // Sign player to our team
-    setAllPlayers(prev => prev.map(p => {
-        if (p.id === playerId) {
-            return {
-                ...p,
-                teamId: selectedTeamId,
-                contract: { ...p.contract, ...newContract }
-            };
-        }
-        return p;
-    }));
-    setCapSpace(prev => parseFloat((prev - (newContract.totalValue / newContract.years)).toFixed(2)));
+    // Sign player to our team, clear the now-satisfied demand, and slot them
+    // into the depth chart by rating.
+    setAllPlayers(prev => {
+      const target = prev.find(p => p.id === playerId);
+      if (!target) return prev;
+      const signed: Player = {
+        ...target,
+        teamId: selectedTeamId,
+        contract: { ...target.contract, ...newContract },
+        contractDemand: undefined,
+        depth: undefined
+      };
+      return insertIntoDepthChart(prev, signed);
+    });
     setNegotiatingPlayerId(null);
   };
 
@@ -112,9 +121,9 @@ const FreeAgency: React.FC<FreeAgencyProps> = ({ selectedTeamId, allPlayers, set
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-24 h-[2px] bg-[#1a222e] relative overflow-hidden">
-                          <div className="bg-cyan-500 h-full w-[65%] shadow-[0_0_8px_rgba(0,209,255,0.5)]"></div>
+                          <div className="bg-cyan-500 h-full shadow-[0_0_8px_rgba(0,209,255,0.5)]" style={{ width: `${player.morale}%` }}></div>
                         </div>
-                        <span className="text-[10px] text-cyan-500/80 font-mono tracking-widest">65%</span>
+                        <span className="text-[10px] text-cyan-500/80 font-mono tracking-widest">{player.morale}%</span>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right">

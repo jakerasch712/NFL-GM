@@ -5,7 +5,8 @@ import ContractNegotiation from './ContractNegotiation';
 import { RestructureModal, ReleasePlayerModal } from './CapModals';
 import { Player, Position, InjuryRecord } from '../types';
 import { syncTeamRoster } from '../services/geminiService';
-import { getTeamCapSpace, restructureContract } from '../services/financeService';
+import { getTeamCapSpace } from '../services/financeService';
+import { calculateRestructure } from '../utils/capUtils';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface RosterViewProps {
@@ -13,17 +14,18 @@ interface RosterViewProps {
   allPlayers: Player[];
   setAllPlayers: React.Dispatch<React.SetStateAction<Player[]>>;
   teams: Record<string, any>;
+  salaryCap: number;
 }
 
-const RosterView: React.FC<RosterViewProps> = ({ selectedTeamId, allPlayers, setAllPlayers, teams }) => {
+const RosterView: React.FC<RosterViewProps> = ({ selectedTeamId, allPlayers, setAllPlayers, teams, salaryCap }) => {
   const players = allPlayers.filter(p => p.teamId === selectedTeamId);
   const team = teams[selectedTeamId] || TEAMS_DB[selectedTeamId];
-  
-  const [capSpace, setCapSpace] = useState(14.2);
-  const [deadCap, setDeadCap] = useState(12.8);
-  
+
+  // Dead money accrued from releases this session
+  const [deadCap, setDeadCap] = useState(0);
+
   // Real Cap Calculation using Finance Service
-  const realCapSpace = getTeamCapSpace(players, 255.4);
+  const realCapSpace = getTeamCapSpace(players, salaryCap) - deadCap;
   const [negotiatingPlayerId, setNegotiatingPlayerId] = useState<string | null>(null);
   const [restructuringPlayerId, setRestructuringPlayerId] = useState<string | null>(null);
   const [releasingPlayerId, setReleasingPlayerId] = useState<string | null>(null);
@@ -136,16 +138,17 @@ const RosterView: React.FC<RosterViewProps> = ({ selectedTeamId, allPlayers, set
         }
         return p;
     }));
-    
-    setCapSpace(prev => parseFloat((prev - (newContract.totalValue / newContract.years)).toFixed(2)));
+
     setNegotiatingPlayerId(null);
   };
 
   const handleCutPlayer = (impact: any) => {
     if (!activeReleasePlayer) return;
-    
-    setAllPlayers(prev => prev.filter(p => p.id !== activeReleasePlayer.id));
-    setCapSpace(prev => parseFloat((prev + impact.net2026Savings).toFixed(2)));
+
+    // Released players hit the FA market rather than vanishing from the league
+    setAllPlayers(prev => prev.map(p =>
+      p.id === activeReleasePlayer.id ? { ...p, teamId: 'FA', morale: Math.max(0, p.morale - 15) } : p
+    ));
     setDeadCap(prev => parseFloat((prev + impact.immediateDeadCap).toFixed(2)));
     setReleasingPlayerId(null);
   };
@@ -153,23 +156,12 @@ const RosterView: React.FC<RosterViewProps> = ({ selectedTeamId, allPlayers, set
   const handleRestructure = (voidYears: number) => {
     if (!activeRestructurePlayer) return;
 
-    const amountToRestructure = activeRestructurePlayer.contract.salary - 1.21;
-    const prorationTerm = activeRestructurePlayer.contract.yearsLeft + voidYears;
-    const yearlyProration = amountToRestructure / prorationTerm;
-    const savings = amountToRestructure - yearlyProration;
-
-    setCapSpace(prev => parseFloat((prev + savings).toFixed(2)));
+    // Uses the same calculation the preview modal shows. Converting base salary
+    // down to the veteran minimum makes the move self-limiting: repeating it
+    // yields no further savings instead of driving the cap hit negative.
     setAllPlayers(prev => prev.map(p => {
         if (p.id === activeRestructurePlayer.id) {
-            return {
-                ...p,
-                contract: {
-                    ...p.contract,
-                    capHit: parseFloat((p.contract.capHit - savings).toFixed(2)),
-                    voidYears: p.contract.voidYears + voidYears,
-                    totalLength: p.contract.totalLength + voidYears
-                }
-            };
+            return { ...p, contract: calculateRestructure(p.contract, voidYears).newContract };
         }
         return p;
     }));
@@ -183,7 +175,8 @@ const RosterView: React.FC<RosterViewProps> = ({ selectedTeamId, allPlayers, set
       const syncedPlayers = await syncTeamRoster(`${team.city} ${team.name}`);
       if (syncedPlayers.length > 0) {
         const updatedPlayers = syncedPlayers.map(p => ({ ...p, teamId: selectedTeamId }));
-        setAllPlayers(updatedPlayers);
+        // Replace only this team's roster; leave the other 31 teams intact
+        setAllPlayers(prev => [...prev.filter(p => p.teamId !== selectedTeamId), ...updatedPlayers]);
         setSyncSuccess(true);
         setTimeout(() => setSyncSuccess(false), 3000);
       }
@@ -869,7 +862,7 @@ const RosterView: React.FC<RosterViewProps> = ({ selectedTeamId, allPlayers, set
           onSign={handleSignContract}
           onUpdateMorale={handleUpdateMorale}
           onClose={() => setNegotiatingPlayerId(null)}
-          capSpace={capSpace}
+          capSpace={parseFloat(realCapSpace.toFixed(1))}
         />
       )}
 

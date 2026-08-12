@@ -1,8 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Shield, Zap, Target, AlertCircle, Activity, ChevronRight, Clipboard, Flame, Award, TrendingUp, Sparkles, CheckCircle2, Sliders, UserCheck, Check, Brain } from 'lucide-react';
 import { TEAMS_DB } from '../constants';
-import { Player, PositionGroup } from '../types';
-import { SCHEDULE_2027 } from '../schedule';
+import { Player, PositionGroup, ScheduleMatch } from '../types';
 
 interface GamePlanProps {
   selectedTeamId: string;
@@ -10,6 +9,7 @@ interface GamePlanProps {
   allPlayers: Player[];
   setAllPlayers?: React.Dispatch<React.SetStateAction<Player[]>>;
   teams: Record<string, any>;
+  schedule: ScheduleMatch[];
 }
 
 interface GroupFocusSetting {
@@ -36,12 +36,13 @@ const POSITION_FOCUS_OPTIONS: Record<PositionGroup, string[]> = {
   ST: ['Kick Power & Distance', 'Coverage Unit Tackling']
 };
 
-const GamePlan: React.FC<GamePlanProps> = ({ 
-  selectedTeamId, 
-  currentWeek, 
-  allPlayers, 
-  setAllPlayers, 
-  teams 
+const GamePlan: React.FC<GamePlanProps> = ({
+  selectedTeamId,
+  currentWeek,
+  allPlayers,
+  setAllPlayers,
+  teams,
+  schedule
 }) => {
   const players = allPlayers.filter(p => p.teamId === selectedTeamId);
   const [activeTab, setActiveTab] = useState<'tactical' | 'scheme' | 'development'>('tactical');
@@ -130,12 +131,24 @@ const GamePlan: React.FC<GamePlanProps> = ({
     { playerId: defaultSelectedPlayerIds[2] || '', focusArea: 'Tactical Reading', progress: 20 },
   ]);
 
+  // Slots are seeded once at mount. If one of those players is later traded,
+  // cut, or released the id goes stale — the <select> would fall back to
+  // displaying the first roster player while training silently skipped the
+  // slot. Clear stale ids so the UI shows an honest "unassigned" state.
+  useEffect(() => {
+    setIndividualDevs(prev => {
+      const rosterIds = new Set(allPlayers.filter(p => p.teamId === selectedTeamId).map(p => p.id));
+      if (prev.every(d => !d.playerId || rosterIds.has(d.playerId))) return prev;
+      return prev.map(d => (d.playerId && !rosterIds.has(d.playerId) ? { ...d, playerId: '' } : d));
+    });
+  }, [allPlayers, selectedTeamId]);
+
   const [drillLog, setDrillLog] = useState<string[]>([]);
   const [drillSuccess, setDrillSuccess] = useState<string | null>(null);
 
   // Find next match
-  const nextMatch = SCHEDULE_2027.find(m => 
-    m.week >= currentWeek && (m.homeTeamId === selectedTeamId || m.awayTeamId === selectedTeamId)
+  const nextMatch = schedule.find(m =>
+    m.week >= currentWeek && !m.isCompleted && (m.homeTeamId === selectedTeamId || m.awayTeamId === selectedTeamId)
   );
 
   let nextOpp: any = { name: 'BYE', code: 'BYE' };
@@ -751,6 +764,7 @@ const GamePlan: React.FC<GamePlanProps> = ({
                             onChange={(e) => updateIndividualPlayer(idx, e.target.value)}
                             className="w-full bg-[#0a0e14] border border-[#1a222e] text-white text-[10px] font-mono px-2 py-1 focus:outline-none focus:border-emerald-500 uppercase tracking-wider"
                           >
+                            <option value="">— UNASSIGNED —</option>
                             {players.map(p => (
                               <option key={p.id} value={p.id}>
                                 {p.position} {p.name} ({p.overall} OVR)
