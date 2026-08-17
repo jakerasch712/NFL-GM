@@ -24,7 +24,6 @@ export const checkHallOfFameEligibility = (player: Player, careerStats: PlayerSt
 };
 
 export const generateSeasonAwards = (players: Player[], year: number): AwardHistory[] => {
-  if (players.length === 0) return [];
   const sortedByYards = [...players].sort((a, b) => (b.stats.yards || 0) - (a.stats.yards || 0));
   const sortedBySacks = [...players].sort((a, b) => (b.stats.sacks || 0) - (a.stats.sacks || 0));
   

@@ -63,16 +63,6 @@ export interface InjuryRecord {
   devImpact: string;
 }
 
-/** A player's *current* injury. Cleared once `weeksOut` reaches 0. */
-export interface PlayerInjury {
-  type: string;
-  severity: 'Minor' | 'Moderate' | 'Severe';
-  weeksOut: number;
-  /** Week the injury happened, so the first week's clock tick can be skipped. */
-  occurredWeek: number;
-  season: number;
-}
-
 export type PlayerPersonality = 'Gunslinger' | 'Mercenary' | 'Workhorse' | 'Ring Chaser' | 'The Diva' | 'Leader' | 'Normal';
 
 export interface Player {
@@ -98,18 +88,8 @@ export interface Player {
   trendDirection?: 'increasing' | 'stable' | 'decreasing';
   trendDelta?: number;
   durability?: number; // 0-100
-  injury?: PlayerInjury; // undefined when healthy
   injuryHistory?: InjuryRecord[];
   milestones?: CareerMilestone[];
-}
-
-export interface DecisionImpact {
-  id: string;
-  category: 'GAME' | 'ROSTER' | 'CONTRACT' | 'CAP';
-  title: string;
-  ownerDelta: number;
-  fanDelta: number;
-  date: string;
 }
 
 export interface Team {
@@ -302,15 +282,6 @@ export interface DraftProspect {
   deepTraits?: string[];
   interviewNotes?: string;
   interviewStatus?: 'NONE' | 'SCHEDULED' | 'COMPLETED';
-  /** Ids of scouts who have worked this prospect; drives per-scout accuracy. */
-  scoutedBy?: string[];
-}
-
-/** One completed draft selection, kept in franchise state so the board and its
- *  history survive leaving the War Room. */
-export interface DraftSelection {
-  pick: DraftPick;
-  prospect: DraftProspect;
 }
 
 export interface TradeRecord {

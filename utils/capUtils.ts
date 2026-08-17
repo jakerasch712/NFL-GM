@@ -1,42 +1,5 @@
 import { Player, Contract } from '@/types';
 
-/** Base salary floor a restructure must leave in place (veteran minimum, $M). */
-export const VETERAN_MINIMUM = 1.21;
-
-/**
- * Models a restructure: convert base salary above the veteran minimum into
- * signing bonus, prorated over the remaining years plus any void years.
- *
- * The returned contract is the single source of truth — the preview modal and
- * the code that applies the move both use it, so they cannot disagree. Because
- * the new base salary is the veteran minimum, restructuring the same contract
- * again yields zero further savings rather than compounding indefinitely.
- */
-export const calculateRestructure = (contract: Contract, voidYears: number) => {
-  const amountToRestructure = Math.max(0, contract.salary - VETERAN_MINIMUM);
-  const salary = parseFloat((contract.salary - amountToRestructure).toFixed(2));
-  const bonus = parseFloat((contract.bonus + amountToRestructure).toFixed(2));
-  const totalLength = contract.totalLength + voidYears;
-  const capHit = parseFloat((salary + bonus / totalLength).toFixed(2));
-
-  const newContract: Contract = {
-    ...contract,
-    salary,
-    bonus,
-    voidYears: contract.voidYears + voidYears,
-    totalLength,
-    capHit,
-    deadCap: parseFloat(((bonus / totalLength) * (contract.yearsLeft + contract.voidYears + voidYears)).toFixed(2)),
-  };
-
-  return {
-    amountToRestructure,
-    capSavings: parseFloat((contract.capHit - capHit).toFixed(2)),
-    futureDeadCap: parseFloat(((bonus / totalLength) * voidYears).toFixed(2)),
-    newContract,
-  };
-};
-
 /**
  * Calculates the dead cap impact for a player cut or trade.
  */

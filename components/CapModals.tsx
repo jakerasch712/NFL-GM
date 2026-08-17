@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Player } from '@/types';
-import { executePlayerRelease, calculateRestructure } from '@/utils/capUtils';
+import { executePlayerRelease } from '@/utils/capUtils';
 import { X, AlertTriangle, TrendingUp, DollarSign } from 'lucide-react';
 
 interface RestructureModalProps {
@@ -15,11 +15,14 @@ export const RestructureModal: React.FC<RestructureModalProps> = ({ player, onCo
   // NFL Rule: Proration cannot exceed 5 total years
   const maxVoidYears = Math.min(4, 5 - player.contract.yearsLeft);
   
-  // Shared with the code that applies the move, so preview and result agree.
-  const { amountToRestructure, capSavings: capSavings2026, futureDeadCap } =
-    calculateRestructure(player.contract, voidYears);
-  // Nothing above the veteran minimum left to convert
-  const canRestructure = amountToRestructure > 0;
+  // Calculate potential savings: 
+  // Converting Base Salary to Signing Bonus and spreading it over (Years + Void Years)
+  const amountToRestructure = player.contract.salary - 1.21; // Leaving veteran minimum (1.21M)
+  const prorationTerm = player.contract.yearsLeft + voidYears;
+  const yearlyProration = amountToRestructure / prorationTerm;
+  
+  const capSavings2026 = amountToRestructure - yearlyProration;
+  const futureDeadCap = yearlyProration * voidYears;
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -68,24 +71,16 @@ export const RestructureModal: React.FC<RestructureModalProps> = ({ player, onCo
             </table>
           </div>
 
-          {!canRestructure && (
-            <div className="flex items-center gap-2 text-amber-500 text-xs">
-              <AlertTriangle size={14} />
-              <span>Base salary is already at the veteran minimum — nothing left to convert.</span>
-            </div>
-          )}
-
           <div className="flex gap-3">
-            <button
+            <button 
               onClick={onClose}
               className="flex-1 px-4 py-3 rounded-lg border border-slate-700 text-slate-300 font-bold text-sm hover:bg-slate-800 transition-colors"
             >
               CANCEL
             </button>
-            <button
+            <button 
               onClick={() => onConfirm(voidYears)}
-              disabled={!canRestructure}
-              className="flex-1 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 disabled:cursor-not-allowed text-white py-3 rounded-lg font-bold text-sm shadow-lg shadow-cyan-900/20 transition-all active:scale-95"
+              className="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white py-3 rounded-lg font-bold text-sm shadow-lg shadow-cyan-900/20 transition-all active:scale-95"
             >
               EXECUTE
             </button>

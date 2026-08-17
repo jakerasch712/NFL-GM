@@ -7,8 +7,6 @@ interface HallOfFameProps {
   selectedTeamId: string;
   allPlayers: Player[];
   teams: Record<string, any>;
-  inductees: HallOfFamer[];
-  setInductees: React.Dispatch<React.SetStateAction<HallOfFamer[]>>;
 }
 
 export const INITIAL_HALL_OF_FAMERS: HallOfFamer[] = [
@@ -144,7 +142,8 @@ export const INITIAL_HALL_OF_FAMERS: HallOfFamer[] = [
   }
 ];
 
-const HallOfFame: React.FC<HallOfFameProps> = ({ selectedTeamId, allPlayers, teams, inductees, setInductees }) => {
+const HallOfFame: React.FC<HallOfFameProps> = ({ selectedTeamId, allPlayers, teams }) => {
+  const [inductees, setInductees] = useState<HallOfFamer[]>(INITIAL_HALL_OF_FAMERS);
   const [activeTab, setActiveTab] = useState<'all' | 'franchise' | 'induct'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [positionFilter, setPositionFilter] = useState<string>('ALL');

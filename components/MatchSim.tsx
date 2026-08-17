@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { OFFENSIVE_PLAYS, TEAMS_DB, MOCK_PLAYERS } from '../constants';
-import { Play, GameEvent, Player, Position, AppView, HighlightPackage, ScheduleMatch } from '../types';
-import { GameResult } from '../services/leagueSimService';
-import { getStarter } from '../utils/rosterUtils';
+import { SCHEDULE_2027 } from '../schedule';
+import { Play, GameEvent, Player, Position, AppView, HighlightPackage } from '../types';
 import { Play as PlayIcon, Clock, ShieldAlert, Wind, ChevronUp, CloudRain, Sun, Zap, Activity, Trophy, BarChart2, Award, ListFilter, RotateCcw, Video, Film, Sparkles, Radio, Tv, Maximize2, RefreshCw, Thermometer, CloudSnow, Shield } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -81,9 +80,7 @@ interface MatchSimProps {
   allPlayers: Player[];
   setAllPlayers: React.Dispatch<React.SetStateAction<Player[]>>;
   teams: Record<string, any>;
-  currentWeek: number;
-  schedule: ScheduleMatch[];
-  onGameComplete: (result: GameResult) => void;
+  setTeams: React.Dispatch<React.SetStateAction<Record<string, any>>>;
   setView: (view: AppView) => void;
 }
 
@@ -99,29 +96,8 @@ interface ScoringEvent {
   };
 }
 
-// Explicit outcome flags. Stat crediting and game-state updates key off these
-// rather than substring-matching the commentary text.
-interface PlayOutcome extends GameEvent {
-  completion?: boolean;
-  sack?: boolean;
-  interception?: boolean;
-  fumble?: boolean;
-  fieldGoal?: boolean;
-  punt?: boolean;
-  touchdown?: boolean;
-}
-
-const GAME_LENGTH_SECONDS = 15 * 60;
-const QUARTERS = 4;
-
-// Quarter derived from elapsed clock so the period advances 1 -> 4.
-const quarterForTime = (timeLeft: number): number =>
-  Math.min(QUARTERS, Math.floor((GAME_LENGTH_SECONDS - timeLeft) / (GAME_LENGTH_SECONDS / QUARTERS)) + 1);
-
-const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllPlayers, teams, currentWeek, schedule, onGameComplete, setView }) => {
+const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllPlayers, teams, setTeams, setView }) => {
   const [opponentTeamId, setOpponentTeamId] = useState<string>('');
-  const [isUserHome, setIsUserHome] = useState(true);
-  const [hasScheduledGame, setHasScheduledGame] = useState(true);
   const [isGameOver, setIsGameOver] = useState(false);
   const [scoringSummary, setScoringSummary] = useState<ScoringEvent[]>([]);
 
@@ -146,7 +122,7 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
           awayTeamName: opponentTeam ? `${opponentTeam.city} ${opponentTeam.name}` : 'Away Team',
           homeScore: gameState.homeScore,
           awayScore: gameState.awayScore,
-          week: currentWeek,
+          week: 1,
           scoringSummary,
           keyPlays: playHistory.slice(0, 8)
         })
@@ -202,19 +178,14 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
   });
 
   useEffect(() => {
-    // This week's game for the user's team, if it hasn't been played yet
-    const nextMatch = schedule.find(m =>
-      m.week === currentWeek && !m.isCompleted &&
-      (m.homeTeamId === selectedTeamId || m.awayTeamId === selectedTeamId)
-    );
+    // Find next opponent from schedule or default
+    const nextMatch = SCHEDULE_2027.find(m => m.homeTeamId === selectedTeamId || m.awayTeamId === selectedTeamId);
     if (nextMatch) {
       setOpponentTeamId(nextMatch.homeTeamId === selectedTeamId ? nextMatch.awayTeamId : nextMatch.homeTeamId);
-      setIsUserHome(nextMatch.homeTeamId === selectedTeamId);
-      setHasScheduledGame(true);
     } else {
-      setHasScheduledGame(false);
+      setOpponentTeamId(Object.keys(teams).find(id => id !== selectedTeamId) || 'KC');
     }
-  }, [selectedTeamId, schedule, currentWeek]);
+  }, [selectedTeamId, teams]);
   
   const [activeWeatherPreset, setActiveWeatherPreset] = useState<WeatherConfig>(WEATHER_PRESETS['Clear']);
   const [gameState, setGameState] = useState({
@@ -233,7 +204,7 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
   const [isSimulating, setIsSimulating] = useState(false);
   const [lastEvent, setLastEvent] = useState<GameEvent | null>(null);
   const [winProb, setWinProb] = useState(50);
-  const [timeRemaining, setTimeRemaining] = useState(GAME_LENGTH_SECONDS);
+  const [timeRemaining, setTimeRemaining] = useState(15 * 60);
 
   // Function to change weather condition preset
   const handleWeatherToggle = (key: string) => {
@@ -250,20 +221,14 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
 
   const getTeamRoster = (teamId: string) => allPlayers.filter(p => p.teamId === teamId);
 
-  // Depth-chart starter at a position, skipping injured players
-  const starterAt = (roster: Player[], position: Position): Player | undefined =>
-    getStarter(roster, position);
-
-  const calculateOutcome = (play: Play): PlayOutcome => {
+  const calculateOutcome = (play: Play): GameEvent => {
     const isUserOffense = gameState.possession === 'HOME';
     const offTeamId = isUserOffense ? selectedTeamId : opponentTeamId;
-
-    // Use the depth-chart starters — the same players the scoreboard shows and
-    // that get credited stats afterwards.
+    
     const roster = getTeamRoster(offTeamId);
-    const qb = starterAt(roster, Position.QB) || roster[0] || { name: 'Quarterback', overall: 80, schemeOvr: 80 };
-    const topWr = starterAt(roster, Position.WR) || roster[0] || { name: 'Wide Receiver', overall: 80 };
-
+    const qb = roster.find(p => p.position === Position.QB) || roster[0] || { name: 'Quarterback', overall: 80, schemeOvr: 80 };
+    const topWr = roster.find(p => p.position === Position.WR) || roster[0] || { name: 'Wide Receiver', overall: 80 };
+    
     // Global Multipliers based on Climate Weather Preset
     const hfaBoost = isUserOffense ? 3 : 0; // Home Field Advantage
     const weather = gameState.weather || activeWeatherPreset;
@@ -277,14 +242,12 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
     let description = '';
     let isScore = false;
     let type: GameEvent['type'] = play.type;
-    const flags: Omit<PlayOutcome, keyof GameEvent> = {};
 
     if (play.type === 'Special') {
       if (play.name === 'Field Goal') {
         const distance = 100 - gameState.ballOn + 17;
         const successProb = ((distance < 40 ? 0.95 : distance < 50 ? 0.75 : 0.45) - windPen) * kickingMod;
-        flags.fieldGoal = true;
-
+        
         if (Math.random() < Math.max(0.05, successProb)) {
           isScore = true;
           description = `FIELD GOAL GOOD! A ${distance}-yard kick splits the uprights despite ${weather.type.toLowerCase()} weather.`;
@@ -296,9 +259,8 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
         yardage = Math.floor((Math.random() * 15 + 35 - (weather.windSpeed / 3)) * kickingMod);
         description = `PUNT! A high spiraling kick for ${Math.floor(yardage)} yards.`;
         type = 'Turnover';
-        flags.punt = true;
       }
-      return { description, yardage, isScore, type, ...flags };
+      return { description, yardage, isScore, type };
     }
 
     // GDD Refined Simulation Engine Formulas with Weather Climate Modifiers
@@ -315,24 +277,21 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
         type = 'Turnover';
         description = `INTERCEPTED! The QB misread coverage in adverse ${weather.type} climate.`;
         yardage = 0;
-        flags.interception = true;
       } else if (roll < pComp) {
         const isBigPlay = Math.random() < ((qb.overall / 300) * passAccMod);
         yardage = isBigPlay ? Math.floor(Math.random() * 25) + 20 : Math.floor(Math.random() * 12) + 4;
         description = `Complete to ${topWr.name} for ${yardage} yards.`;
-        flags.completion = true;
       } else {
         const isSack = Math.random() < 0.12;
         if (isSack) {
           yardage = -Math.floor(Math.random() * 7) - 3;
           description = `SACK! The pocket collapsed for a ${Math.abs(yardage)} yard loss.`;
-          flags.sack = true;
         } else {
           description = `Incomplete pass intended for ${topWr.name}.`;
         }
       }
     } else if (play.type === 'Run') {
-      const rb = starterAt(roster, Position.RB) || roster[0] || { name: 'Running Back', overall: 80 };
+      const rb = roster.find(p => p.position === Position.RB) || roster[0] || { name: 'Running Back', overall: 80 };
       const rbPower = ((rb.overall + hfaBoost) / 100) * rushEffMod;
       const linePush = 0.75 * rushEffMod;
       
@@ -342,8 +301,7 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
       if (roll < fumbleRiskMod) {
         type = 'Turnover';
         description = `FUMBLE! Loose ball stripped on slippery field conditions during ${weather.label}.`;
-        yardage = 0;
-        flags.fumble = true;
+        yardage = 1;
       } else if (roll < successProb) {
         const isBigPlay = Math.random() < ((rb.overall / 400) * rushEffMod);
         yardage = isBigPlay ? Math.floor(Math.random() * 30) + 15 : Math.floor(Math.random() * 7) + 2;
@@ -359,12 +317,9 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
       isScore = true;
       yardage = 100 - gameState.ballOn;
       description = `TOUCHDOWN! ${play.name} capped by a brilliant effort!`;
-      flags.touchdown = true;
-      // A scoring pass is still a completion; the TD rewrite must not erase that.
-      if (play.type === 'Pass') flags.completion = true;
     }
 
-    return { description, yardage, isScore, type, ...flags };
+    return { description, yardage, isScore, type };
   };
 
   const handlePlayCall = (play: Play) => {
@@ -388,24 +343,24 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
 
         if (play.type === 'Pass') {
           active.passAtt += 1;
-          if (outcome.completion) {
+          if (outcome.description.includes('Complete')) {
             active.passComp += 1;
             active.passYds += outcome.yardage;
-          } else if (outcome.sack) {
+          } else if (outcome.description.includes('SACK')) {
             active.sacksAllowed += 1;
             active.passYds += outcome.yardage; // Negative yardage
-          } else if (outcome.interception) {
+          } else if (outcome.description.includes('INTERCEPTED')) {
             active.intsThrown += 1;
           }
         } else if (play.type === 'Run') {
           active.rushAtt += 1;
-          if (outcome.fumble) {
+          if (outcome.description.includes('FUMBLE')) {
             active.fumblesLost += 1;
           } else {
             active.rushYds += outcome.yardage;
           }
         } else if (play.type === 'Special') {
-          if (outcome.fieldGoal) {
+          if (play.name === 'Field Goal') {
             active.fgAtt += 1;
             if (outcome.isScore) {
               active.fgMade += 1;
@@ -413,7 +368,7 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
           }
         }
 
-        if (outcome.touchdown) {
+        if (outcome.isScore && !outcome.description.includes('FIELD GOAL')) {
           if (play.type === 'Pass') active.passTds += 1;
           if (play.type === 'Run') active.rushTds += 1;
         }
@@ -423,17 +378,17 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
 
       // Capture scoring timeline
       if (outcome.isScore) {
-        const addedHomePoints = outcome.fieldGoal ? 3 : 7;
+        const addedHomePoints = outcome.description.includes('FIELD GOAL') ? 3 : 7;
         const currentHomeScore = gameState.possession === 'HOME' ? gameState.homeScore + addedHomePoints : gameState.homeScore;
         const currentAwayScore = gameState.possession === 'AWAY' ? gameState.awayScore + addedHomePoints : gameState.awayScore;
 
         setScoringSummary(prev => [
           ...prev,
           {
-            quarter: quarterForTime(nextTime),
+            quarter: gameState.quarter,
             timeLeft: formatTime(nextTime),
             teamId: gameState.possession === 'HOME' ? selectedTeamId : opponentTeamId,
-            type: outcome.fieldGoal ? 'FG' : 'TD',
+            type: outcome.description.includes('FIELD GOAL') ? 'FG' : 'TD',
             description: outcome.description,
             score: {
               home: currentHomeScore,
@@ -443,20 +398,18 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
         ]);
       }
 
-      updateGameState(outcome, nextTime);
+      updateGameState(outcome);
       setTimeRemaining(nextTime);
       setIsSimulating(false);
 
-      // Fluctuating Win Probability calculations. Turnovers are checked before
-      // yardage so a long punt is not scored as a gain for the punting team.
+      // Fluctuating Win Probability calculations
       setWinProb(prev => {
           let change = 0;
           if (outcome.isScore) change = 6;
-          else if (outcome.interception || outcome.fumble) change = -12;
-          else if (outcome.punt) change = -3;
           else if (outcome.yardage > 15) change = 3;
           else if (outcome.yardage < 0) change = -2;
-
+          else if (outcome.type === 'Turnover') change = -12;
+          
           return Math.min(99, Math.max(1, prev + (gameState.possession === 'HOME' ? change : -change)));
       });
 
@@ -467,17 +420,19 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
     }, 1500);
   };
 
-  const updateGameState = (event: PlayOutcome, timeLeft: number) => {
+  const updateGameState = (event: GameEvent) => {
     setGameState(prev => {
         let nextState = { ...prev };
 
-        // Period runs 1 -> 4 across the game clock
-        nextState.quarter = quarterForTime(timeLeft);
+        // Handle Quarters transition dynamically
+        if (timeRemaining <= 7.5 * 60 && prev.quarter === 1) {
+          nextState.quarter = 2;
+        }
 
         if (event.isScore) {
-            if (prev.possession === 'HOME') nextState.homeScore += event.fieldGoal ? 3 : 7;
-            else nextState.awayScore += event.fieldGoal ? 3 : 7;
-
+            if (prev.possession === 'HOME') nextState.homeScore += event.description.includes('FIELD GOAL') ? 3 : 7;
+            else nextState.awayScore += event.description.includes('FIELD GOAL') ? 3 : 7;
+            
             nextState.possession = prev.possession === 'HOME' ? 'AWAY' : 'HOME';
             nextState.ballOn = 25;
             nextState.down = 1;
@@ -487,10 +442,7 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
 
         if (event.type === 'Turnover') {
             nextState.possession = prev.possession === 'HOME' ? 'AWAY' : 'HOME';
-            // Flip the field for the receiving team. A punt that reaches the end
-            // zone is a touchback rather than a negative yard line.
-            const flipped = 100 - (prev.ballOn + event.yardage);
-            nextState.ballOn = flipped <= 0 ? 20 : Math.min(99, flipped);
+            nextState.ballOn = 100 - (prev.ballOn + event.yardage);
             nextState.down = 1;
             nextState.distance = 10;
             return nextState;
@@ -508,7 +460,7 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
 
         if (newDown > 4) {
             nextState.possession = prev.possession === 'HOME' ? 'AWAY' : 'HOME';
-            nextState.ballOn = Math.min(99, Math.max(1, 100 - newBallOn));
+            nextState.ballOn = 100 - newBallOn;
             nextState.down = 1;
             nextState.distance = 10;
             return nextState;
@@ -517,7 +469,7 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
         return {
             ...prev,
             quarter: nextState.quarter,
-            ballOn: Math.min(99, Math.max(1, newBallOn)),
+            ballOn: newBallOn,
             down: newDown,
             distance: newDist
         };
@@ -535,62 +487,73 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
     }
   }, [gameState.possession, isSimulating, isGameOver]);
 
-  // Credits starter stats, reports the result to App, and finishes the session
+  // Saves career records and finishes session
   const saveAndExitGame = () => {
-    // 1. Accumulate simulated stats onto the depth-chart starters only
-    const roster = getTeamRoster(selectedTeamId);
-    const qb1 = starterAt(roster, Position.QB) as Player | undefined;
-    const rb1 = starterAt(roster, Position.RB) as Player | undefined;
-    const wr1 = starterAt(roster, Position.WR) as Player | undefined;
-    setAllPlayers(prev => prev.map(player => {
-      if (player.id === qb1?.id) {
-        return {
-          ...player,
-          stats: {
-            ...player.stats,
-            gamesPlayed: (player.stats.gamesPlayed || 0) + 1,
-            completions: (player.stats.completions || 0) + matchStats.home.passComp,
-            attempts: (player.stats.attempts || 0) + matchStats.home.passAtt,
-            yards: (player.stats.yards || 0) + matchStats.home.passYds,
-            touchdowns: (player.stats.touchdowns || 0) + matchStats.home.passTds,
-            interceptions: (player.stats.interceptions || 0) + matchStats.home.intsThrown,
-            rating: parseFloat((((player.stats.rating || 100) * (player.stats.gamesPlayed || 1) + 106) / ((player.stats.gamesPlayed || 1) + 1)).toFixed(1))
-          }
-        };
+    // 1. Update team Standings / W-L record
+    setTeams(prev => {
+      const nextTeams = { ...prev };
+      const homeTeam = nextTeams[selectedTeamId];
+      const awayTeam = nextTeams[opponentTeamId];
+      if (homeTeam && awayTeam) {
+        const [hw, hl, ht] = homeTeam.record.split('-').map(Number);
+        const [aw, al, at] = awayTeam.record.split('-').map(Number);
+        if (gameState.homeScore > gameState.awayScore) {
+          homeTeam.record = `${hw + 1}-${hl}-${ht}`;
+          awayTeam.record = `${aw}-${al + 1}-${at}`;
+        } else if (gameState.awayScore > gameState.homeScore) {
+          homeTeam.record = `${hw}-${hl + 1}-${ht}`;
+          awayTeam.record = `${aw + 1}-${al}-${at}`;
+        } else {
+          homeTeam.record = `${hw}-${hl}-${ht + 1}`;
+          awayTeam.record = `${aw}-${al}-${at + 1}`;
+        }
       }
-      if (player.id === rb1?.id) {
-        return {
-          ...player,
-          stats: {
-            ...player.stats,
-            gamesPlayed: (player.stats.gamesPlayed || 0) + 1,
-            yards: (player.stats.yards || 0) + matchStats.home.rushYds,
-            touchdowns: (player.stats.touchdowns || 0) + matchStats.home.rushTds,
-          }
-        };
-      }
-      if (player.id === wr1?.id) {
-        return {
-          ...player,
-          stats: {
-            ...player.stats,
-            gamesPlayed: (player.stats.gamesPlayed || 0) + 1,
-            yards: (player.stats.yards || 0) + Math.floor(matchStats.home.passYds * 0.7),
-            touchdowns: (player.stats.touchdowns || 0) + Math.floor(matchStats.home.passTds * 0.7),
-          }
-        };
-      }
-      return player;
-    }));
+      return nextTeams;
+    });
 
-    // 2. Report the result to App in real schedule orientation. The sim always
-    // renders the user as HOME internally, so remap through isUserHome.
-    onGameComplete({
-      week: currentWeek,
-      homeTeamId: isUserHome ? selectedTeamId : opponentTeamId,
-      awayTeamId: isUserHome ? opponentTeamId : selectedTeamId,
-      homeScore: isUserHome ? gameState.homeScore : gameState.awayScore,
-      awayScore: isUserHome ? gameState.awayScore : gameState.homeScore,
+    // 2. Accumulate simulated stats into active Player profiles
+    setAllPlayers(prev => {
+      return prev.map(player => {
+        if (player.teamId === selectedTeamId) {
+          if (player.position === Position.QB) {
+            return {
+              ...player,
+              stats: {
+                gamesPlayed: (player.stats.gamesPlayed || 0) + 1,
+                completions: (player.stats.completions || 0) + matchStats.home.passComp,
+                attempts: (player.stats.attempts || 0) + matchStats.home.passAtt,
+                yards: (player.stats.yards || 0) + matchStats.home.passYds,
+                touchdowns: (player.stats.touchdowns || 0) + matchStats.home.passTds,
+                interceptions: (player.stats.interceptions || 0) + matchStats.home.intsThrown,
+                rating: parseFloat((((player.stats.rating || 100) * (player.stats.gamesPlayed || 1) + 106) / ((player.stats.gamesPlayed || 1) + 1)).toFixed(1))
+              }
+            };
+          }
+          if (player.position === Position.RB) {
+            return {
+              ...player,
+              stats: {
+                ...player.stats,
+                gamesPlayed: (player.stats.gamesPlayed || 0) + 1,
+                yards: (player.stats.yards || 0) + matchStats.home.rushYds,
+                touchdowns: (player.stats.touchdowns || 0) + matchStats.home.rushTds,
+              }
+            };
+          }
+          if (player.position === Position.WR) {
+            return {
+              ...player,
+              stats: {
+                ...player.stats,
+                gamesPlayed: (player.stats.gamesPlayed || 0) + 1,
+                yards: (player.stats.yards || 0) + Math.floor(matchStats.home.passYds * 0.7),
+                touchdowns: (player.stats.touchdowns || 0) + Math.floor(matchStats.home.passTds * 0.7),
+              }
+            };
+          }
+        }
+        return player;
+      });
     });
 
     // 3. Relocate to HQ Dashboard
@@ -598,34 +561,14 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
   };
 
   const userRoster = getTeamRoster(selectedTeamId);
-  const homeQb = starterAt(userRoster, Position.QB) || { name: 'C. Stroud', overall: 91 };
-  const homeRb = starterAt(userRoster, Position.RB) || { name: 'J. Mixon', overall: 84 };
-  const homeWr = starterAt(userRoster, Position.WR) || { name: 'N. Collins', overall: 89 };
+  const homeQb = userRoster.find(p => p.position === Position.QB) || { name: 'C. Stroud', overall: 91 };
+  const homeRb = userRoster.find(p => p.position === Position.RB) || { name: 'J. Mixon', overall: 84 };
+  const homeWr = userRoster.find(p => p.position === Position.WR) || { name: 'N. Collins', overall: 89 };
 
   const oppRoster = getTeamRoster(opponentTeamId);
-  const awayQb = starterAt(oppRoster, Position.QB) || { name: 'Opp QB', overall: 85 };
-  const awayRb = starterAt(oppRoster, Position.RB) || { name: 'Opp RB', overall: 80 };
-  const awayWr = starterAt(oppRoster, Position.WR) || { name: 'Opp WR', overall: 82 };
-
-  if (!hasScheduledGame) {
-    return (
-      <div className="h-full flex flex-col items-center justify-center bg-[#05070a] gap-6">
-        <Shield size={48} className="text-slate-700" />
-        <div className="text-center">
-          <div className="text-2xl font-bold text-white header-font uppercase italic tracking-widest">No Game Scheduled</div>
-          <div className="text-[10px] text-slate-500 uppercase tracking-[0.3em] mono-font mt-3">
-            WEEK {currentWeek.toString().padStart(2, '0')} // BYE_WEEK_OR_GAME_ALREADY_RESOLVED
-          </div>
-        </div>
-        <button
-          onClick={() => setView(AppView.DASHBOARD)}
-          className="bg-cyan-600 hover:bg-cyan-500 text-white px-6 py-2 rounded-sm text-[10px] font-bold uppercase tracking-[0.2em] transition-colors"
-        >
-          Return to HQ
-        </button>
-      </div>
-    );
-  }
+  const awayQb = oppRoster.find(p => p.position === Position.QB) || { name: 'Opp QB', overall: 85 };
+  const awayRb = oppRoster.find(p => p.position === Position.RB) || { name: 'Opp RB', overall: 80 };
+  const awayWr = oppRoster.find(p => p.position === Position.WR) || { name: 'Opp WR', overall: 82 };
 
   return (
     <div className="h-full flex flex-col bg-[#05070a] relative overflow-hidden">

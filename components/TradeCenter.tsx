@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { TEAMS_DB } from '../constants';
 import { ArrowLeftRight, Plus, Trash2, TrendingUp, Shield, Info, AlertTriangle, History, CheckCircle2, Clock, Scale, X, Zap, Award, UserCheck, DollarSign } from 'lucide-react';
 import { Player, DraftPick, TradeRecord } from '../types';
-import { rerankDepth, insertIntoDepthChart } from '../utils/rosterUtils';
 
 interface TradeCenterProps {
   selectedTeamId: string;
@@ -95,22 +94,14 @@ const TradeCenter: React.FC<TradeCenterProps> = ({
         ? 'OVERPAY' 
         : 'UNDERPAY';
 
-  // Available players per side, best first — rosters are ~92 deep, so the user
-  // picks a specific player rather than getting whoever is first in array order.
-  const availableFor = (side: 'mine' | 'theirs') => {
-    const teamId = side === 'mine' ? selectedTeamId : targetTeamId;
-    const chosen = side === 'mine' ? myAssets : theirAssets;
-    return allPlayers
-      .filter(p => p.teamId === teamId && !chosen.find(a => a.id === p.id))
-      .sort((a, b) => b.overall - a.overall);
-  };
-
-  const addAsset = (side: 'mine' | 'theirs', playerId: string) => {
-    if (!playerId) return;
-    const player = allPlayers.find(p => p.id === playerId);
-    if (!player) return;
-    if (side === 'mine') setMyAssets([...myAssets, player]);
-    else setTheirAssets([...theirAssets, player]);
+  const addAsset = (side: 'mine' | 'theirs') => {
+    if (side === 'mine') {
+      const available = allPlayers.filter(p => p.teamId === selectedTeamId && !myAssets.find(a => a.id === p.id));
+      if (available.length > 0) setMyAssets([...myAssets, available[0]]);
+    } else {
+      const available = allPlayers.filter(p => p.teamId === targetTeamId && !theirAssets.find(a => a.id === p.id));
+      if (available.length > 0) setTheirAssets([...theirAssets, available[0]]);
+    }
   };
 
   const removeAsset = (side: 'mine' | 'theirs', id: string) => {
@@ -134,35 +125,15 @@ const TradeCenter: React.FC<TradeCenterProps> = ({
       const myPlayerIds = myAssets.filter(a => 'overall' in a).map(a => a.id);
       const theirPlayerIds = theirAssets.filter(a => 'overall' in a).map(a => a.id);
 
-      setAllPlayers(prev => {
-        const moved = [...myPlayerIds, ...theirPlayerIds];
-        // Remember each mover's former team so its depth chart can be closed up
-        const formerTeams = prev
-          .filter(p => moved.includes(p.id))
-          .map(p => ({ teamId: p.teamId, position: p.position }));
-
-        const swapped = prev.map(p => {
-          if (myPlayerIds.includes(p.id)) {
-            return { ...p, teamId: targetTeamId, depth: undefined };
-          }
-          if (theirPlayerIds.includes(p.id)) {
-            return { ...p, teamId: selectedTeamId, depth: undefined };
-          }
-          return p;
-        });
-
-        // Slot each mover into their NEW team's depth chart by rating —
-        // otherwise an acquired star sits behind the incumbent and never
-        // starts — then close the gap left on the team that traded them away.
-        const withArrivals = swapped
-          .filter(p => moved.includes(p.id))
-          .reduce((acc, p) => insertIntoDepthChart(acc, acc.find(x => x.id === p.id) || p), swapped);
-
-        return formerTeams.reduce(
-          (acc, t) => rerankDepth(acc, t.teamId, t.position),
-          withArrivals
-        );
-      });
+      setAllPlayers(prev => prev.map(p => {
+        if (myPlayerIds.includes(p.id)) {
+          return { ...p, teamId: targetTeamId };
+        }
+        if (theirPlayerIds.includes(p.id)) {
+          return { ...p, teamId: selectedTeamId };
+        }
+        return p;
+      }));
     }
 
     // Create log record
@@ -284,19 +255,13 @@ const TradeCenter: React.FC<TradeCenterProps> = ({
                     </button>
                   </div>
                 ))}
-                <div className="w-full border border-dashed border-[#1a222e] bg-[#0d121a]/20 p-4 flex items-center gap-3">
-                  <Plus size={16} className="text-slate-600 shrink-0" />
-                  <select
-                    value=""
-                    onChange={(e) => addAsset('mine', e.target.value)}
-                    className="flex-1 bg-[#05070a] border border-[#1a222e] text-slate-300 text-[10px] font-mono uppercase tracking-widest px-3 py-2 focus:border-cyan-500/40 focus:outline-none"
-                  >
-                    <option value="">ADD_ASSET_NODE</option>
-                    {availableFor('mine').map(p => (
-                      <option key={p.id} value={p.id}>{p.position} {p.name} — {p.overall} OVR (${p.contract.capHit}M)</option>
-                    ))}
-                  </select>
-                </div>
+                <button 
+                  onClick={() => addAsset('mine')}
+                  className="w-full py-8 border border-dashed border-[#1a222e] text-slate-600 hover:text-cyan-400 hover:border-cyan-500/30 transition-all flex flex-col items-center justify-center gap-3 bg-[#0d121a]/20 group"
+                >
+                  <Plus size={20} className="group-hover:scale-110 transition-transform" />
+                  <span className="text-[9px] font-bold uppercase tracking-[0.3em] mono-font">ADD_ASSET_NODE</span>
+                </button>
               </div>
             </div>
 
@@ -361,19 +326,13 @@ const TradeCenter: React.FC<TradeCenterProps> = ({
                     </button>
                   </div>
                 ))}
-                <div className="w-full border border-dashed border-[#1a222e] bg-[#0d121a]/20 p-4 flex items-center gap-3">
-                  <Plus size={16} className="text-slate-600 shrink-0" />
-                  <select
-                    value=""
-                    onChange={(e) => addAsset('theirs', e.target.value)}
-                    className="flex-1 bg-[#05070a] border border-[#1a222e] text-slate-300 text-[10px] font-mono uppercase tracking-widest px-3 py-2 focus:border-amber-500/40 focus:outline-none"
-                  >
-                    <option value="">ADD_TARGET_ASSET</option>
-                    {availableFor('theirs').map(p => (
-                      <option key={p.id} value={p.id}>{p.position} {p.name} — {p.overall} OVR (${p.contract.capHit}M)</option>
-                    ))}
-                  </select>
-                </div>
+                <button 
+                  onClick={() => addAsset('theirs')}
+                  className="w-full py-8 border border-dashed border-[#1a222e] text-slate-600 hover:text-amber-400 hover:border-amber-500/30 transition-all flex flex-col items-center justify-center gap-3 bg-[#0d121a]/20 group"
+                >
+                  <Plus size={20} className="group-hover:scale-110 transition-transform" />
+                  <span className="text-[9px] font-bold uppercase tracking-[0.3em] mono-font">ADD_TARGET_ASSET</span>
+                </button>
               </div>
             </div>
           </div>

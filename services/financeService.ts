@@ -4,6 +4,12 @@ export const calculateCapHit = (contract: Contract): number => {
   return contract.salary + (contract.bonus / contract.totalLength);
 };
 
+export const calculateDeadCap = (contract: Contract): number => {
+  const yearsLeftIncludingVoids = contract.yearsLeft + contract.voidYears;
+  const prorationRemaining = (contract.bonus / contract.totalLength) * yearsLeftIncludingVoids;
+  return contract.guaranteed + prorationRemaining;
+};
+
 export const restructureContract = (player: Player): Player => {
   const { contract } = player;
   
