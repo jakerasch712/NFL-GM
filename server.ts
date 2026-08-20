@@ -29,12 +29,86 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+app.post('/api/rosters/spotrac-sync', async (req, res) => {
+  try {
+    const { teamName, teamId } = req.body;
+    const ai = getGenAI();
+    
+    const prompt = `Search spotrac.com/nfl and current 2025/2026 Spotrac NFL databases for the complete roster, depth chart, contract values, cap hits, and positions of the NFL team "${teamName || teamId}".
+Website reference: https://www.spotrac.com/nfl/
+
+Extract the key starters and depth chart players with real contract figures from Spotrac.
+Return strictly a JSON object with a "players" array formatted like this:
+{
+  "players": [
+    {
+      "name": "Patrick Mahomes",
+      "position": "QB",
+      "age": 30,
+      "overall": 99,
+      "depth": 1,
+      "archetype": "Improviser",
+      "salary": 45.0,
+      "bonus": 60.0,
+      "guaranteed": 140.0,
+      "yearsLeft": 8,
+      "totalValue": 450.0,
+      "capHit": 48.0,
+      "deadCap": 80.0,
+      "years": 10
+    }
+  ],
+  "sourceUrl": "https://www.spotrac.com/nfl"
+}
+Valid positions: QB, RB, WR, TE, OL, DL, LB, CB, S, K.
+Make sure all primary units (Offensive Line, Secondary, Pass Catchers, Defensive Front, Linebackers, Backfield, Specialists) have realistic starting and backup players. Respond ONLY with the JSON block.`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+      config: {
+        tools: [{ googleSearch: {} }]
+      }
+    });
+
+    const text = response.text || '';
+    const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+    
+    let players = [];
+    try {
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        players = parsed.players || [];
+      } else {
+        const arrMatch = text.match(/\[[\s\S]*\]/);
+        if (arrMatch) players = JSON.parse(arrMatch[0]);
+      }
+    } catch (parseErr) {
+      console.warn('Could not parse JSON from spotrac gemini response:', parseErr);
+    }
+
+    res.json({
+      success: true,
+      players,
+      sources: groundingChunks.map(c => c.web).filter(Boolean),
+      spotracUrl: `https://www.spotrac.com/nfl/${(teamName || '').toLowerCase().replace(/\s+/g, '-')}/cap/`
+    });
+  } catch (error: any) {
+    console.error('Error fetching Spotrac rosters:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to fetch Spotrac roster data'
+    });
+  }
+});
+
 app.post('/api/rosters/live-search', async (req, res) => {
   try {
     const { teamName, query } = req.body;
     const ai = getGenAI();
     
-    const prompt = `Perform a search to find the latest active NFL roster and key depth chart for ${teamName ? `the ${teamName}` : 'top NFL teams'}. ${query ? `Query context: ${query}` : ''}
+    const prompt = `Perform a search to find the latest active NFL roster, contracts, and depth chart from Spotrac (https://www.spotrac.com/nfl) for ${teamName ? `the ${teamName}` : 'top NFL teams'}. ${query ? `Query context: ${query}` : ''}
 
 Output MUST be a JSON array containing top key starters/players in this format:
 [
@@ -45,14 +119,16 @@ Output MUST be a JSON array containing top key starters/players in this format:
     "age": 29,
     "overall": 98,
     "depth": 1,
-    "notes": "Starter, 2025/2026 roster"
+    "salary": 35.0,
+    "capHit": 38.0,
+    "notes": "Starter, Spotrac verified"
   }
 ]
 Valid positions: QB, RB, WR, TE, OL, DL, LB, CB, S, K.
-Ensure high accuracy using latest search results. Respond ONLY with the JSON array inside a json block.`;
+Ensure high accuracy using latest search results from spotrac.com/nfl. Respond ONLY with the JSON array inside a json block.`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-2.5-flash',
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }]
@@ -101,7 +177,7 @@ app.post('/api/draft/strategy', async (req, res) => {
     Provide a detailed, professional reasoning. Use Markdown for formatting.`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.6-flash',
+      model: 'gemini-2.5-flash',
       contents: prompt
     });
 
@@ -133,7 +209,7 @@ app.post('/api/highlights/generate', async (req, res) => {
     }`;
 
     const scriptRes = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-2.5-flash',
       contents: scriptPrompt,
     });
 
