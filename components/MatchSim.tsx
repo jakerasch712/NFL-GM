@@ -77,6 +77,7 @@ const WEATHER_PRESETS: Record<string, WeatherConfig> = {
 
 interface MatchSimProps {
   selectedTeamId: string;
+  currentWeek?: number;
   allPlayers: Player[];
   setAllPlayers: React.Dispatch<React.SetStateAction<Player[]>>;
   teams: Record<string, any>;
@@ -96,7 +97,24 @@ interface ScoringEvent {
   };
 }
 
-const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllPlayers, teams, setTeams, setView }) => {
+const normalizeTeamCode = (code: string) => {
+  if (!code) return '';
+  const c = code.toUpperCase().trim();
+  if (['WSH', 'WAS'].includes(c)) return 'WAS';
+  if (['KAN', 'KC', 'KCC'].includes(c)) return 'KC';
+  if (['SFO', 'SF'].includes(c)) return 'SF';
+  if (['GNB', 'GB'].includes(c)) return 'GB';
+  if (['NWE', 'NE', 'NEP'].includes(c)) return 'NE';
+  if (['NOR', 'NO'].includes(c)) return 'NO';
+  if (['TAM', 'TB', 'TBB'].includes(c)) return 'TB';
+  if (['LVR', 'LV', 'RAI'].includes(c)) return 'LV';
+  if (['LAC', 'SD', 'SDG'].includes(c)) return 'LAC';
+  if (['LAR', 'LA', 'RAM', 'STL'].includes(c)) return 'LAR';
+  if (['JAX', 'JAC'].includes(c)) return 'JAX';
+  return c;
+};
+
+const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, currentWeek = 1, allPlayers, setAllPlayers, teams, setTeams, setView }) => {
   const [opponentTeamId, setOpponentTeamId] = useState<string>('');
   const [isGameOver, setIsGameOver] = useState(false);
   const [scoringSummary, setScoringSummary] = useState<ScoringEvent[]>([]);
@@ -122,7 +140,7 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
           awayTeamName: opponentTeam ? `${opponentTeam.city} ${opponentTeam.name}` : 'Away Team',
           homeScore: gameState.homeScore,
           awayScore: gameState.awayScore,
-          week: 1,
+          week: currentWeek,
           scoringSummary,
           keyPlays: playHistory.slice(0, 8)
         })
@@ -178,14 +196,21 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
   });
 
   useEffect(() => {
-    // Find next opponent from schedule or default
-    const nextMatch = SCHEDULE_2027.find(m => m.homeTeamId === selectedTeamId || m.awayTeamId === selectedTeamId);
+    // Find opponent from schedule for currentWeek or upcoming
+    const normTeam = normalizeTeamCode(selectedTeamId);
+    const nextMatch = SCHEDULE_2027.find(m => 
+      m.week === currentWeek && (normalizeTeamCode(m.homeTeamId) === normTeam || normalizeTeamCode(m.awayTeamId) === normTeam)
+    ) || SCHEDULE_2027.find(m => 
+      m.week >= currentWeek && (normalizeTeamCode(m.homeTeamId) === normTeam || normalizeTeamCode(m.awayTeamId) === normTeam)
+    );
+
     if (nextMatch) {
-      setOpponentTeamId(nextMatch.homeTeamId === selectedTeamId ? nextMatch.awayTeamId : nextMatch.homeTeamId);
+      const oppId = normalizeTeamCode(nextMatch.homeTeamId) === normTeam ? nextMatch.awayTeamId : nextMatch.homeTeamId;
+      setOpponentTeamId(oppId);
     } else {
-      setOpponentTeamId(Object.keys(teams).find(id => id !== selectedTeamId) || 'KC');
+      setOpponentTeamId(Object.keys(teams).find(id => normalizeTeamCode(id) !== normTeam) || 'KC');
     }
-  }, [selectedTeamId, teams]);
+  }, [selectedTeamId, currentWeek, teams]);
   
   const [activeWeatherPreset, setActiveWeatherPreset] = useState<WeatherConfig>(WEATHER_PRESETS['Clear']);
   const [gameState, setGameState] = useState({
@@ -219,7 +244,10 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, allPlayers, setAllP
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const getTeamRoster = (teamId: string) => allPlayers.filter(p => p.teamId === teamId);
+  const getTeamRoster = (teamId: string) => {
+    const norm = normalizeTeamCode(teamId);
+    return allPlayers.filter(p => normalizeTeamCode(p.teamId) === norm);
+  };
 
   const calculateOutcome = (play: Play): GameEvent => {
     const isUserOffense = gameState.possession === 'HOME';

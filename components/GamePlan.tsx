@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Shield, Zap, Target, AlertCircle, Activity, ChevronRight, Clipboard, Flame, Award, TrendingUp, Sparkles, CheckCircle2, Sliders, UserCheck, Check, Brain } from 'lucide-react';
+import { Shield, Zap, Target, AlertCircle, Activity, ChevronRight, Clipboard, Flame, Award, TrendingUp, Sparkles, CheckCircle2, Sliders, UserCheck, Check, Brain, ChevronUp } from 'lucide-react';
 import { TEAMS_DB } from '../constants';
-import { Player, PositionGroup } from '../types';
+import { Player, PositionGroup, ProgressionHistoryEntry } from '../types';
 import { SCHEDULE_2027 } from '../schedule';
+import PlayerProgressionModal from './PlayerProgressionModal';
 
 interface GamePlanProps {
   selectedTeamId: string;
@@ -132,6 +133,7 @@ const GamePlan: React.FC<GamePlanProps> = ({
 
   const [drillLog, setDrillLog] = useState<string[]>([]);
   const [drillSuccess, setDrillSuccess] = useState<string | null>(null);
+  const [viewingProgressionPlayerId, setViewingProgressionPlayerId] = useState<string | null>(null);
 
   // Find next match
   const nextMatch = SCHEDULE_2027.find(m => 
@@ -185,20 +187,34 @@ const GamePlan: React.FC<GamePlanProps> = ({
         targetPlayer.developmentTrait === 'Superstar' ? 1.4 :
         targetPlayer.developmentTrait === 'Star' ? 1.2 : 1.0;
 
-      const xpGain = Math.round((25 + Math.floor(Math.random() * 15)) * devMultiplier);
+      const xpGain = Math.round((45 + Math.floor(Math.random() * 25)) * devMultiplier);
       const newProgress = dev.progress + xpGain;
 
       if (newProgress >= 100) {
         levelUps++;
-        newLogs.push(`LEVEL UP! ${targetPlayer.name} (${targetPlayer.position}) reached 100 XP in ${dev.focusArea}! +1 Overall Rating!`);
+        newLogs.push(`⚡ LEVEL UP! ${targetPlayer.name} (${targetPlayer.position}) earned +1 Skill Point from intense ${dev.focusArea} training!`);
         
-        // Upgrade player overall
+        // Upgrade player XP, Skill Points, and stats in allPlayers
         setAllPlayers(prevAll => prevAll.map(p => {
           if (p.id === targetPlayer.id) {
+            const updatedSP = (p.skillPoints || 0) + 1;
+            const updatedXP = (p.xp || 0) + xpGain;
+            const historyEntry: ProgressionHistoryEntry = {
+              id: `training-${Date.now()}-${p.id}`,
+              season: 2027,
+              week: currentWeek,
+              type: 'TRAINING',
+              title: `Level Up: ${dev.focusArea}`,
+              description: `Completed high-intensity ${dev.focusArea} practice session. Level up reached (+1 Skill Point).`,
+              statChanges: ['+1 Skill Point', `+${xpGain} XP`],
+              date: new Date().toLocaleDateString()
+            };
+
             return {
               ...p,
-              overall: Math.min(99, p.overall + 1),
-              schemeOvr: Math.min(99, p.schemeOvr + 1)
+              skillPoints: updatedSP,
+              xp: updatedXP,
+              progressionHistory: [...(p.progressionHistory || []), historyEntry]
             };
           }
           return p;
@@ -206,7 +222,18 @@ const GamePlan: React.FC<GamePlanProps> = ({
 
         return { ...dev, progress: newProgress - 100 };
       } else {
-        newLogs.push(`${targetPlayer.name} (${targetPlayer.position}) gained +${xpGain} XP in ${dev.focusArea} (${newProgress}/100)`);
+        newLogs.push(`🎯 ${targetPlayer.name} (${targetPlayer.position}) gained +${xpGain} XP in ${dev.focusArea} (${newProgress}/100 XP)`);
+        
+        setAllPlayers(prevAll => prevAll.map(p => {
+          if (p.id === targetPlayer.id) {
+            return {
+              ...p,
+              xp: (p.xp || 0) + xpGain
+            };
+          }
+          return p;
+        }));
+
         return { ...dev, progress: newProgress };
       }
     });
@@ -216,7 +243,7 @@ const GamePlan: React.FC<GamePlanProps> = ({
     // Minor boost across active position groups
     newLogs.unshift(`GROUP DRILLS EXECUTED :: ${groupSettings.length} Position Groups completed custom drill protocols.`);
     setDrillLog(newLogs);
-    setDrillSuccess(`PRACTICE SESSION COMPLETE :: ${levelUps > 0 ? `${levelUps} PLAYER LEVEL UP!` : 'ATTRIBUTES BOOSTED'}`);
+    setDrillSuccess(`PRACTICE SESSION COMPLETE :: ${levelUps > 0 ? `${levelUps} PLAYER EARNED SKILL POINTS!` : 'XP & DRILLS COMMITTED'}`);
 
     setTimeout(() => {
       setDrillSuccess(null);
@@ -771,7 +798,7 @@ const GamePlan: React.FC<GamePlanProps> = ({
                       </div>
 
                       {/* Progress Bar towards Level Up */}
-                      <div>
+                      <div className="mb-3">
                         <div className="flex justify-between text-[9px] font-mono mb-1">
                           <span className="text-slate-500">XP PROGRESS TO NEXT OVR</span>
                           <span className="text-emerald-400 font-bold">{dev.progress} / 100 XP</span>
@@ -783,6 +810,16 @@ const GamePlan: React.FC<GamePlanProps> = ({
                           />
                         </div>
                       </div>
+
+                      {targetPlayer && (
+                        <button
+                          onClick={() => setViewingProgressionPlayerId(targetPlayer.id)}
+                          className="w-full py-1.5 bg-[#0a0e14] hover:bg-emerald-500 hover:text-black border border-emerald-500/30 text-emerald-400 text-[9px] font-mono font-bold uppercase tracking-widest transition-all flex items-center justify-center gap-1.5"
+                        >
+                          <Sparkles size={12} />
+                          INSPECT ATTRIBUTES & SPEND SP ({(targetPlayer.skillPoints || 0)} SP)
+                        </button>
+                      )}
                     </div>
                   );
                 })}
@@ -808,6 +845,24 @@ const GamePlan: React.FC<GamePlanProps> = ({
           </div>
         </div>
       )}
+
+      {/* Detailed Progression Modal for Selected Player */}
+      {viewingProgressionPlayerId && (() => {
+        const viewingPlayer = players.find(p => p.id === viewingProgressionPlayerId);
+        if (!viewingPlayer) return null;
+        return (
+          <PlayerProgressionModal
+            player={viewingPlayer}
+            onClose={() => setViewingProgressionPlayerId(null)}
+            onUpdatePlayer={(updated) => {
+              if (setAllPlayers) {
+                setAllPlayers(prev => prev.map(p => p.id === updated.id ? updated : p));
+              }
+            }}
+            team={teams[selectedTeamId] || TEAMS_DB[selectedTeamId]}
+          />
+        );
+      })()}
     </div>
   );
 };

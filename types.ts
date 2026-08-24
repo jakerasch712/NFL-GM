@@ -45,6 +45,12 @@ export interface PlayerStats {
   sacks?: number;
   forcedFumbles?: number;
   rating?: number;
+  proBowls?: number;
+  allPro?: number;
+  careerYards?: number;
+  careerTouchdowns?: number;
+  careerSacks?: number;
+  careerProBowls?: number;
 }
 
 export interface CareerMilestone {
@@ -53,6 +59,10 @@ export interface CareerMilestone {
   title: string;
   category: 'AWARD' | 'RECORD' | 'HONOR' | 'CHAMPIONSHIP';
   description: string;
+  metric?: string;
+  value?: number;
+  threshold?: number;
+  isAchieved?: boolean;
 }
 
 export interface InjuryRecord {
@@ -64,6 +74,156 @@ export interface InjuryRecord {
 }
 
 export type PlayerPersonality = 'Gunslinger' | 'Mercenary' | 'Workhorse' | 'Ring Chaser' | 'The Diva' | 'Leader' | 'Normal';
+
+export interface PlayerAttributes {
+  // Physical & Athleticism
+  speed: number;
+  acceleration: number;
+  strength: number;
+  agility: number;
+  awareness: number;
+  stamina: number;
+  toughness: number;
+
+  // Passing (QB)
+  throwPower?: number;
+  shortAccuracy?: number;
+  mediumAccuracy?: number;
+  deepAccuracy?: number;
+  throwOnRun?: number;
+  playAction?: number;
+
+  // Rushing & Ball Carrier (RB, WR, TE, QB)
+  carrying?: number;
+  breakTackle?: number;
+  trucking?: number;
+  elusiveness?: number;
+  bcVision?: number;
+
+  // Receiving & Route Running (WR, TE, RB)
+  catching?: number;
+  catchInTraffic?: number;
+  shortRouteRunning?: number;
+  mediumRouteRunning?: number;
+  deepRouteRunning?: number;
+  release?: number;
+  spectacularCatch?: number;
+
+  // Blocking (OL, TE, FB)
+  passBlock?: number;
+  runBlock?: number;
+  impactBlock?: number;
+  passBlockPower?: number;
+  passBlockFinesse?: number;
+  runBlockPower?: number;
+  runBlockFinesse?: number;
+
+  // Defense & Pass Rush (DL, LB, CB, S)
+  tackle?: number;
+  hitPower?: number;
+  blockShedding?: number;
+  powerMoves?: number;
+  finesseMoves?: number;
+  pursuit?: number;
+  playRecognition?: number;
+  manCoverage?: number;
+  zoneCoverage?: number;
+  press?: number;
+
+  // Specialists (K, P)
+  kickPower?: number;
+  kickAccuracy?: number;
+}
+
+export interface MoraleFactor {
+  id: string;
+  label: string;
+  impact: number; // e.g. +12, -8
+  type: 'positive' | 'negative' | 'neutral';
+  description: string;
+}
+
+export interface ProgressionHistoryEntry {
+  id: string;
+  week: number;
+  season: number;
+  type: 'TRAINING' | 'GAME_PERFORMANCE' | 'AGE_REGRESSION' | 'BREAKOUT' | 'MORALE_BOOST' | 'SKILL_POINT';
+  title: string;
+  description: string;
+  statChanges: string[];
+  date: string;
+}
+
+export interface BreakoutOpportunity {
+  id: string;
+  title: string;
+  position: Position;
+  currentDev: 'Normal' | 'Star' | 'Superstar' | 'X-Factor';
+  targetDev: 'Star' | 'Superstar' | 'X-Factor';
+  objective: string;
+  currentProgress: number;
+  targetProgress: number;
+  statRequirement: string;
+  weeksRemaining: number;
+  isCompleted: boolean;
+}
+
+export interface ArchetypeUpgradePackage {
+  name: string;
+  cost: number; // skill points (usually 1)
+  description: string;
+  boosts: {
+    attribute: keyof PlayerAttributes;
+    label: string;
+    increase: number;
+  }[];
+}
+
+export interface ProgressionWeekSummary {
+  week: number;
+  season: number;
+  leveledUpPlayers: {
+    player: Player;
+    oldOvr: number;
+    newOvr: number;
+    skillPointsGained: number;
+  }[];
+  trainingHighlights: {
+    playerName: string;
+    position: Position;
+    focus: string;
+    xpGained: number;
+  }[];
+  breakoutEvents: {
+    playerName: string;
+    position: Position;
+    oldDev: string;
+    newDev: string;
+    headline: string;
+  }[];
+  regressedVeterans: {
+    playerName: string;
+    age: number;
+    position: Position;
+    attributeLosses: string[];
+  }[];
+  moraleShifts: {
+    playerName: string;
+    position: Position;
+    oldMorale: number;
+    newMorale: number;
+    reason: string;
+  }[];
+  retiredPlayers?: {
+    player: Player;
+    age: number;
+    position: Position;
+    reason: string;
+    seasonsPlayed: number;
+    careerHighlights: string[];
+    hallOfFameEligible: boolean;
+  }[];
+}
 
 export interface Player {
   id: string;
@@ -90,6 +250,16 @@ export interface Player {
   durability?: number; // 0-100
   injuryHistory?: InjuryRecord[];
   milestones?: CareerMilestone[];
+  // Dynamic Progression & Morale Fields
+  attributes?: PlayerAttributes;
+  xp?: number; // 0 to 1000 per level
+  xpToNextLevel?: number;
+  skillPoints?: number;
+  moraleFactors?: MoraleFactor[];
+  progressionHistory?: ProgressionHistoryEntry[];
+  breakoutOpportunity?: BreakoutOpportunity;
+  recentPerformanceRating?: number; // 0-100 based on game impact
+  careerPhase?: 'Ascending' | 'Prime' | 'Veteran' | 'Declining';
 }
 
 export interface Team {

@@ -11,11 +11,15 @@ import StaffView from './components/StaffView';
 import ScoutingView from './components/ScoutingView';
 import HallOfFame from './components/HallOfFame';
 import TeamSelection from './components/TeamSelection';
-import { AppView, DraftProspect, DraftPick, Scout, LeagueState, LeaguePhase, Player, Coach, TradeRecord } from './types';
+import WeeklyProgressionReportModal from './components/WeeklyProgressionReportModal';
+import PlayerProgressionModal from './components/PlayerProgressionModal';
+import { AppView, DraftProspect, DraftPick, Scout, LeagueState, LeaguePhase, Player, Coach, TradeRecord, ProgressionWeekSummary } from './types';
 import { DRAFT_CLASS, INITIAL_PICKS, MOCK_SCOUTS, TEAMS_DB, MOCK_PLAYERS, MOCK_COACHES } from './constants';
 import { ensureFullTeamRosters } from './data/nflRosters';
 import { nflverseService } from './services/nflverseService';
+import { advanceWeekProgression } from './services/progressionService';
 import { SCHEDULE_2027 } from './schedule';
+import { Sparkles, TrendingUp } from 'lucide-react';
 
 const App: React.FC = () => {
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
@@ -72,6 +76,8 @@ const App: React.FC = () => {
   const [scouts, setScouts] = useState<Scout[]>(MOCK_SCOUTS);
   const [picks, setPicks] = useState<DraftPick[]>(INITIAL_PICKS);
   const [teamBudget, setTeamBudget] = useState(255.4); // Cap space in millions
+  const [weeklyProgressionSummary, setWeeklyProgressionSummary] = useState<ProgressionWeekSummary | null>(null);
+  const [inspectingPlayer, setInspectingPlayer] = useState<Player | null>(null);
   const [leagueState, setLeagueState] = useState<LeagueState>({
     currentPhase: LeaguePhase.REGULAR_SEASON,
     week: 1,
@@ -81,6 +87,20 @@ const App: React.FC = () => {
   });
 
   const nextWeek = () => {
+    // Process weekly progression and player development engine
+    if (selectedTeamId) {
+      const { updatedPlayers, summary } = advanceWeekProgression(
+        allPlayers,
+        leagueState.week,
+        leagueState.year,
+        teams,
+        selectedTeamId
+      );
+
+      setAllPlayers(updatedPlayers);
+      setWeeklyProgressionSummary(summary);
+    }
+
     setLeagueState(prev => {
       if (prev.week >= 18) {
         return { ...prev, week: 1, currentPhase: LeaguePhase.PLAYOFFS };
@@ -127,6 +147,7 @@ const App: React.FC = () => {
         return (
           <MatchSim 
             selectedTeamId={selectedTeamId} 
+            currentWeek={leagueState.week}
             allPlayers={allPlayers} 
             setAllPlayers={setAllPlayers}
             teams={teams}
@@ -180,35 +201,87 @@ const App: React.FC = () => {
       {selectedTeamId && <Navigation currentView={currentView} setView={setCurrentView} selectedTeamId={selectedTeamId} teams={teams} />}
       <main className="flex-1 relative overflow-hidden flex flex-col z-10">
         {/* League Status Bar */}
-        {selectedTeamId && (
-          <div className="bg-slate-900 border-b border-slate-800 px-6 py-2 flex justify-between items-center z-10">
-            <div className="flex gap-6 items-center">
-              <div className="flex flex-col">
-                <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">League Year</span>
-                <span className="text-sm font-bold text-white">{leagueState.year}</span>
+        {selectedTeamId && (() => {
+          const teamPlayers = allPlayers.filter(p => p.teamId === selectedTeamId);
+          const playersWithSP = teamPlayers.filter(p => (p.skillPoints || 0) > 0);
+
+          return (
+            <div className="bg-slate-900 border-b border-slate-800 px-6 py-2 flex justify-between items-center z-10">
+              <div className="flex gap-6 items-center">
+                <div className="flex flex-col">
+                  <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">League Year</span>
+                  <span className="text-sm font-bold text-white">{leagueState.year}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Phase</span>
+                  <span className="text-sm font-bold text-cyan-400">{leagueState.currentPhase.replace('_', ' ')}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Week</span>
+                  <span className="text-sm font-bold text-white">{leagueState.week}</span>
+                </div>
+
+                {/* Skill Points Ready Notification */}
+                {playersWithSP.length > 0 && (
+                  <button
+                    onClick={() => setCurrentView(AppView.ROSTER)}
+                    className="flex items-center gap-2 px-3 py-1 bg-cyan-500/10 border border-cyan-500/40 text-cyan-400 text-xs font-mono font-bold animate-pulse hover:bg-cyan-500/20 transition-all"
+                  >
+                    <Sparkles size={13} />
+                    <span>{playersWithSP.length} PLAYER{playersWithSP.length > 1 ? 'S' : ''} WITH SKILL POINTS</span>
+                  </button>
+                )}
+
+                {/* Latest Weekly Progression Summary button */}
+                {weeklyProgressionSummary && (
+                  <button
+                    onClick={() => setWeeklyProgressionSummary(weeklyProgressionSummary)}
+                    className="flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-mono font-bold hover:bg-emerald-500/20 transition-all"
+                  >
+                    <TrendingUp size={13} />
+                    <span>DEV REPORT (WK {weeklyProgressionSummary.week})</span>
+                  </button>
+                )}
               </div>
-              <div className="flex flex-col">
-                <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Phase</span>
-                <span className="text-sm font-bold text-cyan-400">{leagueState.currentPhase.replace('_', ' ')}</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Week</span>
-                <span className="text-sm font-bold text-white">{leagueState.week}</span>
-              </div>
+              
+              <button 
+                onClick={nextWeek}
+                className="bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-1.5 rounded-none text-xs font-bold font-mono uppercase tracking-wider transition-colors flex items-center gap-2 shadow-[0_0_15px_rgba(8,145,178,0.3)]"
+              >
+                ADVANCE WEEK
+              </button>
             </div>
-            
-            <button 
-              onClick={nextWeek}
-              className="bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-2 shadow-[0_0_15px_rgba(8,145,178,0.3)]"
-            >
-              ADVANCE WEEK
-            </button>
-          </div>
-        )}
+          );
+        })()}
         
         <div className="flex-1 relative overflow-hidden">
           {renderView()}
         </div>
+
+        {/* Weekly Progression Report Modal */}
+        {weeklyProgressionSummary && (
+          <WeeklyProgressionReportModal
+            summary={weeklyProgressionSummary}
+            onClose={() => setWeeklyProgressionSummary(null)}
+            onSelectPlayer={(p) => {
+              setInspectingPlayer(p);
+            }}
+            allPlayers={allPlayers}
+          />
+        )}
+
+        {/* Detailed Player Progression Modal */}
+        {inspectingPlayer && selectedTeamId && (
+          <PlayerProgressionModal
+            player={inspectingPlayer}
+            onClose={() => setInspectingPlayer(null)}
+            onUpdatePlayer={(updated) => {
+              setAllPlayers(prev => prev.map(p => p.id === updated.id ? updated : p));
+              setInspectingPlayer(updated);
+            }}
+            team={teams[selectedTeamId] || TEAMS_DB[selectedTeamId]}
+          />
+        )}
       </main>
     </div>
   );

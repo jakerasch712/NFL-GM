@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { Calendar, TrendingUp, AlertCircle, Activity, Trophy, ChevronDown, MapPin, UserCheck, HelpCircle, Newspaper, Award, Flame, DollarSign, X, ShieldAlert, Info, ExternalLink, ChevronRight, HeartPulse, Mic, MessageSquare, CheckCircle2, Zap, BarChart3, Users } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import React, { useState, useMemo } from 'react';
+import { Calendar, TrendingUp, AlertCircle, Activity, Trophy, ChevronDown, MapPin, UserCheck, HelpCircle, Newspaper, Award, Flame, DollarSign, X, ShieldAlert, Info, ExternalLink, ChevronRight, HeartPulse, Mic, MessageSquare, CheckCircle2, Zap, BarChart3, Users, LineChart as LineChartIcon, Sliders, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { BarChart, Bar, LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid, Legend, ReferenceLine } from 'recharts';
 import { TEAMS_DB, MOCK_PLAYERS } from '../constants';
 import { LeaguePhase, Player, Position } from '../types';
 import { SCHEDULE_2027 } from '../schedule';
@@ -15,6 +15,7 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase, currentWeek, teams, allPlayers }) => {
   const [leaderboardCategory, setLeaderboardCategory] = useState<'passing' | 'rushing' | 'sacks'>('passing');
+  const [efficiencyViewMode, setEfficiencyViewMode] = useState<'dual_line' | 'area_spread' | 'net_margin'>('dual_line');
   const [showCapToast, setShowCapToast] = useState(true);
   const [showCapModal, setShowCapModal] = useState(false);
 
@@ -25,27 +26,47 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase, curr
   // Standings Tab View State
   const [standingsTab, setStandingsTab] = useState<'division' | 'league' | 'afc' | 'nfc'>('league');
 
+  const normalizeTeamCode = (code: string) => {
+    if (!code) return '';
+    const c = code.toUpperCase().trim();
+    if (['WSH', 'WAS'].includes(c)) return 'WAS';
+    if (['KAN', 'KC', 'KCC'].includes(c)) return 'KC';
+    if (['SFO', 'SF'].includes(c)) return 'SF';
+    if (['GNB', 'GB'].includes(c)) return 'GB';
+    if (['NWE', 'NE', 'NEP'].includes(c)) return 'NE';
+    if (['NOR', 'NO'].includes(c)) return 'NO';
+    if (['TAM', 'TB', 'TBB'].includes(c)) return 'TB';
+    if (['LVR', 'LV', 'RAI'].includes(c)) return 'LV';
+    if (['LAC', 'SD', 'SDG'].includes(c)) return 'LAC';
+    if (['LAR', 'LA', 'RAM', 'STL'].includes(c)) return 'LAR';
+    if (['JAX', 'JAC'].includes(c)) return 'JAX';
+    return c;
+  };
+
   const getTeamData = (teamId: string, currentWeek: number) => {
     const team = teams[teamId] || TEAMS_DB[teamId];
     const divisionTeams = Object.values(teams).filter((t: any) => t.division === team.division);
     
-    // Find next match
+    // Find next match for active week, fallback to upcoming
+    const normTeamId = normalizeTeamCode(teamId);
     const nextMatch = SCHEDULE_2027.find(m => 
-      m.week >= currentWeek && (m.homeTeamId === teamId || m.awayTeamId === teamId)
+      m.week === currentWeek && (normalizeTeamCode(m.homeTeamId) === normTeamId || normalizeTeamCode(m.awayTeamId) === normTeamId)
+    ) || SCHEDULE_2027.find(m => 
+      m.week >= currentWeek && (normalizeTeamCode(m.homeTeamId) === normTeamId || normalizeTeamCode(m.awayTeamId) === normTeamId)
     );
 
     let nextOpp: any = { name: 'BYE WEEK', code: 'BYE', record: '-', threat: 'NONE', winProb: 0, location: '-', date: '-', logo: '' };
     
     if (nextMatch) {
-      const oppId = nextMatch.homeTeamId === teamId ? nextMatch.awayTeamId : nextMatch.homeTeamId;
-      const opp = teams[oppId] || TEAMS_DB[oppId];
+      const oppId = normalizeTeamCode(nextMatch.homeTeamId) === normTeamId ? nextMatch.awayTeamId : nextMatch.homeTeamId;
+      const opp = teams[oppId] || TEAMS_DB[oppId] || { id: oppId, city: 'NFL', name: 'Opponent', record: '0-0', stats: { off: 80, def: 80 }, logo: '' };
       nextOpp = {
         name: `${opp.city} ${opp.name}`,
         code: opp.id,
-        record: opp.record,
-        threat: opp.stats.off > 85 ? 'EXTREME' : opp.stats.off > 78 ? 'HIGH' : 'MEDIUM',
-        winProb: Math.round(50 + (team.stats.off - opp.stats.def) / 2),
-        location: nextMatch.homeTeamId === teamId ? 'Home' : 'Away',
+        record: opp.record || '0-0',
+        threat: opp.stats?.off > 85 ? 'EXTREME' : opp.stats?.off > 78 ? 'HIGH' : 'MEDIUM',
+        winProb: Math.round(50 + ((team.stats?.off || 80) - (opp.stats?.def || 80)) / 2),
+        location: normalizeTeamCode(nextMatch.homeTeamId) === normTeamId ? 'Home' : 'Away',
         date: 'Sunday',
         logo: opp.logo
       };
@@ -56,8 +77,8 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase, curr
       nextOpp,
       standings: divisionTeams.map((t: any) => ({
         team: t.id,
-        w: parseInt(t.record.split('-')[0]),
-        l: parseInt(t.record.split('-')[1]),
+        w: parseInt(t.record ? t.record.split('-')[0] : '0') || 0,
+        l: parseInt(t.record ? t.record.split('-')[1] : '0') || 0,
         diff: '+0'
       })).sort((a, b) => b.w - a.w)
     };
@@ -197,13 +218,17 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase, curr
   // Helper for Weekly Preview Opponent Stars
   const getOpponentStars = () => {
     const oppCode = team.nextOpp.code;
-    const oppPool = allPlayers.filter(p => p.teamId === oppCode);
+    const normOppCode = normalizeTeamCode(oppCode);
+    const oppPool = allPlayers.filter(p => normalizeTeamCode(p.teamId) === normOppCode);
     
+    const offensePositions = [Position.QB, Position.RB, Position.WR, Position.TE, Position.OL, 'QB', 'RB', 'WR', 'TE', 'OL'];
+    const defensePositions = [Position.DL, Position.LB, Position.CB, Position.S, 'DL', 'LB', 'CB', 'S', 'EDGE', 'DE', 'DT', 'NT', 'MLB', 'OLB', 'ILB', 'CB', 'FS', 'SS', 'S'];
+
     let topOffense = oppPool
-      .filter(p => ['QB', 'RB', 'WR', 'TE', 'OL'].includes(p.position))
+      .filter(p => offensePositions.includes(p.position))
       .sort((a, b) => b.overall - a.overall)[0];
     let topDefense = oppPool
-      .filter(p => ['DL', 'LB', 'CB', 'S', 'EDGE'].includes(p.position))
+      .filter(p => defensePositions.includes(p.position))
       .sort((a, b) => b.overall - a.overall)[0];
 
     if (!topOffense && oppPool.length > 0) {
@@ -347,6 +372,142 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase, curr
   const primaryLeaderColor = 
     leaderboardCategory === 'passing' ? '#00d1ff' :
     leaderboardCategory === 'rushing' ? '#10b981' : '#f43f5e';
+
+  // Weekly Offensive and Defensive Efficiency Trends Engine
+  const weeklyEfficiencyData = useMemo(() => {
+    const normTeamId = normalizeTeamCode(selectedTeamId);
+    const baseOff = team.stats?.off || 82;
+    const baseDef = team.stats?.def || 80;
+    const maxWeeksToDisplay = Math.min(18, Math.max(currentWeek + 2, 9));
+    
+    const results = [];
+    for (let w = 1; w <= maxWeeksToDisplay; w++) {
+      // Find game in schedule
+      const match = SCHEDULE_2027.find(m => 
+        m.week === w && (normalizeTeamCode(m.homeTeamId) === normTeamId || normalizeTeamCode(m.awayTeamId) === normTeamId)
+      );
+
+      let oppCode = 'BYE';
+      let oppName = 'Bye Week';
+      let isHome = true;
+      let oppOff = 78;
+      let oppDef = 78;
+
+      if (match) {
+        const isHomeTeam = normalizeTeamCode(match.homeTeamId) === normTeamId;
+        isHome = isHomeTeam;
+        oppCode = isHomeTeam ? match.awayTeamId : match.homeTeamId;
+        const oppObj = teams[oppCode] || TEAMS_DB[oppCode] || { city: oppCode, name: 'Opponent', stats: { off: 80, def: 80 } };
+        oppName = `${oppObj.city || ''} ${oppObj.name || oppCode}`.trim();
+        oppOff = oppObj.stats?.off || 80;
+        oppDef = oppObj.stats?.def || 80;
+      }
+
+      // Seeded fluctuation for consistency across render cycles
+      const seed = Math.sin(w * 13.37 + selectedTeamId.charCodeAt(0) * 5.1);
+      const seed2 = Math.cos(w * 7.89 + (selectedTeamId.charCodeAt(1) || 65) * 3.7);
+
+      // Offense efficiency formula (Base + Matchup edge + Weekly execution swing)
+      const offMatchupDiff = (baseOff - oppDef) * 0.4;
+      const offSwing = seed * 4.5;
+      const offEfficiency = Math.min(98, Math.max(62, parseFloat((baseOff + offMatchupDiff + offSwing).toFixed(1))));
+
+      // Defense efficiency formula (Base + Matchup edge against opp offense + Weekly stop swing)
+      const defMatchupDiff = (baseDef - oppOff) * 0.4;
+      const defSwing = seed2 * 4.0;
+      const defEfficiency = Math.min(98, Math.max(60, parseFloat((baseDef + defMatchupDiff + defSwing).toFixed(1))));
+
+      // Net efficiency margin
+      const netMargin = parseFloat((offEfficiency - defEfficiency).toFixed(1));
+
+      // EPA per play index
+      const offEpa = parseFloat(((offEfficiency - 78) * 0.018).toFixed(2));
+      const defEpa = parseFloat(((78 - defEfficiency) * 0.018).toFixed(2));
+
+      // Result and status
+      const isPast = w < currentWeek;
+      const isCurrent = w === currentWeek;
+      const status = isPast ? 'COMPLETED' : isCurrent ? 'CURRENT_WEEK' : 'PROJECTED';
+      
+      let outcome = '-';
+      if (oppCode === 'BYE') {
+        outcome = 'BYE';
+      } else if (isPast) {
+        const teamScore = Math.round(17 + (offEfficiency - 60) * 0.45);
+        const oppScore = Math.round(17 + (95 - defEfficiency) * 0.45);
+        outcome = teamScore >= oppScore ? `W ${teamScore}-${oppScore}` : `L ${teamScore}-${oppScore}`;
+      } else if (isCurrent) {
+        outcome = 'ACTIVE';
+      } else {
+        outcome = `PROJ: ${isHome ? 'vs' : '@'} ${oppCode}`;
+      }
+
+      results.push({
+        week: `W${w}`,
+        weekNum: w,
+        offEfficiency,
+        defEfficiency,
+        netMargin,
+        offEpa,
+        defEpa,
+        leagueAvg: 78.0,
+        opponent: oppCode,
+        oppName,
+        isHome,
+        status,
+        outcome,
+        label: `W${w}: ${oppCode}`
+      });
+    }
+
+    return results;
+  }, [selectedTeamId, currentWeek, team.stats, teams]);
+
+  // Aggregate Key Performance Metrics for Weekly Efficiency
+  const efficiencyMetrics = useMemo(() => {
+    const completedOrActive = weeklyEfficiencyData.filter(d => d.weekNum <= currentWeek);
+    if (completedOrActive.length === 0) {
+      return {
+        avgOff: team.stats?.off || 82,
+        avgDef: team.stats?.def || 80,
+        netAvg: '+2.0',
+        peakWeek: 'W1',
+        peakScore: '85.0',
+        trendLabel: 'STABLE',
+        trendDelta: '+0.0%'
+      };
+    }
+
+    const avgOff = parseFloat((completedOrActive.reduce((sum, d) => sum + d.offEfficiency, 0) / completedOrActive.length).toFixed(1));
+    const avgDef = parseFloat((completedOrActive.reduce((sum, d) => sum + d.defEfficiency, 0) / completedOrActive.length).toFixed(1));
+    const netAvg = (avgOff - avgDef) >= 0 ? `+${(avgOff - avgDef).toFixed(1)}` : `${(avgOff - avgDef).toFixed(1)}`;
+
+    let peak = completedOrActive[0];
+    completedOrActive.forEach(d => {
+      if ((d.offEfficiency + d.defEfficiency) > (peak.offEfficiency + peak.defEfficiency)) {
+        peak = d;
+      }
+    });
+
+    const recent = completedOrActive.slice(-3);
+    const earlier = completedOrActive.slice(0, Math.max(1, completedOrActive.length - 3));
+    const recentAvg = recent.reduce((sum, d) => sum + d.offEfficiency, 0) / recent.length;
+    const earlierAvg = earlier.reduce((sum, d) => sum + d.offEfficiency, 0) / earlier.length;
+    const trendDiff = parseFloat((recentAvg - earlierAvg).toFixed(1));
+    const trendLabel = trendDiff > 1.5 ? 'SURGING' : trendDiff < -1.5 ? 'COOLING' : 'BALANCED';
+    const trendDelta = trendDiff >= 0 ? `+${trendDiff}%` : `${trendDiff}%`;
+
+    return {
+      avgOff,
+      avgDef,
+      netAvg,
+      peakWeek: peak.week,
+      peakOpponent: peak.opponent,
+      peakScore: `${peak.offEfficiency} OFF / ${peak.defEfficiency} DEF`,
+      trendLabel,
+      trendDelta
+    };
+  }, [weeklyEfficiencyData, currentWeek, team.stats]);
 
   // Pseudo-random headlines generator
   const getLeagueNews = () => {
@@ -871,6 +1032,334 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedTeamId, leaguePhase, curr
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
+      {/* Weekly Offensive and Defensive Efficiency Trends (Recharts Visualization) */}
+      <div className="bg-[#0a0e14] border border-[#1a222e] p-6 mb-6 shadow-2xl relative overflow-hidden">
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center pb-4 mb-6 border-b border-[#1a222e] gap-4">
+          <div>
+            <div className="flex items-center gap-2.5">
+              <h3 className="text-lg font-bold text-white header-font tracking-tight uppercase italic flex items-center gap-2">
+                <BarChart3 className="text-cyan-400" size={20} />
+                WEEKLY_EFFICIENCY_TRENDS // TACTICAL_ANALYTICS
+              </h3>
+              <span className="text-[9px] px-2 py-0.5 bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 font-mono font-bold uppercase tracking-wider">
+                RECHARTS_ENGINE
+              </span>
+            </div>
+            <p className="text-[9px] text-slate-500 font-mono uppercase tracking-widest mt-0.5">
+              Tracking season-long weekly offensive firepower, defensive stop index, and net efficiency differentials.
+            </p>
+          </div>
+
+          {/* Visualization Mode Switcher */}
+          <div className="flex bg-[#05070a] border border-[#1a222e] p-1">
+            <button
+              onClick={() => setEfficiencyViewMode('dual_line')}
+              className={`px-3.5 py-1.5 text-[9px] font-bold font-mono uppercase tracking-wider transition-all flex items-center gap-1.5 ${
+                efficiencyViewMode === 'dual_line' ? 'bg-cyan-500 text-black' : 'text-slate-500 hover:text-white'
+              }`}
+            >
+              <LineChartIcon size={12} />
+              DUAL CURVES
+            </button>
+            <button
+              onClick={() => setEfficiencyViewMode('area_spread')}
+              className={`px-3.5 py-1.5 text-[9px] font-bold font-mono uppercase tracking-wider transition-all flex items-center gap-1.5 ${
+                efficiencyViewMode === 'area_spread' ? 'bg-emerald-500 text-black' : 'text-slate-500 hover:text-white'
+              }`}
+            >
+              <Activity size={12} />
+              EFFICIENCY SPREAD
+            </button>
+            <button
+              onClick={() => setEfficiencyViewMode('net_margin')}
+              className={`px-3.5 py-1.5 text-[9px] font-bold font-mono uppercase tracking-wider transition-all flex items-center gap-1.5 ${
+                efficiencyViewMode === 'net_margin' ? 'bg-amber-500 text-black' : 'text-slate-500 hover:text-white'
+              }`}
+            >
+              <TrendingUp size={12} />
+              NET MARGIN (+/-)
+            </button>
+          </div>
+        </div>
+
+        {/* Efficiency KPI Summary Badges */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
+          <div className="bg-[#05070a] border border-[#1a222e] p-3.5">
+            <div className="text-[9px] font-mono text-slate-500 uppercase tracking-widest mb-1 flex items-center justify-between">
+              <span>AVG OFFENSE EFF</span>
+              <span className="text-cyan-400">●</span>
+            </div>
+            <div className="text-2xl font-mono font-bold text-cyan-400">{efficiencyMetrics.avgOff}</div>
+            <div className="text-[8px] font-mono text-slate-500 mt-1">League Benchmark: 78.0</div>
+          </div>
+
+          <div className="bg-[#05070a] border border-[#1a222e] p-3.5">
+            <div className="text-[9px] font-mono text-slate-500 uppercase tracking-widest mb-1 flex items-center justify-between">
+              <span>AVG DEFENSE EFF</span>
+              <span className="text-emerald-400">●</span>
+            </div>
+            <div className="text-2xl font-mono font-bold text-emerald-400">{efficiencyMetrics.avgDef}</div>
+            <div className="text-[8px] font-mono text-slate-500 mt-1">League Benchmark: 78.0</div>
+          </div>
+
+          <div className="bg-[#05070a] border border-[#1a222e] p-3.5">
+            <div className="text-[9px] font-mono text-slate-500 uppercase tracking-widest mb-1 flex items-center justify-between">
+              <span>NET EFF DIFFERENTIAL</span>
+              <span className="text-amber-400">●</span>
+            </div>
+            <div className={`text-2xl font-mono font-bold ${efficiencyMetrics.netAvg.startsWith('+') ? 'text-emerald-400' : 'text-rose-400'}`}>
+              {efficiencyMetrics.netAvg}
+            </div>
+            <div className="text-[8px] font-mono text-slate-500 mt-1">Net Scoring Advantage</div>
+          </div>
+
+          <div className="bg-[#05070a] border border-[#1a222e] p-3.5">
+            <div className="text-[9px] font-mono text-slate-500 uppercase tracking-widest mb-1">EFFICIENCY MOMENTUM</div>
+            <div className="text-lg font-mono font-bold text-white flex items-center gap-1">
+              {efficiencyMetrics.trendDelta.startsWith('+') ? (
+                <ArrowUpRight size={16} className="text-emerald-400" />
+              ) : (
+                <ArrowDownRight size={16} className="text-rose-400" />
+              )}
+              <span>{efficiencyMetrics.trendLabel}</span>
+            </div>
+            <div className="text-[8px] font-mono text-slate-400 mt-1">Recent 3-Week Form ({efficiencyMetrics.trendDelta})</div>
+          </div>
+
+          <div className="bg-[#05070a] border border-[#1a222e] p-3.5 col-span-2 sm:col-span-1">
+            <div className="text-[9px] font-mono text-slate-500 uppercase tracking-widest mb-1">PEAK PERFORMANCE</div>
+            <div className="text-sm font-mono font-bold text-white truncate">{efficiencyMetrics.peakWeek} vs {efficiencyMetrics.peakOpponent}</div>
+            <div className="text-[8px] font-mono text-cyan-400 mt-1">{efficiencyMetrics.peakScore}</div>
+          </div>
+        </div>
+
+        {/* Interactive Chart Container */}
+        <div className="h-72 w-full bg-[#05070a] border border-[#1a222e] p-4 relative">
+          <ResponsiveContainer width="100%" height="100%">
+            {efficiencyViewMode === 'dual_line' ? (
+              <LineChart data={weeklyEfficiencyData} margin={{ top: 15, right: 30, left: 0, bottom: 5 }}>
+                <CartesianGrid stroke="#151d2a" strokeDasharray="3 3" vertical={false} />
+                <XAxis 
+                  dataKey="week" 
+                  tick={{ fill: '#64748b', fontSize: 10, fontFamily: 'JetBrains Mono' }} 
+                  axisLine={{ stroke: '#1a222e' }} 
+                  tickLine={false} 
+                />
+                <YAxis 
+                  domain={[55, 100]} 
+                  tick={{ fill: '#64748b', fontSize: 10, fontFamily: 'JetBrains Mono' }} 
+                  axisLine={{ stroke: '#1a222e' }} 
+                  tickLine={false} 
+                />
+                <Tooltip 
+                  content={({ active, payload, label }) => {
+                    if (active && payload && payload.length) {
+                      const data = payload[0].payload;
+                      return (
+                        <div className="bg-[#0a0e14] border border-[#1a222e] p-3 shadow-2xl font-mono text-xs z-50 min-w-[200px]">
+                          <div className="flex justify-between items-center border-b border-[#1a222e] pb-1.5 mb-2">
+                            <span className="font-bold text-white">{data.week} // {data.opponent}</span>
+                            <span className="text-[9px] px-1.5 py-0.5 bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
+                              {data.outcome}
+                            </span>
+                          </div>
+                          <div className="space-y-1 text-[11px]">
+                            <div className="flex justify-between items-center text-cyan-400">
+                              <span>Offense Efficiency:</span>
+                              <span className="font-bold">{data.offEfficiency}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-emerald-400">
+                              <span>Defense Efficiency:</span>
+                              <span className="font-bold">{data.defEfficiency}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-amber-400 border-t border-[#1a222e]/60 pt-1 mt-1">
+                              <span>Net Margin:</span>
+                              <span className="font-bold">{data.netMargin > 0 ? `+${data.netMargin}` : data.netMargin}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-slate-500 text-[9px] pt-0.5">
+                              <span>Est. EPA/Play:</span>
+                              <span>{data.offEpa > 0 ? `+${data.offEpa}` : data.offEpa}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
+                />
+                <ReferenceLine y={78.0} stroke="#475569" strokeDasharray="4 4" label={{ value: 'LEAGUE AVG (78.0)', fill: '#64748b', fontSize: 9, fontFamily: 'JetBrains Mono', position: 'right' }} />
+                <Line 
+                  type="monotone" 
+                  dataKey="offEfficiency" 
+                  name="Offensive Efficiency" 
+                  stroke="#00d1ff" 
+                  strokeWidth={2.5} 
+                  dot={{ r: 4, fill: '#00d1ff', stroke: '#05070a', strokeWidth: 2 }} 
+                  activeDot={{ r: 6, fill: '#00d1ff', stroke: '#fff', strokeWidth: 2 }}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="defEfficiency" 
+                  name="Defensive Efficiency" 
+                  stroke="#10b981" 
+                  strokeWidth={2.5} 
+                  dot={{ r: 4, fill: '#10b981', stroke: '#05070a', strokeWidth: 2 }} 
+                  activeDot={{ r: 6, fill: '#10b981', stroke: '#fff', strokeWidth: 2 }}
+                />
+              </LineChart>
+            ) : efficiencyViewMode === 'area_spread' ? (
+              <AreaChart data={weeklyEfficiencyData} margin={{ top: 15, right: 30, left: 0, bottom: 5 }}>
+                <defs>
+                  <linearGradient id="offGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#00d1ff" stopOpacity={0.4}/>
+                    <stop offset="95%" stopColor="#00d1ff" stopOpacity={0.0}/>
+                  </linearGradient>
+                  <linearGradient id="defGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.4}/>
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0.0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid stroke="#151d2a" strokeDasharray="3 3" vertical={false} />
+                <XAxis 
+                  dataKey="week" 
+                  tick={{ fill: '#64748b', fontSize: 10, fontFamily: 'JetBrains Mono' }} 
+                  axisLine={{ stroke: '#1a222e' }} 
+                  tickLine={false} 
+                />
+                <YAxis 
+                  domain={[55, 100]} 
+                  tick={{ fill: '#64748b', fontSize: 10, fontFamily: 'JetBrains Mono' }} 
+                  axisLine={{ stroke: '#1a222e' }} 
+                  tickLine={false} 
+                />
+                <Tooltip 
+                  content={({ active, payload, label }) => {
+                    if (active && payload && payload.length) {
+                      const data = payload[0].payload;
+                      return (
+                        <div className="bg-[#0a0e14] border border-[#1a222e] p-3 shadow-2xl font-mono text-xs z-50 min-w-[200px]">
+                          <div className="flex justify-between items-center border-b border-[#1a222e] pb-1.5 mb-2">
+                            <span className="font-bold text-white">{data.week} // {data.opponent}</span>
+                            <span className="text-[9px] px-1.5 py-0.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+                              {data.outcome}
+                            </span>
+                          </div>
+                          <div className="space-y-1 text-[11px]">
+                            <div className="flex justify-between items-center text-cyan-400">
+                              <span>Offense Rating:</span>
+                              <span className="font-bold">{data.offEfficiency}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-emerald-400">
+                              <span>Defense Rating:</span>
+                              <span className="font-bold">{data.defEfficiency}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-amber-400 border-t border-[#1a222e]/60 pt-1 mt-1">
+                              <span>Efficiency Margin:</span>
+                              <span className="font-bold">{data.netMargin > 0 ? `+${data.netMargin}` : data.netMargin}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
+                />
+                <ReferenceLine y={78.0} stroke="#475569" strokeDasharray="4 4" />
+                <Area 
+                  type="monotone" 
+                  dataKey="offEfficiency" 
+                  stroke="#00d1ff" 
+                  strokeWidth={2}
+                  fillOpacity={1} 
+                  fill="url(#offGrad)" 
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="defEfficiency" 
+                  stroke="#10b981" 
+                  strokeWidth={2}
+                  fillOpacity={1} 
+                  fill="url(#defGrad)" 
+                />
+              </AreaChart>
+            ) : (
+              <BarChart data={weeklyEfficiencyData} margin={{ top: 15, right: 30, left: 0, bottom: 5 }}>
+                <CartesianGrid stroke="#151d2a" strokeDasharray="3 3" vertical={false} />
+                <XAxis 
+                  dataKey="week" 
+                  tick={{ fill: '#64748b', fontSize: 10, fontFamily: 'JetBrains Mono' }} 
+                  axisLine={{ stroke: '#1a222e' }} 
+                  tickLine={false} 
+                />
+                <YAxis 
+                  domain={[-20, 20]} 
+                  tick={{ fill: '#64748b', fontSize: 10, fontFamily: 'JetBrains Mono' }} 
+                  axisLine={{ stroke: '#1a222e' }} 
+                  tickLine={false} 
+                />
+                <Tooltip 
+                  content={({ active, payload, label }) => {
+                    if (active && payload && payload.length) {
+                      const data = payload[0].payload;
+                      return (
+                        <div className="bg-[#0a0e14] border border-[#1a222e] p-3 shadow-2xl font-mono text-xs z-50 min-w-[200px]">
+                          <div className="flex justify-between items-center border-b border-[#1a222e] pb-1.5 mb-2">
+                            <span className="font-bold text-white">{data.week} vs {data.opponent}</span>
+                            <span className="text-[9px] px-1.5 py-0.5 bg-amber-500/10 border border-amber-500/30 text-amber-400">
+                              {data.outcome}
+                            </span>
+                          </div>
+                          <div className="space-y-1 text-[11px]">
+                            <div className="flex justify-between items-center text-amber-400">
+                              <span>Net Efficiency Differential:</span>
+                              <span className="font-bold">{data.netMargin > 0 ? `+${data.netMargin}` : data.netMargin}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-cyan-400 text-[10px]">
+                              <span>Offense Rating: {data.offEfficiency}</span>
+                              <span className="text-emerald-400">Defense Rating: {data.defEfficiency}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
+                />
+                <ReferenceLine y={0} stroke="#64748b" />
+                <Bar dataKey="netMargin" radius={[2, 2, 0, 0]}>
+                  {weeklyEfficiencyData.map((entry, index) => (
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={entry.netMargin >= 0 ? '#00d1ff' : '#f43f5e'} 
+                      fillOpacity={0.85} 
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            )}
+          </ResponsiveContainer>
+        </div>
+
+        {/* Bottom Legend & Mini Schedule Bar */}
+        <div className="mt-4 pt-3 border-t border-[#1a222e] flex flex-wrap justify-between items-center gap-3 font-mono text-[10px]">
+          <div className="flex items-center gap-5 text-slate-400">
+            <span className="flex items-center gap-2">
+              <span className="w-3 h-1 bg-[#00d1ff] inline-block"></span> OFFENSIVE EFFICIENCY (EPA/OUTPUT)
+            </span>
+            <span className="flex items-center gap-2">
+              <span className="w-3 h-1 bg-[#10b981] inline-block"></span> DEFENSIVE EFFICIENCY (STOPS/CONTAIN)
+            </span>
+            <span className="flex items-center gap-2">
+              <span className="w-3 h-0.5 border-b border-dashed border-[#64748b] inline-block"></span> LEAGUE AVERAGE (78.0)
+            </span>
+          </div>
+
+          <div className="text-slate-500">
+            CURRENT WEEK: <span className="text-cyan-400 font-bold">WEEK {currentWeek}</span> // REAL-TIME EFFICIENCY ENGINE
           </div>
         </div>
       </div>
