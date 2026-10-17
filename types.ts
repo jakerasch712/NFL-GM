@@ -547,18 +547,61 @@ export interface SidelineConferenceLog {
   composureDelta: number;
 }
 
+export interface PressConferenceAnswer {
+  text: string;
+  ownerDelta: number;
+  fanDelta: number;
+  lockerRoomDelta: number; // Morale delta for team
+  targetUnit?: 'ALL' | 'OFFENSE' | 'DEFENSE' | 'QB' | 'LINE';
+  headline: string;
+  sentiment?: 'Fiery' | 'Diplomatic' | 'Critical' | 'Confident' | 'Humble';
+  journalistReaction?: string;
+}
+
 export interface PressConferenceQuestion {
   id: string;
   reporter: string;
   outlet: string;
+  avatarColor?: string;
+  category?: 'GAME_OUTCOME' | 'PLAYER_CALLOUT' | 'TACTICAL_DECISION' | 'LOCKER_ROOM' | 'CONTROVERSY';
   question: string;
-  answers: {
-    text: string;
-    ownerDelta: number;
-    fanDelta: number;
-    lockerRoomDelta: number;
-    headline: string;
+  contextSnippet?: string;
+  answers: PressConferenceAnswer[];
+}
+
+export interface PressConferenceRecord {
+  id: string;
+  week: number;
+  date: string;
+  opponent: string;
+  resultTitle: string;
+  score: string;
+  headline: string;
+  overallGrade: 'A+' | 'A' | 'B' | 'C' | 'D' | 'F';
+  totalFanDelta: number;
+  totalMoraleDelta: number;
+  totalOwnerDelta: number;
+  transcript: {
+    question: string;
+    reporter: string;
+    outlet: string;
+    answerText: string;
+    sentiment?: string;
   }[];
+}
+
+export interface LastGameResult {
+  week: number;
+  opponentId: string;
+  opponentName: string;
+  userScore: number;
+  opponentScore: number;
+  userWon: boolean;
+  isHome: boolean;
+  gameNarrative: string;
+  topPerformerName?: string;
+  topPerformerStat?: string;
+  pressConferenceCompleted?: boolean;
 }
 
 export interface HeadCoachProfile {
@@ -568,7 +611,7 @@ export interface HeadCoachProfile {
   coachPoints: number; // Current CP to spend
   totalCpEarned: number;
   ownerApproval: number; // 0-100
-  fanApproval: number; // 0-100
+  fanApproval: number; // 0-100 (Fan Support Rating)
   jobSecurity: 'Iconic Legend' | 'Contract Extension' | 'Secure' | 'Warm Seat' | 'Hot Seat';
   unlockedSkillIds: string[];
   philosophy: CoachPhilosophy;
@@ -576,5 +619,7 @@ export interface HeadCoachProfile {
   opponentPrepScore: number; // 0 - 100%
   completedAgendaDays: number;
   gameplanKnowledge: number; // 0-100%
+  pressHistory?: PressConferenceRecord[];
+  lastPressConferenceWeek?: number;
 }
 

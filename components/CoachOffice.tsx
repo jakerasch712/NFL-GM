@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { HeadCoachProfile, CoachSkill, CoachSkillBranch, WeeklyAgendaActivity } from '../types';
+import { HeadCoachProfile, CoachSkill, CoachSkillBranch, WeeklyAgendaActivity, Player, LastGameResult } from '../types';
 import { HC09_COACH_SKILLS, DEFAULT_COACH_PHILOSOPHY } from '../data/hc09Data';
 import { TEAMS_DB } from '../constants';
+import { PressConferenceView } from './PressConferenceView';
 import { 
   Users, Zap, Target, TrendingUp, Clock, Flame, Award, Shield, Sparkles, 
   Eye, Radio, Activity, HeartHandshake, CheckCircle2, ShieldAlert, Crown, 
   Brain, Film, Sliders, Cpu, Play, Calendar, Check, AlertCircle, ArrowRight,
-  TrendingDown, ThumbsUp, RefreshCw, ChevronRight, Lock
+  TrendingDown, ThumbsUp, RefreshCw, ChevronRight, Lock, Mic, MessageSquare
 } from 'lucide-react';
 
 interface CoachOfficeProps {
@@ -14,7 +15,11 @@ interface CoachOfficeProps {
   teams: Record<string, any>;
   coachProfile: HeadCoachProfile;
   setCoachProfile: React.Dispatch<React.SetStateAction<HeadCoachProfile>>;
+  allPlayers: Player[];
+  setAllPlayers: React.Dispatch<React.SetStateAction<Player[]>>;
   currentWeek: number;
+  lastGameResult?: LastGameResult | null;
+  initialTab?: 'agenda' | 'skills' | 'press' | 'philosophy' | 'security';
   onLaunchGame: () => void;
 }
 
@@ -23,11 +28,15 @@ const CoachOffice: React.FC<CoachOfficeProps> = ({
   teams,
   coachProfile,
   setCoachProfile,
+  allPlayers,
+  setAllPlayers,
   currentWeek,
+  lastGameResult = null,
+  initialTab = 'agenda',
   onLaunchGame
 }) => {
   const team = teams[selectedTeamId] || TEAMS_DB[selectedTeamId];
-  const [activeTab, setActiveTab] = useState<'agenda' | 'skills' | 'philosophy' | 'security'>('agenda');
+  const [activeTab, setActiveTab] = useState<'agenda' | 'skills' | 'press' | 'philosophy' | 'security'>(initialTab);
   const [selectedBranch, setSelectedBranch] = useState<CoachSkillBranch>('Tactician');
   const [activeDayIdx, setActiveDayIdx] = useState<number>(0);
   const [feedbackNotice, setFeedbackNotice] = useState<string | null>(null);
@@ -216,6 +225,20 @@ const CoachOffice: React.FC<CoachOfficeProps> = ({
             >
               <Award size={13} />
               SKILL TREE ({coachProfile.unlockedSkillIds.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('press')}
+              className={`px-4 py-2 text-[10px] font-bold uppercase tracking-[0.2em] transition-all flex items-center gap-2 relative ${
+                activeTab === 'press'
+                  ? 'bg-purple-500 text-black shadow-[0_0_15px_rgba(168,85,247,0.4)]'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Mic size={13} />
+              PRESS CONFERENCE
+              {lastGameResult && !lastGameResult.pressConferenceCompleted && (
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+              )}
             </button>
             <button
               onClick={() => setActiveTab('philosophy')}
@@ -826,6 +849,23 @@ const CoachOffice: React.FC<CoachOfficeProps> = ({
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* TAB 3: PRESS CONFERENCE (Post-Game & Weekly Media Room) */}
+      {activeTab === 'press' && (
+        <div className="space-y-6">
+          <PressConferenceView
+            selectedTeamId={selectedTeamId}
+            teams={teams}
+            coachProfile={coachProfile}
+            setCoachProfile={setCoachProfile}
+            allPlayers={allPlayers}
+            setAllPlayers={setAllPlayers}
+            currentWeek={currentWeek}
+            lastGameResult={lastGameResult}
+            onFinished={() => setActiveTab('agenda')}
+          />
         </div>
       )}
 

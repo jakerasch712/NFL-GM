@@ -9,9 +9,9 @@ export const REAL_NFL_PLAYERS: Player[] = [
     teamId: 'NYJ'
   },
   {
-    id: 'nyj_2', name: 'Justin Fields', position: Position.QB, age: 26, overall: 78, schemeOvr: 81, morale: 85, fatigue: 100, archetype: 'Scrambler', personality: 'Normal', scheme: 'Spread', developmentTrait: 'Star', potential: 'Superstar',
-    stats: { gamesPlayed: 6, yards: 850, touchdowns: 6 },
-    contract: { years: 2, salary: 6, bonus: 2, guaranteed: 8, yearsLeft: 1, totalValue: 12, capHit: 6, deadCap: 2, voidYears: 0, startYear: 2025, totalLength: 2 },
+    id: 'nyj_2', name: 'Tyrod Taylor', position: Position.QB, age: 35, overall: 76, schemeOvr: 77, morale: 84, fatigue: 96, archetype: 'Scrambler', personality: 'Workhorse', scheme: 'West Coast', developmentTrait: 'Normal', potential: 'Normal',
+    stats: { gamesPlayed: 6, yards: 680, touchdowns: 5 },
+    contract: { years: 2, salary: 6, bonus: 3, guaranteed: 8.5, yearsLeft: 1, totalValue: 12, capHit: 6, deadCap: 2, voidYears: 0, startYear: 2024, totalLength: 2 },
     teamId: 'NYJ'
   },
   {
@@ -24,6 +24,12 @@ export const REAL_NFL_PLAYERS: Player[] = [
     id: 'nyj_4', name: 'Garrett Wilson', position: Position.WR, age: 25, overall: 90, schemeOvr: 92, morale: 91, fatigue: 94, archetype: 'Route Technician', personality: 'Leader', scheme: 'West Coast', developmentTrait: 'Superstar', potential: 'X-Factor',
     stats: { gamesPlayed: 17, yards: 1240, touchdowns: 8 },
     contract: { years: 4, salary: 5.1, bonus: 8, guaranteed: 15, yearsLeft: 1, totalValue: 20.5, capHit: 5.1, deadCap: 2, voidYears: 0, startYear: 2022, totalLength: 4 },
+    teamId: 'NYJ'
+  },
+  {
+    id: 'nyj_4b', name: 'Davante Adams', position: Position.WR, age: 32, overall: 93, schemeOvr: 94, morale: 92, fatigue: 90, archetype: 'Route Technician', personality: 'Leader', scheme: 'West Coast', developmentTrait: 'X-Factor', potential: 'X-Factor',
+    stats: { gamesPlayed: 16, yards: 1210, touchdowns: 9 },
+    contract: { years: 3, salary: 28, bonus: 20, guaranteed: 65, yearsLeft: 2, totalValue: 84, capHit: 28, deadCap: 18, voidYears: 0, startYear: 2024, totalLength: 3 },
     teamId: 'NYJ'
   },
   {
@@ -651,15 +657,75 @@ export const REAL_NFL_PLAYERS: Player[] = [
 
   // ==================== PITTSBURGH STEELERS (PIT) ====================
   {
+    id: 'pit_qb1', name: 'Russell Wilson', position: Position.QB, age: 36, overall: 82, schemeOvr: 83, morale: 87, fatigue: 91, archetype: 'Field General', personality: 'Leader', scheme: 'West Coast', developmentTrait: 'Star', potential: 'Star',
+    stats: { gamesPlayed: 11, yards: 2540, touchdowns: 18, rating: 95.8 },
+    contract: { years: 1, salary: 1.2, bonus: 0.5, guaranteed: 1.2, yearsLeft: 1, totalValue: 1.2, capHit: 1.2, deadCap: 0, voidYears: 0, startYear: 2024, totalLength: 1 },
+    teamId: 'PIT'
+  },
+  {
+    id: 'pit_qb2', name: 'Justin Fields', position: Position.QB, age: 26, overall: 81, schemeOvr: 84, morale: 88, fatigue: 98, archetype: 'Scrambler', personality: 'Workhorse', scheme: 'Spread', developmentTrait: 'Superstar', potential: 'Superstar',
+    stats: { gamesPlayed: 6, yards: 1106, touchdowns: 10, rating: 93.3 },
+    contract: { years: 1, salary: 3.2, bonus: 1.5, guaranteed: 3.2, yearsLeft: 1, totalValue: 3.2, capHit: 3.2, deadCap: 0, voidYears: 0, startYear: 2024, totalLength: 1 },
+    teamId: 'PIT'
+  },
+  {
+    id: 'pit_rb1', name: 'Najee Harris', position: Position.RB, age: 27, overall: 84, schemeOvr: 85, morale: 87, fatigue: 92, archetype: 'Power Back', personality: 'Workhorse', scheme: 'Power', developmentTrait: 'Star', potential: 'Star',
+    stats: { gamesPlayed: 17, yards: 1040, touchdowns: 7 },
+    contract: { years: 4, salary: 3.2, bonus: 7, guaranteed: 13, yearsLeft: 1, totalValue: 13, capHit: 3.2, deadCap: 1.5, voidYears: 0, startYear: 2021, totalLength: 4 },
+    teamId: 'PIT'
+  },
+  {
+    id: 'pit_wr1', name: 'George Pickens', position: Position.WR, age: 24, overall: 87, schemeOvr: 89, morale: 86, fatigue: 95, archetype: 'Deep Threat', personality: 'The Diva', scheme: 'Vertical', developmentTrait: 'Superstar', potential: 'X-Factor',
+    stats: { gamesPlayed: 17, yards: 1140, touchdowns: 6 },
+    contract: { years: 4, salary: 1.7, bonus: 2.2, guaranteed: 3.5, yearsLeft: 1, totalValue: 6.7, capHit: 1.7, deadCap: 0.5, voidYears: 0, startYear: 2022, totalLength: 4 },
+    teamId: 'PIT'
+  },
+  {
+    id: 'pit_te1', name: 'Pat Freiermuth', position: Position.TE, age: 26, overall: 83, schemeOvr: 84, morale: 89, fatigue: 93, archetype: 'Possession', personality: 'Leader', scheme: 'West Coast', developmentTrait: 'Star', potential: 'Star',
+    stats: { gamesPlayed: 16, yards: 650, touchdowns: 6 },
+    contract: { years: 4, salary: 12.1, bonus: 10.5, guaranteed: 23, yearsLeft: 4, totalValue: 48.4, capHit: 12.1, deadCap: 15, voidYears: 0, startYear: 2024, totalLength: 4 },
+    teamId: 'PIT'
+  },
+  {
+    id: 'pit_ol1', name: 'Broderick Jones', position: Position.OL, age: 24, overall: 80, schemeOvr: 81, morale: 85, fatigue: 94, archetype: 'Mauler', personality: 'Normal', scheme: 'Power', developmentTrait: 'Star', potential: 'Superstar',
+    stats: { gamesPlayed: 17, sacks: 3 },
+    contract: { years: 4, salary: 4.1, bonus: 9, guaranteed: 16.6, yearsLeft: 2, totalValue: 16.6, capHit: 4.1, deadCap: 8, voidYears: 0, startYear: 2023, totalLength: 4 },
+    teamId: 'PIT'
+  },
+  {
+    id: 'pit_dl1', name: 'Cameron Heyward', position: Position.DL, age: 36, overall: 90, schemeOvr: 91, morale: 94, fatigue: 87, archetype: 'Power Rusher', personality: 'Leader', scheme: '3-4 Defense', developmentTrait: 'Superstar', potential: 'X-Factor',
+    stats: { gamesPlayed: 16, tackles: 48, sacks: 8.0 },
+    contract: { years: 3, salary: 14.5, bonus: 16, guaranteed: 29, yearsLeft: 2, totalValue: 45, capHit: 14.5, deadCap: 12, voidYears: 0, startYear: 2024, totalLength: 3 },
+    teamId: 'PIT'
+  },
+  {
     id: 'pit_1', name: 'T.J. Watt', position: Position.LB, age: 30, overall: 97, schemeOvr: 98, morale: 96, fatigue: 91, archetype: 'Speed Rusher', personality: 'Leader', scheme: 'Base 3-4', developmentTrait: 'X-Factor', potential: 'X-Factor',
     stats: { gamesPlayed: 17, tackles: 62, sacks: 16.5 },
     contract: { years: 4, salary: 28, bonus: 35, guaranteed: 80, yearsLeft: 1, totalValue: 112, capHit: 28, deadCap: 15, voidYears: 0, startYear: 2021, totalLength: 4 },
     teamId: 'PIT'
   },
   {
+    id: 'pit_lb2', name: 'Patrick Queen', position: Position.LB, age: 26, overall: 84, schemeOvr: 85, morale: 88, fatigue: 94, archetype: 'Coverage Linebacker', personality: 'Leader', scheme: 'Base 3-4', developmentTrait: 'Star', potential: 'Star',
+    stats: { gamesPlayed: 17, tackles: 120, sacks: 3.5 },
+    contract: { years: 3, salary: 13.6, bonus: 11.5, guaranteed: 20, yearsLeft: 2, totalValue: 41, capHit: 13.6, deadCap: 8, voidYears: 0, startYear: 2024, totalLength: 3 },
+    teamId: 'PIT'
+  },
+  {
+    id: 'pit_cb1', name: 'Joey Porter Jr.', position: Position.CB, age: 25, overall: 85, schemeOvr: 87, morale: 90, fatigue: 95, archetype: 'Lockdown Corner', personality: 'Leader', scheme: 'Press Man', developmentTrait: 'Superstar', potential: 'Superstar',
+    stats: { gamesPlayed: 17, tackles: 52, interceptions: 3 },
+    contract: { years: 4, salary: 2.4, bonus: 4, guaranteed: 9.6, yearsLeft: 2, totalValue: 9.6, capHit: 2.4, deadCap: 3, voidYears: 0, startYear: 2023, totalLength: 4 },
+    teamId: 'PIT'
+  },
+  {
     id: 'pit_2', name: 'Minkah Fitzpatrick', position: Position.S, age: 28, overall: 93, schemeOvr: 95, morale: 94, fatigue: 93, archetype: 'Zone Safety', personality: 'Leader', scheme: 'Cover 3', developmentTrait: 'X-Factor', potential: 'X-Factor',
     stats: { gamesPlayed: 17, tackles: 88, interceptions: 4 },
     contract: { years: 4, salary: 18.4, bonus: 17.5, guaranteed: 36, yearsLeft: 2, totalValue: 73.6, capHit: 18.4, deadCap: 10, voidYears: 0, startYear: 2022, totalLength: 4 },
+    teamId: 'PIT'
+  },
+  {
+    id: 'pit_k1', name: 'Chris Boswell', position: Position.K, age: 34, overall: 92, schemeOvr: 92, morale: 95, fatigue: 92, archetype: 'Accurate', personality: 'Leader', scheme: 'Balanced', developmentTrait: 'Star', potential: 'Star',
+    stats: { gamesPlayed: 17 },
+    contract: { years: 4, salary: 5, bonus: 8, guaranteed: 12.5, yearsLeft: 2, totalValue: 20, capHit: 5, deadCap: 3, voidYears: 0, startYear: 2022, totalLength: 4 },
     teamId: 'PIT'
   },
 

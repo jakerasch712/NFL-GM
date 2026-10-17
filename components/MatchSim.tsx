@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { OFFENSIVE_PLAYS, TEAMS_DB, MOCK_PLAYERS } from '../constants';
 import { SCHEDULE_2027 } from '../schedule';
-import { Play, GameEvent, Player, Position, AppView, HighlightPackage, HeadCoachProfile, PlayerComposureLevel, SidelineReactionType, SidelineConferenceLog } from '../types';
+import { Play, GameEvent, Player, Position, AppView, HighlightPackage, HeadCoachProfile, PlayerComposureLevel, SidelineReactionType, SidelineConferenceLog, LastGameResult } from '../types';
 import { POST_GAME_PRESS_QUESTIONS } from '../data/hc09Data';
 import { Play as PlayIcon, Clock, ShieldAlert, Wind, ChevronUp, CloudRain, Sun, Zap, Activity, Trophy, BarChart2, Award, ListFilter, RotateCcw, Video, Film, Sparkles, Radio, Tv, Maximize2, RefreshCw, Thermometer, CloudSnow, Shield, Flag, MessageSquare, Headphones, Flame, AlertOctagon, CheckCircle2, UserCheck, HelpCircle, Brain } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -86,6 +86,8 @@ interface MatchSimProps {
   setView: (view: AppView) => void;
   coachProfile?: HeadCoachProfile;
   setCoachProfile?: React.Dispatch<React.SetStateAction<HeadCoachProfile>>;
+  onCompleteGame?: (result: LastGameResult) => void;
+  onGoToPressConference?: (result: LastGameResult) => void;
 }
 
 interface ScoringEvent {
@@ -117,7 +119,19 @@ const normalizeTeamCode = (code: string) => {
   return c;
 };
 
-const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, currentWeek = 1, allPlayers, setAllPlayers, teams, setTeams, setView, coachProfile, setCoachProfile }) => {
+const MatchSim: React.FC<MatchSimProps> = ({ 
+  selectedTeamId, 
+  currentWeek = 1, 
+  allPlayers, 
+  setAllPlayers, 
+  teams, 
+  setTeams, 
+  setView, 
+  coachProfile, 
+  setCoachProfile,
+  onCompleteGame,
+  onGoToPressConference
+}) => {
   const [opponentTeamId, setOpponentTeamId] = useState<string>('');
   const [isGameOver, setIsGameOver] = useState(false);
   const [scoringSummary, setScoringSummary] = useState<ScoringEvent[]>([]);
@@ -733,7 +747,26 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, currentWeek = 1, al
       }));
     }
 
-    // 4. Relocate to HQ Dashboard
+    // 4. Record game result for post-game press conferences in Coach Office
+    if (onCompleteGame) {
+      const isWin = gameState.homeScore > gameState.awayScore;
+      const oppTeam = teams[opponentTeamId] || TEAMS_DB[opponentTeamId] || { name: 'Opponent', city: 'AFC' };
+      onCompleteGame({
+        week: currentWeek,
+        opponentId: opponentTeamId,
+        opponentName: `${oppTeam.city} ${oppTeam.name}`,
+        userScore: gameState.homeScore,
+        opponentScore: gameState.awayScore,
+        userWon: isWin,
+        isHome: true,
+        gameNarrative: isWin 
+          ? `Resolute ${gameState.homeScore}-${gameState.awayScore} victory over ${oppTeam.city} ${oppTeam.name}.`
+          : `Disappointing ${gameState.awayScore}-${gameState.homeScore} defeat against ${oppTeam.city} ${oppTeam.name}.`,
+        pressConferenceCompleted: false
+      });
+    }
+
+    // 5. Relocate to HQ Dashboard
     setView(AppView.DASHBOARD);
   };
 
@@ -1278,7 +1311,28 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, currentWeek = 1, al
                   </div>
                   <div className="flex items-center gap-3">
                     <button
-                      onClick={() => setShowPressConference(true)}
+                      onClick={() => {
+                        const isWin = gameState.homeScore > gameState.awayScore;
+                        const oppTeam = teams[opponentTeamId] || TEAMS_DB[opponentTeamId] || { name: 'Opponent', city: 'AFC' };
+                        const gameResult: LastGameResult = {
+                          week: currentWeek,
+                          opponentId: opponentTeamId,
+                          opponentName: `${oppTeam.city} ${oppTeam.name}`,
+                          userScore: gameState.homeScore,
+                          opponentScore: gameState.awayScore,
+                          userWon: isWin,
+                          isHome: true,
+                          gameNarrative: isWin 
+                            ? `Resolute ${gameState.homeScore}-${gameState.awayScore} victory over ${oppTeam.city} ${oppTeam.name}.`
+                            : `Disappointing ${gameState.awayScore}-${gameState.homeScore} defeat against ${oppTeam.city} ${oppTeam.name}.`,
+                          pressConferenceCompleted: false
+                        };
+                        if (onGoToPressConference) {
+                          onGoToPressConference(gameResult);
+                        } else {
+                          setShowPressConference(true);
+                        }
+                      }}
                       className="bg-purple-600 hover:bg-purple-500 text-white font-bold uppercase tracking-[0.2em] text-[10px] px-6 py-3.5 border border-purple-400 flex items-center gap-2 transition-all font-mono shadow-[0_0_15px_rgba(168,85,247,0.4)]"
                     >
                       <MessageSquare size={14} />
@@ -1642,6 +1696,16 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, currentWeek = 1, al
                                     totalCpEarned: prev.totalCpEarned + 100,
                                     ownerApproval: Math.min(100, Math.max(0, prev.ownerApproval + answer.ownerDelta)),
                                     fanApproval: Math.min(100, Math.max(0, prev.fanApproval + answer.fanDelta))
+                                  }));
+                                }
+                                if (setAllPlayers) {
+                                  setAllPlayers(prev => prev.map(p => {
+                                    if (p.teamId !== selectedTeamId) return p;
+                                    const delta = answer.lockerRoomDelta;
+                                    return {
+                                      ...p,
+                                      morale: Math.min(100, Math.max(20, p.morale + delta))
+                                    };
                                   }));
                                 }
                               }}

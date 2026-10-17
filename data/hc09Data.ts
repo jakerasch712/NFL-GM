@@ -1,4 +1,4 @@
-import { CoachSkill, CoachPhilosophy, WeeklyAgendaActivity, HeadCoachProfile, PressConferenceQuestion } from '../types';
+import { CoachSkill, CoachPhilosophy, WeeklyAgendaActivity, HeadCoachProfile, PressConferenceQuestion, LastGameResult } from '../types';
 
 export const HC09_COACH_SKILLS: CoachSkill[] = [
   // TACTICIAN BRANCH
@@ -476,61 +476,276 @@ export const INITIAL_HEAD_COACH_PROFILE: HeadCoachProfile = {
 
 export const POST_GAME_PRESS_QUESTIONS: PressConferenceQuestion[] = [
   {
-    id: 'pq_1',
+    id: 'pq_win_dominant',
     reporter: 'Adam Schefter',
     outlet: 'ESPN',
-    question: 'Coach, your gameplan seemed heavily focused on establishing the ground game early. How did you assess your offensive line\'s physical push at the line of scrimmage?',
+    avatarColor: 'text-red-400',
+    category: 'GAME_OUTCOME',
+    question: 'Coach, your team dictated every phase of the football game today from opening kickoff to the final whistle. What does this statement victory prove to the rest of the league?',
     answers: [
       {
-        text: 'Our big men up front set the tone. We punched them in the mouth and proved we can dictate the trenches when it counts.',
-        ownerDelta: 3,
-        fanDelta: 5,
-        lockerRoomDelta: 6,
-        headline: 'HEAD COACH PRAISES TRENCH WARFARE: "WE DICTATED THE LINE"'
-      },
-      {
-        text: 'We took what the defense gave us. Our offensive coordinator dialed up the right looks and the players executed the scheme.',
+        text: 'This is the standard we set in practice every Wednesday and Thursday. We punched them in the mouth and proved our brand of football wins in December.',
         ownerDelta: 4,
-        fanDelta: 2,
-        lockerRoomDelta: 3,
-        headline: 'METHODICAL GAMEPLAN DELIVERS: COACH CREDITS COORDINATORS'
+        fanDelta: 8,
+        lockerRoomDelta: 7,
+        targetUnit: 'ALL',
+        sentiment: 'Fiery',
+        headline: 'COACH DECLARES DOMINANCE: "THIS IS OUR STANDARD"',
+        journalistReaction: 'Schefter noted the supreme confidence emanating from the podium.'
       },
       {
-        text: 'We still left too many yards on the field. Good is the enemy of great, and we expect higher execution next week.',
-        ownerDelta: 2,
-        fanDelta: -1,
-        lockerRoomDelta: -2,
-        headline: 'NEVER SATISFIED: COACH DEMANDS PERFECTION FROM ROSTER'
+        text: 'Credit goes to the 53 men in that locker room. They executed the gameplan with discipline, won the turnover battle, and played complementary football.',
+        ownerDelta: 5,
+        fanDelta: 5,
+        lockerRoomDelta: 9,
+        targetUnit: 'ALL',
+        sentiment: 'Humble',
+        headline: 'TEAM-FIRST CULTURE: HC DEFLECTS GLORY TO 53-MAN ROSTER',
+        journalistReaction: 'Locker room leaders were quick to applaud the coach’s unselfish remarks.'
+      },
+      {
+        text: 'It was a solid win, but we still left points on the board. We celebrate until midnight, but on Monday morning we have plenty of film corrections.',
+        ownerDelta: 3,
+        fanDelta: 2,
+        lockerRoomDelta: -1,
+        targetUnit: 'OFFENSE',
+        sentiment: 'Critical',
+        headline: 'NEVER SATISFIED: HC DEMANDS PERFECTION DESPITE BLOWOUT WIN',
+        journalistReaction: 'Some players were surprised by the tough critique after such a big victory.'
       }
     ]
   },
   {
-    id: 'pq_2',
+    id: 'pq_loss_heartbreaker',
     reporter: 'Ian Rapoport',
     outlet: 'NFL Network',
-    question: 'In the fourth quarter, you made several aggressive tactical calls in high-leverage situations. Did you ever consider playing it more conservatively?',
+    avatarColor: 'text-blue-400',
+    category: 'GAME_OUTCOME',
+    question: 'Coach, coming down to the final possession and falling just short in a one-score contest is agonizing. What message did you deliver to the locker room after that tough finish?',
     answers: [
       {
-        text: 'I coach to win, not to avoid losing. I believe in our players to make winning plays on 4th down and in the clutch.',
+        text: 'Put this loss squarely on my shoulders. I did not put our guys in the best tactical position to close it out down the stretch. We will fix it.',
         ownerDelta: 2,
-        fanDelta: 7,
-        lockerRoomDelta: 8,
-        headline: 'FEARLESS ON 4TH DOWN: COACH PUTS FULL FAITH IN PLAYERS'
+        fanDelta: 6,
+        lockerRoomDelta: 10,
+        targetUnit: 'ALL',
+        sentiment: 'Accountable' as any,
+        headline: 'COACH TAKES FULL BLAME FOR HEARTBREAKER: "PUT IT ON ME"',
+        journalistReaction: 'Players in the locker room voiced deep loyalty for the coach taking the heat.'
       },
       {
-        text: 'The analytics supported every single decision. Our math models indicated that aggression was the highest-probability path.',
-        ownerDelta: 5,
-        fanDelta: 1,
-        lockerRoomDelta: 2,
-        headline: 'ANALYTICS-DRIVEN TRIUMPH: FRONT OFFICE APPLAUDS HC METRICS'
-      },
-      {
-        text: 'It was a collective staff call. We saw a tell in their defensive front and we attacked their vulnerability.',
+        text: 'Tough pill to swallow, but games like this forge championship character. We took their best shot and we will respond with fury next week.',
         ownerDelta: 3,
+        fanDelta: 5,
+        lockerRoomDelta: 6,
+        targetUnit: 'ALL',
+        sentiment: 'Confident',
+        headline: 'RESILIENCE OVER DEFEAT: COACH PROMISES FIERY REBOUND',
+        journalistReaction: 'Fans expressed optimism on social media despite the setback.'
+      },
+      {
+        text: 'You cannot commit critical penalties and turn the ball over against a quality opponent and expect to survive. Fundamental discipline was simply not there.',
+        ownerDelta: -1,
+        fanDelta: -3,
+        lockerRoomDelta: -6,
+        targetUnit: 'ALL',
+        sentiment: 'Critical',
+        headline: 'COACH SCATHES DISCIPLINE: "UNACCEPTABLE MISTAKES COST US"',
+        journalistReaction: 'Tension was noticeable among veteran leaders during post-game interviews.'
+      }
+    ]
+  },
+  {
+    id: 'pq_qb_play',
+    reporter: 'Albert Breer',
+    outlet: 'Sports Illustrated',
+    avatarColor: 'text-amber-400',
+    category: 'PLAYER_CALLOUT',
+    question: 'How would you evaluate your quarterback’s command of the offense and decision-making against the heavy defensive pressure today?',
+    answers: [
+      {
+        text: 'Our quarterback was a field general out there. Standing tall in the pocket, reading the secondary, and making clutch throws with free rushers in his face.',
+        ownerDelta: 3,
+        fanDelta: 6,
+        lockerRoomDelta: 8,
+        targetUnit: 'QB',
+        sentiment: 'Confident',
+        headline: 'CLUTCH FIELD GENERAL: COACH HEAPS PRAISE ON STARTING QB',
+        journalistReaction: 'The quarterback expressed deep appreciation for the coach’s public backing.'
+      },
+      {
+        text: 'It is a collaborative effort. The offensive line provided clean pockets, the receivers won contested catches, and that made the QB’s job manageable.',
+        ownerDelta: 4,
         fanDelta: 3,
+        lockerRoomDelta: 6,
+        targetUnit: 'OFFENSE',
+        sentiment: 'Diplomatic',
+        headline: 'OFFENSIVE HARMONY: COACH CREDITS PASS PROTECTION UNIT',
+        journalistReaction: 'The offensive line unit gained significant confidence from the mention.'
+      },
+      {
+        text: 'He knows he has to protect the football better. Holding the ball too long and taking bad sacks stalls drives. We need faster progression reads.',
+        ownerDelta: 1,
+        fanDelta: -2,
+        lockerRoomDelta: -5,
+        targetUnit: 'QB',
+        sentiment: 'Critical',
+        headline: 'QB ON NOTICE: HC CHALLENGES PASSER TO PROTECT THE FOOTBALL',
+        journalistReaction: 'Media beat writers speculated on potential quarterback friction.'
+      }
+    ]
+  },
+  {
+    id: 'pq_fourth_down',
+    reporter: 'Dianna Russini',
+    outlet: 'The Athletic',
+    avatarColor: 'text-emerald-400',
+    category: 'TACTICAL_DECISION',
+    question: 'You made a bold decision to keep the offense on the field on 4th down in your own territory. Walk us through the calculus behind that aggressive gamble.',
+    answers: [
+      {
+        text: 'I coach to win championships, not to play it safe. I have unconditional faith in our offense to pick up two yards against anyone in football.',
+        ownerDelta: 2,
+        fanDelta: 9,
+        lockerRoomDelta: 8,
+        targetUnit: 'OFFENSE',
+        sentiment: 'Fiery',
+        headline: 'GUTS OVER CONSERVATISM: HC GOES ALL-IN ON 4TH DOWN',
+        journalistReaction: 'Fan forums erupted in praise for the coach’s fearless fourth down swagger.'
+      },
+      {
+        text: 'The analytics department flagged that look before the game. The math gave us a 74% win probability by converting versus punting.',
+        ownerDelta: 6,
+        fanDelta: 2,
+        lockerRoomDelta: 3,
+        targetUnit: 'ALL',
+        sentiment: 'Diplomatic',
+        headline: 'NUMBERS GAME: FRONT OFFICE LAUDS ANALYTICS-FIRST DECISION',
+        journalistReaction: 'The front office was ecstatic to see data models utilized successfully.'
+      },
+      {
+        text: 'Looking back on the film, maybe we take the points or pin them deep next time. You learn and adapt as a coaching staff.',
+        ownerDelta: -2,
+        fanDelta: -4,
+        lockerRoomDelta: -3,
+        targetUnit: 'ALL',
+        sentiment: 'Humble',
+        headline: 'SECOND-GUESSING? COACH ADMITS RISK WAS QUESTIONABLE',
+        journalistReaction: 'Pundits questioned whether the coach is wavering under game pressure.'
+      }
+    ]
+  },
+  {
+    id: 'pq_defense_effort',
+    reporter: 'Peter Schrager',
+    outlet: 'Good Morning Football',
+    avatarColor: 'text-purple-400',
+    category: 'PLAYER_CALLOUT',
+    question: 'Your defense flew around with ferocious intensity today, generating punishing hits and key stops. What unlocked that defensive swagger?',
+    answers: [
+      {
+        text: 'Our defensive coordinator dialed up an absolute masterclass, and our front seven hunted in packs. We brought pure violence to the football.',
+        ownerDelta: 4,
+        fanDelta: 8,
+        lockerRoomDelta: 8,
+        targetUnit: 'DEFENSE',
+        sentiment: 'Fiery',
+        headline: 'HUNTING IN PACKS: HC LAUDS SAVAGE DEFENSIVE FRONT',
+        journalistReaction: 'Defensive players were seen celebrating the quote in the locker room.'
+      },
+      {
+        text: 'Disciplined gap integrity and communication. We didn’t give up explosive plays and forced them to drive the length of the field.',
+        ownerDelta: 4,
+        fanDelta: 4,
+        lockerRoomDelta: 5,
+        targetUnit: 'DEFENSE',
+        sentiment: 'Diplomatic',
+        headline: 'DISCIPLINE WINS: COACH DETAILS DEFENSIVE CLINIC',
+        journalistReaction: 'Analysts highlighted the coaching staff’s schematic preparation.'
+      },
+      {
+        text: 'We still missed too many tackles in space. If we want to compete for a Lombardi Trophy, our pursuit angles must improve.',
+        ownerDelta: 1,
+        fanDelta: 0,
+        lockerRoomDelta: -3,
+        targetUnit: 'DEFENSE',
+        sentiment: 'Critical',
+        headline: 'HIGH BAR: COACH CALLS OUT DEFENSIVE TACKLING IN SPACE',
+        journalistReaction: 'Defensive captains vowed to hold intense practice sessions next week.'
+      }
+    ]
+  },
+  {
+    id: 'pq_fan_support',
+    reporter: 'Mike Florio',
+    outlet: 'Pro Football Talk',
+    avatarColor: 'text-cyan-400',
+    category: 'CONTROVERSY',
+    question: 'The home crowd was electric today, but fan expectations around this city are at an all-time high. How do you handle the immense pressure from the fanbase?',
+    answers: [
+      {
+        text: 'We love this fanbase and feed off their passion! The energy in that stadium gives us an undeniable home-field advantage. We play for them!',
+        ownerDelta: 3,
+        fanDelta: 10,
+        lockerRoomDelta: 5,
+        targetUnit: 'ALL',
+        sentiment: 'Confident',
+        headline: 'CITY UNITED: HEAD COACH SALUTES ELECTRIC FAN BASE',
+        journalistReaction: 'Season ticket holders and local supporters embraced the love letter.'
+      },
+      {
+        text: 'Pressure is a privilege in the National Football League. If you can’t handle high expectations in this city, you shouldn’t wear this logo.',
+        ownerDelta: 5,
+        fanDelta: 7,
+        lockerRoomDelta: 7,
+        targetUnit: 'ALL',
+        sentiment: 'Fiery',
+        headline: 'PRESSURE IS A PRIVILEGE: HC EMBRACES CHAMPIONSHIP GOALS',
+        journalistReaction: 'National television pundits praised the fearless culture shift.'
+      },
+      {
+        text: 'We ignore the outside noise. Twitter and sports radio don’t call the plays on 3rd down. We focus on our 53 guys and our assignments.',
+        ownerDelta: 2,
+        fanDelta: -4,
         lockerRoomDelta: 4,
-        headline: 'SCOUTING EDGE: COACH EXPOSES OPPONENT DEFENSIVE SCHEME'
+        targetUnit: 'ALL',
+        sentiment: 'Diplomatic',
+        headline: 'TUNE OUT THE NOISE: COACH BRUSHES OFF MEDIA & TALK RADIO',
+        journalistReaction: 'Local radio hosts debated the coach’s dismissive tone.'
       }
     ]
   }
 ];
+
+export function generatePressConferenceQuestions(
+  gameResult: LastGameResult | null,
+  teamName: string,
+  opponentName: string
+): PressConferenceQuestion[] {
+  const selected: PressConferenceQuestion[] = [];
+
+  if (gameResult) {
+    if (gameResult.userWon) {
+      selected.push(POST_GAME_PRESS_QUESTIONS[0]); // pq_win_dominant
+    } else {
+      selected.push(POST_GAME_PRESS_QUESTIONS[1]); // pq_loss_heartbreaker
+    }
+  } else {
+    selected.push(POST_GAME_PRESS_QUESTIONS[0]);
+  }
+
+  // Add QB question
+  selected.push(POST_GAME_PRESS_QUESTIONS[2]);
+
+  // Add 4th down or Defense question
+  if (gameResult && (gameResult.userScore + gameResult.opponentScore > 45)) {
+    selected.push(POST_GAME_PRESS_QUESTIONS[3]); // 4th down / offense
+  } else {
+    selected.push(POST_GAME_PRESS_QUESTIONS[4]); // defense
+  }
+
+  // Add fan support question
+  selected.push(POST_GAME_PRESS_QUESTIONS[5]);
+
+  return selected;
+}

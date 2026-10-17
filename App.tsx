@@ -14,9 +14,9 @@ import TeamSelection from './components/TeamSelection';
 import WeeklyProgressionReportModal from './components/WeeklyProgressionReportModal';
 import PlayerProgressionModal from './components/PlayerProgressionModal';
 import CoachOffice from './components/CoachOffice';
-import { AppView, DraftProspect, DraftPick, Scout, LeagueState, LeaguePhase, Player, Coach, TradeRecord, ProgressionWeekSummary, HeadCoachProfile } from './types';
+import { AppView, DraftProspect, DraftPick, Scout, LeagueState, LeaguePhase, Player, Coach, TradeRecord, ProgressionWeekSummary, HeadCoachProfile, LastGameResult } from './types';
 import { DRAFT_CLASS, INITIAL_PICKS, MOCK_SCOUTS, TEAMS_DB, MOCK_PLAYERS, MOCK_COACHES } from './constants';
-import { ensureFullTeamRosters } from './data/nflRosters';
+import { ensureFullTeamRosters, REAL_NFL_PLAYERS } from './data/nflRosters';
 import { nflverseService } from './services/nflverseService';
 import { advanceWeekProgression } from './services/progressionService';
 import { INITIAL_HEAD_COACH_PROFILE, createWeeklyAgenda } from './data/hc09Data';
@@ -28,6 +28,8 @@ const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<AppView>(AppView.DASHBOARD);
   const [teams, setTeams] = useState<Record<string, any>>(TEAMS_DB);
   const [allPlayers, setAllPlayers] = useState<Player[]>(MOCK_PLAYERS);
+  const [lastGameResult, setLastGameResult] = useState<LastGameResult | null>(null);
+  const [coachOfficeInitialTab, setCoachOfficeInitialTab] = useState<'agenda' | 'skills' | 'press' | 'philosophy' | 'security'>('agenda');
   const [coaches, setCoaches] = useState<Coach[]>(MOCK_COACHES);
   const [tradeHistory, setTradeHistory] = useState<TradeRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,7 +64,11 @@ const App: React.FC = () => {
         }
 
         if (nflPlayers && nflPlayers.length > 0) {
-          setAllPlayers(ensureFullTeamRosters([...nflPlayers, ...MOCK_PLAYERS]));
+          const curatedNames = new Set(REAL_NFL_PLAYERS.map(p => p.name.toLowerCase()));
+          const nonCurated = nflPlayers.filter(p => !curatedNames.has(p.name.toLowerCase()));
+          setAllPlayers(ensureFullTeamRosters([...REAL_NFL_PLAYERS, ...nonCurated]));
+        } else {
+          setAllPlayers(ensureFullTeamRosters(REAL_NFL_PLAYERS));
         }
       } catch (err) {
         console.warn('Initialization using default local databases:', err);
@@ -136,8 +142,15 @@ const App: React.FC = () => {
             teams={teams}
             coachProfile={coachProfile}
             setCoachProfile={setCoachProfile}
+            allPlayers={allPlayers}
+            setAllPlayers={setAllPlayers}
             currentWeek={leagueState.week}
-            onLaunchGame={() => setCurrentView(AppView.MATCH)}
+            lastGameResult={lastGameResult}
+            initialTab={coachOfficeInitialTab}
+            onLaunchGame={() => {
+              setCoachOfficeInitialTab('agenda');
+              setCurrentView(AppView.MATCH);
+            }}
           />
         );
       case AppView.DASHBOARD:
@@ -180,6 +193,14 @@ const App: React.FC = () => {
             setView={setCurrentView}
             coachProfile={coachProfile}
             setCoachProfile={setCoachProfile}
+            onCompleteGame={(result) => {
+              setLastGameResult(result);
+            }}
+            onGoToPressConference={(result) => {
+              setLastGameResult(result);
+              setCoachOfficeInitialTab('press');
+              setCurrentView(AppView.COACH_OFFICE);
+            }}
           />
         );
       case AppView.DRAFT:
