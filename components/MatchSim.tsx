@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { OFFENSIVE_PLAYS, TEAMS_DB, MOCK_PLAYERS } from '../constants';
 import { SCHEDULE_2027 } from '../schedule';
-import { Play, GameEvent, Player, Position, AppView, HighlightPackage } from '../types';
-import { Play as PlayIcon, Clock, ShieldAlert, Wind, ChevronUp, CloudRain, Sun, Zap, Activity, Trophy, BarChart2, Award, ListFilter, RotateCcw, Video, Film, Sparkles, Radio, Tv, Maximize2, RefreshCw, Thermometer, CloudSnow, Shield } from 'lucide-react';
+import { Play, GameEvent, Player, Position, AppView, HighlightPackage, HeadCoachProfile, PlayerComposureLevel, SidelineReactionType, SidelineConferenceLog } from '../types';
+import { POST_GAME_PRESS_QUESTIONS } from '../data/hc09Data';
+import { Play as PlayIcon, Clock, ShieldAlert, Wind, ChevronUp, CloudRain, Sun, Zap, Activity, Trophy, BarChart2, Award, ListFilter, RotateCcw, Video, Film, Sparkles, Radio, Tv, Maximize2, RefreshCw, Thermometer, CloudSnow, Shield, Flag, MessageSquare, Headphones, Flame, AlertOctagon, CheckCircle2, UserCheck, HelpCircle, Brain } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 export interface WeatherConfig {
@@ -83,6 +84,8 @@ interface MatchSimProps {
   teams: Record<string, any>;
   setTeams: React.Dispatch<React.SetStateAction<Record<string, any>>>;
   setView: (view: AppView) => void;
+  coachProfile?: HeadCoachProfile;
+  setCoachProfile?: React.Dispatch<React.SetStateAction<HeadCoachProfile>>;
 }
 
 interface ScoringEvent {
@@ -114,7 +117,7 @@ const normalizeTeamCode = (code: string) => {
   return c;
 };
 
-const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, currentWeek = 1, allPlayers, setAllPlayers, teams, setTeams, setView }) => {
+const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, currentWeek = 1, allPlayers, setAllPlayers, teams, setTeams, setView, coachProfile, setCoachProfile }) => {
   const [opponentTeamId, setOpponentTeamId] = useState<string>('');
   const [isGameOver, setIsGameOver] = useState(false);
   const [scoringSummary, setScoringSummary] = useState<ScoringEvent[]>([]);
@@ -231,6 +234,24 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, currentWeek = 1, al
   const [winProb, setWinProb] = useState(50);
   const [timeRemaining, setTimeRemaining] = useState(15 * 60);
 
+  // NFL Head Coach 2009 Authentic Sideline System States
+  const [homeTimeouts, setHomeTimeouts] = useState(3);
+  const [awayTimeouts, setAwayTimeouts] = useState(3);
+  const [activeTempo, setActiveTempo] = useState<'NORMAL' | 'HURRY_UP' | 'CHEW_CLOCK'>('NORMAL');
+  const [challengesLeft, setChallengesLeft] = useState(2);
+  const [isReviewingChallenge, setIsReviewingChallenge] = useState(false);
+  const [challengeNotice, setChallengeNotice] = useState<string | null>(null);
+
+  // Live Player Composure (HC09 System)
+  const [playerComposures, setPlayerComposures] = useState<Record<string, PlayerComposureLevel>>({});
+  const [activeSidelinePlayer, setActiveSidelinePlayer] = useState<Player | null>(null);
+  const [sidelineFeedback, setSidelineFeedback] = useState<string | null>(null);
+
+  // Post-Game Press Conference State
+  const [showPressConference, setShowPressConference] = useState(false);
+  const [currentPressQuestionIdx, setCurrentPressQuestionIdx] = useState(0);
+  const [pressHeadline, setPressHeadline] = useState<string | null>(null);
+
   // Function to change weather condition preset
   const handleWeatherToggle = (key: string) => {
     const preset = WEATHER_PRESETS[key] || WEATHER_PRESETS['Clear'];
@@ -249,13 +270,96 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, currentWeek = 1, al
     return allPlayers.filter(p => normalizeTeamCode(p.teamId) === norm);
   };
 
+  // HC09 Timeout Handler
+  const handleCallTimeout = (t: 'HOME' | 'AWAY') => {
+    if (t === 'HOME') {
+      if (homeTimeouts <= 0 || isSimulating || isGameOver) return;
+      setHomeTimeouts(prev => prev - 1);
+      setSidelineFeedback('TIMEOUT CALLED // Clock halted. Sideline instructions active.');
+      setTimeout(() => setSidelineFeedback(null), 3000);
+    } else {
+      if (awayTimeouts <= 0 || isSimulating || isGameOver) return;
+      setAwayTimeouts(prev => prev - 1);
+    }
+  };
+
+  // HC09 Coach Red Flag Challenge Handler
+  const handleChallengePlay = () => {
+    if (challengesLeft <= 0 || isSimulating || isGameOver || !lastEvent) return;
+    setChallengesLeft(prev => prev - 1);
+    setIsReviewingChallenge(true);
+
+    setTimeout(() => {
+      const isOverturned = Math.random() < 0.65;
+      if (isOverturned) {
+        setChallengeNotice('CALL OVERTURNED BY REFEREE BOOTH! First Down awarded (+6 Yards).');
+        setGameState(prev => ({
+          ...prev,
+          ballOn: Math.min(99, prev.ballOn + 6),
+          down: 1,
+          distance: 10
+        }));
+      } else {
+        setChallengeNotice('CALL STANDS! The ruling on the field is confirmed. Timeout charged.');
+        setHomeTimeouts(prev => Math.max(0, prev - 1));
+      }
+      setIsReviewingChallenge(false);
+      setTimeout(() => setChallengeNotice(null), 4500);
+    }, 2500);
+  };
+
+  // HC09 Sideline Conference Handler (Chew Out, Praise, Calm Down, Pump Up)
+  const handleSidelineConference = (player: Player, reaction: SidelineReactionType) => {
+    let current = playerComposures[player.id] || 'COMPOSED';
+    let next: PlayerComposureLevel = current;
+    let feedback = '';
+    const hasMotivatorSkill = coachProfile?.unlockedSkillIds?.includes('mot_sideline') ?? false;
+
+    if (reaction === 'CHEW_OUT') {
+      const roll = Math.random();
+      if (roll < (hasMotivatorSkill ? 0.75 : 0.55)) {
+        next = 'ON_FIRE';
+        feedback = `FIRED UP! ${player.name} responded with ruthless intensity! Composure locked to ON FIRE!`;
+      } else {
+        next = 'RATTLED';
+        feedback = `BACKFIRED! ${player.name} was rattled by the tongue-lashing. Composure decreased.`;
+      }
+    } else if (reaction === 'PRAISE') {
+      next = current === 'ICE_COLD' ? 'COMPOSED' : current === 'COMPOSED' ? 'HOT' : 'ON_FIRE';
+      feedback = `VALIDATED! ${player.name} gained confidence from coach validation.`;
+    } else if (reaction === 'CALM_DOWN') {
+      next = 'COMPOSED';
+      feedback = `RESET! ${player.name} regained mental composure. Focus restored.`;
+    } else if (reaction === 'PUMP_UP') {
+      next = current === 'RATTLED' ? 'COMPOSED' : current === 'ICE_COLD' ? 'COMPOSED' : 'HOT';
+      feedback = `PUMPED UP! ${player.name} is amped for high-leverage execution!`;
+    }
+
+    setPlayerComposures(prev => ({ ...prev, [player.id]: next }));
+    setSidelineFeedback(feedback);
+    setTimeout(() => {
+      setSidelineFeedback(null);
+      setActiveSidelinePlayer(null);
+    }, 3200);
+  };
+
+  // HC09 Headset Coordinator Intelligence
+  const getCoordinatorTip = () => {
+    if (gameState.ballOn >= 80) return 'RED ZONE // Compressed safeties. High-low slant concepts or power gap dive.';
+    if (gameState.down === 3 && gameState.distance > 7) return '3RD & LONG // Opponent in dime coverage. Watch for blitz; Mesh Spot or Four Verts.';
+    if (gameState.down === 3 && gameState.distance <= 3) return '3RD & SHORT // Heavy defensive front. Inside Zone or quick bootleg play-action.';
+    if (activeTempo === 'HURRY_UP') return 'NO-HUDDLE // Opponent defensive line gassed. Keep pressure on with quick completions.';
+    if (activeTempo === 'CHEW_CLOCK') return 'CHEW CLOCK // Milk the play clock to under 0:03 before each snap.';
+    return 'STANDARD TEMPO // Base personnel on field. Balanced run/pass execution recommended.';
+  };
+
   const calculateOutcome = (play: Play): GameEvent => {
     const isUserOffense = gameState.possession === 'HOME';
     const offTeamId = isUserOffense ? selectedTeamId : opponentTeamId;
     
     const roster = getTeamRoster(offTeamId);
-    const qb = roster.find(p => p.position === Position.QB) || roster[0] || { name: 'Quarterback', overall: 80, schemeOvr: 80 };
-    const topWr = roster.find(p => p.position === Position.WR) || roster[0] || { name: 'Wide Receiver', overall: 80 };
+    const qb = roster.find(p => p.position === Position.QB) || roster[0] || { name: 'Quarterback', overall: 80, schemeOvr: 80, id: 'qb_def' };
+    const topWr = roster.find(p => p.position === Position.WR) || roster[0] || { name: 'Wide Receiver', overall: 80, id: 'wr_def' };
     
     // Global Multipliers based on Climate Weather Preset
     const hfaBoost = isUserOffense ? 3 : 0; // Home Field Advantage
@@ -291,9 +395,22 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, currentWeek = 1, al
       return { description, yardage, isScore, type };
     }
 
-    // GDD Refined Simulation Engine Formulas with Weather Climate Modifiers
+    // GDD Refined Simulation Engine Formulas with Weather Climate Modifiers & HC09 Perks
+    const prepScore = coachProfile?.opponentPrepScore ?? 35;
+    const prepBonus = isUserOffense ? (prepScore >= 80 ? 0.08 : prepScore >= 50 ? 0.04 : 0) : 0;
+    const isRedZone = gameState.ballOn >= 80;
+    const hasRedZonePerk = isUserOffense && (coachProfile?.unlockedSkillIds?.includes('tac_redzone') ?? false);
+    const rzBonus = (isRedZone && hasRedZonePerk) ? 0.18 : 0;
+    const isThirdDownShort = gameState.down === 3 && gameState.distance <= 6;
+    const hasThirdDownPerk = isUserOffense && (coachProfile?.unlockedSkillIds?.includes('tac_third_down') ?? false);
+    const thirdDownBonus = (isThirdDownShort && hasThirdDownPerk) ? 0.15 : 0;
+
+    // Live Composure Adjustments (HC09 System)
+    const qbComp = playerComposures[qb.id] || 'COMPOSED';
+    const qbCompMod = qbComp === 'ON_FIRE' ? 0.08 : qbComp === 'HOT' ? 0.04 : qbComp === 'RATTLED' ? -0.09 : 0;
+
     if (play.type === 'Pass') {
-      const qbAcc = (((qb.schemeOvr || qb.overall) + hfaBoost) / 100) * passAccMod;
+      const qbAcc = (((qb.schemeOvr || qb.overall) + hfaBoost) / 100) * passAccMod + qbCompMod + prepBonus + rzBonus + thirdDownBonus;
       const wrCth = ((topWr.overall) / 100) * passAccMod;
       const dbCov = 0.82;
       const pressure = Math.random() * 0.3;
@@ -305,8 +422,12 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, currentWeek = 1, al
         type = 'Turnover';
         description = `INTERCEPTED! The QB misread coverage in adverse ${weather.type} climate.`;
         yardage = 0;
+        // Turnovers rattle players unless coach has Iron Composure perk
+        if (!coachProfile?.unlockedSkillIds?.includes('mot_composure')) {
+          setPlayerComposures(prev => ({ ...prev, [qb.id]: 'RATTLED' }));
+        }
       } else if (roll < pComp) {
-        const isBigPlay = Math.random() < ((qb.overall / 300) * passAccMod);
+        const isBigPlay = Math.random() < (((qb.overall / 300) * passAccMod) + (qbComp === 'ON_FIRE' ? 0.1 : 0));
         yardage = isBigPlay ? Math.floor(Math.random() * 25) + 20 : Math.floor(Math.random() * 12) + 4;
         description = `Complete to ${topWr.name} for ${yardage} yards.`;
       } else {
@@ -314,13 +435,18 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, currentWeek = 1, al
         if (isSack) {
           yardage = -Math.floor(Math.random() * 7) - 3;
           description = `SACK! The pocket collapsed for a ${Math.abs(yardage)} yard loss.`;
+          if (Math.random() < 0.4) {
+            setPlayerComposures(prev => ({ ...prev, [qb.id]: 'RATTLED' }));
+          }
         } else {
           description = `Incomplete pass intended for ${topWr.name}.`;
         }
       }
     } else if (play.type === 'Run') {
-      const rb = roster.find(p => p.position === Position.RB) || roster[0] || { name: 'Running Back', overall: 80 };
-      const rbPower = ((rb.overall + hfaBoost) / 100) * rushEffMod;
+      const rb = roster.find(p => p.position === Position.RB) || roster[0] || { name: 'Running Back', overall: 80, id: 'rb_def' };
+      const rbComp = playerComposures[rb.id] || 'COMPOSED';
+      const rbCompMod = rbComp === 'ON_FIRE' ? 0.08 : rbComp === 'HOT' ? 0.04 : rbComp === 'RATTLED' ? -0.06 : 0;
+      const rbPower = (((rb.overall + hfaBoost) / 100) * rushEffMod) + rbCompMod + prepBonus + rzBonus + thirdDownBonus;
       const linePush = 0.75 * rushEffMod;
       
       const successProb = 0.55 + (rbPower * 0.1) + (linePush * 0.1);
@@ -330,6 +456,9 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, currentWeek = 1, al
         type = 'Turnover';
         description = `FUMBLE! Loose ball stripped on slippery field conditions during ${weather.label}.`;
         yardage = 1;
+        if (!coachProfile?.unlockedSkillIds?.includes('mot_composure')) {
+          setPlayerComposures(prev => ({ ...prev, [rb.id]: 'RATTLED' }));
+        }
       } else if (roll < successProb) {
         const isBigPlay = Math.random() < ((rb.overall / 400) * rushEffMod);
         yardage = isBigPlay ? Math.floor(Math.random() * 30) + 15 : Math.floor(Math.random() * 7) + 2;
@@ -354,7 +483,14 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, currentWeek = 1, al
     if (isSimulating || isGameOver) return;
     setIsSimulating(true);
 
-    const playTime = Math.floor(Math.random() * 25) + 15; // 15-40 seconds
+    // HC09 Tempo-Driven Play Clock Drain
+    let playTime = Math.floor(Math.random() * 15) + 18; // Default 18-33s
+    if (activeTempo === 'HURRY_UP') {
+      playTime = Math.floor(Math.random() * 8) + 6; // 6-14s fast pace
+    } else if (activeTempo === 'CHEW_CLOCK') {
+      playTime = Math.floor(Math.random() * 8) + 34; // 34-42s clock bleed
+    }
+
     const nextTime = Math.max(0, timeRemaining - playTime);
 
     setTimeout(() => {
@@ -584,19 +720,43 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, currentWeek = 1, al
       });
     });
 
-    // 3. Relocate to HQ Dashboard
+    // 3. Award Coach Points (CP) and update Head Coach ratings
+    if (setCoachProfile) {
+      const isWin = gameState.homeScore > gameState.awayScore;
+      const cpAward = isWin ? 150 : 75;
+      setCoachProfile(prev => ({
+        ...prev,
+        coachPoints: prev.coachPoints + cpAward,
+        totalCpEarned: prev.totalCpEarned + cpAward,
+        ownerApproval: Math.min(100, Math.max(0, prev.ownerApproval + (isWin ? 3 : -2))),
+        fanApproval: Math.min(100, Math.max(0, prev.fanApproval + (isWin ? 5 : -4)))
+      }));
+    }
+
+    // 4. Relocate to HQ Dashboard
     setView(AppView.DASHBOARD);
   };
 
   const userRoster = getTeamRoster(selectedTeamId);
-  const homeQb = userRoster.find(p => p.position === Position.QB) || { name: 'C. Stroud', overall: 91 };
-  const homeRb = userRoster.find(p => p.position === Position.RB) || { name: 'J. Mixon', overall: 84 };
-  const homeWr = userRoster.find(p => p.position === Position.WR) || { name: 'N. Collins', overall: 89 };
+  const homeQb = userRoster.find(p => p.position === Position.QB) || userRoster[0] || { name: 'C. Stroud', overall: 91, id: 'qb_1' };
+  const homeRb = userRoster.find(p => p.position === Position.RB) || userRoster[1] || { name: 'J. Mixon', overall: 84, id: 'rb_1' };
+  const homeWr = userRoster.find(p => p.position === Position.WR) || userRoster[2] || { name: 'N. Collins', overall: 89, id: 'wr_1' };
+  const homeDefCap = userRoster.find(p => [Position.DL, Position.LB, Position.CB, Position.S].includes(p.position)) || userRoster[3] || { name: 'W. Anderson Jr.', overall: 88, id: 'def_1' };
 
   const oppRoster = getTeamRoster(opponentTeamId);
   const awayQb = oppRoster.find(p => p.position === Position.QB) || { name: 'Opp QB', overall: 85 };
   const awayRb = oppRoster.find(p => p.position === Position.RB) || { name: 'Opp RB', overall: 80 };
   const awayWr = oppRoster.find(p => p.position === Position.WR) || { name: 'Opp WR', overall: 82 };
+
+  const getComposureStyle = (level?: PlayerComposureLevel) => {
+    switch (level) {
+      case 'ON_FIRE': return 'text-amber-300 border-amber-500/50 bg-amber-500/20 shadow-[0_0_10px_rgba(245,158,11,0.4)] animate-pulse';
+      case 'HOT': return 'text-orange-400 border-orange-500/40 bg-orange-500/10';
+      case 'ICE_COLD': return 'text-blue-400 border-blue-500/40 bg-blue-500/10';
+      case 'RATTLED': return 'text-red-400 border-red-500/50 bg-red-500/20 animate-bounce';
+      default: return 'text-cyan-400 border-cyan-500/30 bg-cyan-500/10';
+    }
+  };
 
   return (
     <div className="h-full flex flex-col bg-[#05070a] relative overflow-hidden">
@@ -640,6 +800,130 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, currentWeek = 1, al
                 </div>
             </div>
         </div>
+
+        {/* HC09 SIDELINE COMMAND DECK // HEADSET, TIMEOUTS, TEMPO & CONFERENCES */}
+        <div className="bg-[#0c1017] border-b border-[#1a222e] px-6 py-2.5 flex flex-wrap justify-between items-center gap-4 z-20 text-xs font-mono shadow-md">
+          {/* Left: Timeouts & Challenge Flag */}
+          <div className="flex items-center gap-4">
+            {/* Timeouts */}
+            <div className="flex items-center gap-2">
+              <span className="text-[9px] text-slate-500 uppercase font-bold tracking-wider">TIMEOUTS:</span>
+              <div className="flex gap-1">
+                {[1, 2, 3].map(num => (
+                  <div
+                    key={num}
+                    className={`w-2.5 h-2.5 rounded-full transition-all ${
+                      num <= homeTimeouts
+                        ? 'bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.8)]'
+                        : 'bg-slate-800 border border-slate-700'
+                    }`}
+                  />
+                ))}
+              </div>
+              <button
+                onClick={() => handleCallTimeout('HOME')}
+                disabled={homeTimeouts <= 0 || isSimulating || isGameOver}
+                className="ml-2 px-2.5 py-1 bg-[#05070a] border border-amber-500/30 hover:border-amber-400 text-amber-400 text-[9px] font-bold uppercase tracking-wider transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                CALL TIMEOUT
+              </button>
+            </div>
+
+            <div className="h-4 w-[1px] bg-[#1a222e]"></div>
+
+            {/* Coach Red Flag Challenge */}
+            <button
+              onClick={handleChallengePlay}
+              disabled={challengesLeft <= 0 || isSimulating || isGameOver || !lastEvent}
+              className="px-2.5 py-1 bg-red-500/10 border border-red-500/30 hover:border-red-400 text-red-400 text-[9px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <Flag size={11} className="fill-current text-red-500" />
+              <span>CHALLENGE RULING ({challengesLeft} LEFT)</span>
+            </button>
+
+            <div className="h-4 w-[1px] bg-[#1a222e]"></div>
+
+            {/* Tempo Selector */}
+            <div className="flex items-center gap-1 text-[9px]">
+              <span className="text-slate-500 uppercase font-bold mr-1">TEMPO:</span>
+              {(['NORMAL', 'HURRY_UP', 'CHEW_CLOCK'] as const).map(t => (
+                <button
+                  key={t}
+                  onClick={() => setActiveTempo(t)}
+                  className={`px-2 py-0.5 border font-bold uppercase transition-all ${
+                    activeTempo === t
+                      ? 'bg-cyan-500 text-black border-cyan-400 font-bold'
+                      : 'bg-[#05070a] border-[#1a222e] text-slate-500 hover:text-white'
+                  }`}
+                >
+                  {t === 'HURRY_UP' ? 'NO-HUDDLE' : t === 'CHEW_CLOCK' ? 'CHEW CLOCK' : 'NORMAL'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Right: Key Player Sideline Composure Trackers */}
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] text-slate-500 uppercase font-bold tracking-wider flex items-center gap-1">
+              <Headphones size={11} className="text-cyan-400" />
+              SIDELINE HUD:
+            </span>
+
+            {[
+              { role: 'QB', player: homeQb },
+              { role: 'RB', player: homeRb },
+              { role: 'WR', player: homeWr },
+              { role: 'DEF', player: homeDefCap }
+            ].map(({ role, player }) => {
+              const comp = playerComposures[player.id] || 'COMPOSED';
+              return (
+                <button
+                  key={player.id}
+                  onClick={() => setActiveSidelinePlayer(player as Player)}
+                  className={`px-2 py-0.5 border text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 transition-all hover:scale-105 ${getComposureStyle(comp)}`}
+                >
+                  <span>{role}: {player.name.split(' ').pop()}</span>
+                  <span className="text-[8px] opacity-80">({comp.replace('_', ' ')})</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Real-Time Coordinator Radio & Opponent Tell HUD */}
+        <div className="bg-[#080c12] border-b border-[#1a222e] px-6 py-1.5 flex justify-between items-center text-[10px] font-mono">
+          <div className="flex items-center gap-2 text-cyan-400">
+            <Headphones size={12} className="animate-pulse text-cyan-400" />
+            <span className="text-slate-500 uppercase font-bold">COORDINATOR RADIO:</span>
+            <span className="text-slate-300 italic">{getCoordinatorTip()}</span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {coachProfile?.unlockedSkillIds?.includes('str_tell') && (
+              <span className="text-[9px] px-2 py-0.5 bg-purple-500/10 border border-purple-500/30 text-purple-300 font-bold uppercase tracking-wider flex items-center gap-1 animate-pulse">
+                <Brain size={10} />
+                TELL READ: {gameState.down === 3 ? '82% PASS BLITZ' : '64% ZONE RUN'}
+              </span>
+            )}
+            <span className="text-[9px] text-slate-500">
+              WEEKLY PREP: <strong className="text-emerald-400">{coachProfile?.opponentPrepScore || 35}%</strong>
+            </span>
+          </div>
+        </div>
+
+        {/* Sideline Feedback Banner */}
+        {sidelineFeedback && (
+          <div className="bg-cyan-500/10 border-b border-cyan-500/30 px-6 py-1.5 text-center text-[10px] font-mono text-cyan-400 font-bold tracking-wider animate-pulse">
+            {sidelineFeedback}
+          </div>
+        )}
+
+        {/* Challenge Notice Banner */}
+        {challengeNotice && (
+          <div className="bg-amber-500/20 border-b border-amber-500/40 px-6 py-2 text-center text-xs font-mono text-amber-300 font-bold tracking-widest animate-pulse">
+            {challengeNotice}
+          </div>
+        )}
 
         {/* Main Viewport */}
         <div className="flex-1 relative flex">
@@ -994,6 +1278,13 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, currentWeek = 1, al
                   </div>
                   <div className="flex items-center gap-3">
                     <button
+                      onClick={() => setShowPressConference(true)}
+                      className="bg-purple-600 hover:bg-purple-500 text-white font-bold uppercase tracking-[0.2em] text-[10px] px-6 py-3.5 border border-purple-400 flex items-center gap-2 transition-all font-mono shadow-[0_0_15px_rgba(168,85,247,0.4)]"
+                    >
+                      <MessageSquare size={14} />
+                      POST-GAME PRESS CONFERENCE (+100 CP)
+                    </button>
+                    <button
                       onClick={fetchHighlightVideoPackage}
                       className="bg-amber-500 hover:bg-amber-400 text-black font-bold uppercase tracking-[0.2em] text-[10px] px-6 py-3.5 border border-amber-400 flex items-center gap-2 transition-all font-mono shadow-lg"
                     >
@@ -1033,8 +1324,10 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, currentWeek = 1, al
                 <div className="flex items-center gap-3 mb-4 pb-3 border-b border-[#1a222e]">
                   <Film className="text-amber-400 animate-pulse" size={24} />
                   <div>
-                    <span className="text-[9px] text-amber-400 font-bold uppercase tracking-widest block">
-                      VEO 3.1 AI HIGHLIGHT VIDEO ENGINE // 16:9 BROADCAST REEL
+                    <span className="text-[9px] text-amber-400 font-bold uppercase tracking-widest block flex items-center gap-2">
+                      <span>VEO 3.1 VIDEO ENGINE</span>
+                      <span className="text-cyan-400">•</span>
+                      <span className="text-cyan-400">GEMINI 3.8 FLASH SCRIPT SYNTHESIS</span>
                     </span>
                     <h3 className="text-xl font-bold text-white header-font uppercase italic">
                       {highlightPackage?.headline || `${team.name} vs ${opponentTeam.name} Weekly Highlights`}
@@ -1046,10 +1339,10 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, currentWeek = 1, al
                   <div className="aspect-video bg-[#05070a] border border-[#1a222e] flex flex-col items-center justify-center space-y-4 p-8">
                     <RefreshCw className="animate-spin text-amber-400" size={36} />
                     <p className="text-xs font-bold text-amber-400 uppercase tracking-widest">
-                      GENERATING VEO 3.1 BROADCAST HIGHLIGHT REEL...
+                      GENERATING VEO 3.1 & GEMINI 3.8 FLASH BROADCAST HIGHLIGHT REEL...
                     </p>
                     <p className="text-[10px] text-slate-500 max-w-md text-center">
-                      Synthesizing 16:9 slow-motion touchdown sequences, stadium crowd ambience, and AI commentary broadcast script...
+                      Synthesizing 16:9 slow-motion touchdown sequences via Veo 3.1, stadium crowd ambience, and Gemini 3.8 Flash lead anchor commentary...
                     </p>
                   </div>
                 ) : (
@@ -1115,6 +1408,261 @@ const MatchSim: React.FC<MatchSimProps> = ({ selectedTeamId, currentWeek = 1, al
                   </div>
                 )}
               </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* HC09 REFEREE BOOTH REVIEW OVERLAY */}
+        <AnimatePresence>
+          {isReviewingChallenge && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-6"
+            >
+              <div className="bg-[#0a0e14] border-2 border-amber-500 max-w-xl w-full p-8 text-center font-mono relative shadow-[0_0_50px_rgba(245,158,11,0.3)]">
+                <div className="w-16 h-16 rounded-full bg-amber-500/20 border-2 border-amber-400 flex items-center justify-center mx-auto mb-6 animate-pulse">
+                  <Flag size={28} className="text-amber-400 fill-current" />
+                </div>
+                <h3 className="text-2xl font-bold text-white header-font uppercase italic tracking-wider">
+                  OFFICIAL REFEREE REPLAY BOOTH REVIEW
+                </h3>
+                <p className="text-xs text-amber-400 mt-2 font-bold tracking-widest uppercase animate-pulse">
+                  HEAD LINESMAN AT SIDELINE HOOD // EXAMINING PREVIOUS PLAY
+                </p>
+                <div className="w-64 h-1 bg-slate-800 mx-auto mt-6 overflow-hidden">
+                  <div className="bg-amber-400 h-full w-1/2 animate-[shimmer_1.2s_infinite]"></div>
+                </div>
+                <p className="text-[10px] text-slate-500 mt-4 uppercase">
+                  Checking boundary feet, ball control, and line to gain...
+                </p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* HC09 SIDELINE PLAYER CONFERENCE MODAL */}
+        <AnimatePresence>
+          {activeSidelinePlayer && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-6"
+            >
+              <motion.div
+                initial={{ scale: 0.95, y: 15 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.95, y: 15 }}
+                className="bg-[#0a0e14] border-2 border-cyan-500/60 max-w-lg w-full p-6 font-mono shadow-[0_0_40px_rgba(0,209,255,0.2)] relative"
+              >
+                <button
+                  onClick={() => setActiveSidelinePlayer(null)}
+                  className="absolute top-4 right-4 text-slate-500 hover:text-white text-xs font-bold"
+                >
+                  ✕ CANCEL
+                </button>
+
+                <div className="flex items-center gap-4 border-b border-[#1a222e] pb-4">
+                  <div className="w-14 h-14 bg-[#05070a] border border-cyan-500/40 flex items-center justify-center">
+                    <UserCheck size={28} className="text-cyan-400" />
+                  </div>
+                  <div>
+                    <span className="text-[9px] text-cyan-400 font-bold uppercase tracking-widest block">
+                      HC09 SIDELINE CONFERENCE
+                    </span>
+                    <h4 className="text-xl font-bold text-white header-font uppercase italic">
+                      {activeSidelinePlayer.name} ({activeSidelinePlayer.position})
+                    </h4>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-[10px] text-slate-400 font-bold">OVR {activeSidelinePlayer.overall}</span>
+                      <span className="text-slate-600">•</span>
+                      <span className={`text-[9px] px-2 py-0.5 border font-bold uppercase ${getComposureStyle(playerComposures[activeSidelinePlayer.id])}`}>
+                        {playerComposures[activeSidelinePlayer.id] || 'COMPOSED'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="py-5 space-y-3">
+                  <p className="text-xs text-slate-400">
+                    Choose how you want to address {activeSidelinePlayer.name} on the sideline to impact composure, focus, and drive momentum:
+                  </p>
+
+                  <div className="grid grid-cols-1 gap-2.5 pt-1">
+                    {/* CHEW OUT */}
+                    <button
+                      onClick={() => handleSidelineConference(activeSidelinePlayer, 'CHEW_OUT')}
+                      className="p-3 bg-[#05070a] border border-red-500/30 hover:border-red-500 hover:bg-red-500/10 text-left transition-all group"
+                    >
+                      <div className="flex justify-between items-center text-xs font-bold text-red-400 mb-1">
+                        <span className="flex items-center gap-1.5"><AlertOctagon size={13} /> CHEW OUT (HIGH FIRE / HIGH RISK)</span>
+                        <span className="text-[8px] px-1.5 py-0.5 bg-red-500/20 text-red-300">INTENSE</span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 leading-snug">
+                        "Get your head in the game! We don't accept blown assignments or lack of effort!" (55% ON FIRE, 45% RATTLED).
+                      </p>
+                    </button>
+
+                    {/* PRAISE */}
+                    <button
+                      onClick={() => handleSidelineConference(activeSidelinePlayer, 'PRAISE')}
+                      className="p-3 bg-[#05070a] border border-emerald-500/30 hover:border-emerald-500 hover:bg-emerald-500/10 text-left transition-all group"
+                    >
+                      <div className="flex justify-between items-center text-xs font-bold text-emerald-400 mb-1">
+                        <span className="flex items-center gap-1.5"><CheckCircle2 size={13} /> PRAISE EFFORT & PLAYMAKING</span>
+                        <span className="text-[8px] px-1.5 py-0.5 bg-emerald-500/20 text-emerald-300">CONFIDENCE</span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 leading-snug">
+                        "Outstanding poise out there. Keep trusting your reads and attack the space." (+1 Composure stage).
+                      </p>
+                    </button>
+
+                    {/* CALM DOWN */}
+                    <button
+                      onClick={() => handleSidelineConference(activeSidelinePlayer, 'CALM_DOWN')}
+                      className="p-3 bg-[#05070a] border border-cyan-500/30 hover:border-cyan-500 hover:bg-cyan-500/10 text-left transition-all group"
+                    >
+                      <div className="flex justify-between items-center text-xs font-bold text-cyan-400 mb-1">
+                        <span className="flex items-center gap-1.5"><HelpCircle size={13} /> CALM DOWN & RESET MINDSET</span>
+                        <span className="text-[8px] px-1.5 py-0.5 bg-cyan-500/20 text-cyan-300">STEADY</span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 leading-snug">
+                        "Take a breath. Forget the last play, reset your eyes and focus on your keys." (Cures RATTLED state).
+                      </p>
+                    </button>
+
+                    {/* PUMP UP */}
+                    <button
+                      onClick={() => handleSidelineConference(activeSidelinePlayer, 'PUMP_UP')}
+                      className="p-3 bg-[#05070a] border border-amber-500/30 hover:border-amber-500 hover:bg-amber-500/10 text-left transition-all group"
+                    >
+                      <div className="flex justify-between items-center text-xs font-bold text-amber-400 mb-1">
+                        <span className="flex items-center gap-1.5"><Flame size={13} /> PUMP UP FOR CRUNCH TIME</span>
+                        <span className="text-[8px] px-1.5 py-0.5 bg-amber-500/20 text-amber-300">HOT STREAK</span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 leading-snug">
+                        "This is your drive! Put the team on your back and make the winning play!" (+1 Composure).
+                      </p>
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* HC09 POST-GAME PRESS CONFERENCE MODAL */}
+        <AnimatePresence>
+          {showPressConference && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-6 font-mono"
+            >
+              <motion.div
+                initial={{ scale: 0.95, y: 15 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.95, y: 15 }}
+                className="bg-[#0a0e14] border-2 border-purple-500/50 max-w-2xl w-full p-8 shadow-[0_0_50px_rgba(168,85,247,0.25)] relative"
+              >
+                <div className="flex items-center justify-between border-b border-[#1a222e] pb-4 mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-purple-500/10 border border-purple-500/30 text-purple-400">
+                      <MessageSquare size={22} />
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-purple-400 font-bold uppercase tracking-widest block">
+                        MEDIA ROOM // POST-GAME INTERVIEW
+                      </span>
+                      <h3 className="text-2xl font-bold text-white header-font uppercase italic">
+                        HEAD COACH PRESS CONFERENCE
+                      </h3>
+                    </div>
+                  </div>
+
+                  <span className="text-[10px] px-2.5 py-1 bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold">
+                    +100 COACH POINTS
+                  </span>
+                </div>
+
+                {pressHeadline ? (
+                  <div className="space-y-6 text-center py-6">
+                    <span className="text-[10px] text-slate-500 uppercase tracking-widest block font-bold">
+                      BREAKING NEWS HEADLINE GENERATED:
+                    </span>
+                    <div className="p-4 bg-[#05070a] border border-cyan-500/40 text-lg font-bold text-cyan-400 header-font uppercase italic">
+                      "{pressHeadline}"
+                    </div>
+                    <p className="text-xs text-emerald-400 font-bold">
+                      Owner Approval, Fan Loyalty, and Locker Room Morale updated!
+                    </p>
+                    <button
+                      onClick={() => {
+                        setShowPressConference(false);
+                        setPressHeadline(null);
+                        saveAndExitGame();
+                      }}
+                      className="px-8 py-3 bg-cyan-500 hover:bg-cyan-400 text-black font-bold uppercase tracking-widest text-xs transition-all shadow-[0_0_20px_rgba(0,209,255,0.4)]"
+                    >
+                      EXIT PRESS ROOM TO HQ DASHBOARD
+                    </button>
+                  </div>
+                ) : (
+                  (() => {
+                    const question = POST_GAME_PRESS_QUESTIONS[currentPressQuestionIdx] || POST_GAME_PRESS_QUESTIONS[0];
+                    return (
+                      <div className="space-y-6">
+                        <div className="p-4 bg-[#05070a] border border-[#1a222e]">
+                          <div className="flex items-center gap-2 mb-2 text-xs font-bold text-slate-400">
+                            <span className="text-white">{question.reporter}</span>
+                            <span className="text-slate-600">•</span>
+                            <span className="text-purple-400">{question.outlet}</span>
+                          </div>
+                          <p className="text-sm font-bold text-white leading-relaxed italic">
+                            "{question.question}"
+                          </p>
+                        </div>
+
+                        <div className="space-y-3">
+                          <span className="text-[9px] text-slate-500 uppercase font-bold tracking-widest block">
+                            CHOOSE COACH STATEMENT:
+                          </span>
+                          {question.answers.map((answer, aIdx) => (
+                            <button
+                              key={aIdx}
+                              onClick={() => {
+                                setPressHeadline(answer.headline);
+                                if (setCoachProfile) {
+                                  setCoachProfile(prev => ({
+                                    ...prev,
+                                    coachPoints: prev.coachPoints + 100,
+                                    totalCpEarned: prev.totalCpEarned + 100,
+                                    ownerApproval: Math.min(100, Math.max(0, prev.ownerApproval + answer.ownerDelta)),
+                                    fanApproval: Math.min(100, Math.max(0, prev.fanApproval + answer.fanDelta))
+                                  }));
+                                }
+                              }}
+                              className="w-full p-4 bg-[#05070a] border border-[#1a222e] hover:border-purple-500/60 hover:bg-purple-500/5 text-left transition-all group"
+                            >
+                              <p className="text-xs text-white leading-relaxed group-hover:text-purple-300 transition-colors">
+                                "{answer.text}"
+                              </p>
+                              <div className="flex gap-4 mt-3 pt-2 border-t border-[#1a222e] text-[9px] text-slate-500">
+                                <span>OWNER: <strong className={answer.ownerDelta >= 0 ? 'text-emerald-400' : 'text-red-400'}>{answer.ownerDelta >= 0 ? `+${answer.ownerDelta}` : answer.ownerDelta}</strong></span>
+                                <span>FANS: <strong className={answer.fanDelta >= 0 ? 'text-cyan-400' : 'text-red-400'}>{answer.fanDelta >= 0 ? `+${answer.fanDelta}` : answer.fanDelta}</strong></span>
+                                <span>LOCKER ROOM: <strong className={answer.lockerRoomDelta >= 0 ? 'text-amber-400' : 'text-red-400'}>{answer.lockerRoomDelta >= 0 ? `+${answer.lockerRoomDelta}` : answer.lockerRoomDelta}</strong></span>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()
+                )}
+              </motion.div>
             </motion.div>
           )}
         </AnimatePresence>

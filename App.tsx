@@ -13,13 +13,15 @@ import HallOfFame from './components/HallOfFame';
 import TeamSelection from './components/TeamSelection';
 import WeeklyProgressionReportModal from './components/WeeklyProgressionReportModal';
 import PlayerProgressionModal from './components/PlayerProgressionModal';
-import { AppView, DraftProspect, DraftPick, Scout, LeagueState, LeaguePhase, Player, Coach, TradeRecord, ProgressionWeekSummary } from './types';
+import CoachOffice from './components/CoachOffice';
+import { AppView, DraftProspect, DraftPick, Scout, LeagueState, LeaguePhase, Player, Coach, TradeRecord, ProgressionWeekSummary, HeadCoachProfile } from './types';
 import { DRAFT_CLASS, INITIAL_PICKS, MOCK_SCOUTS, TEAMS_DB, MOCK_PLAYERS, MOCK_COACHES } from './constants';
 import { ensureFullTeamRosters } from './data/nflRosters';
 import { nflverseService } from './services/nflverseService';
 import { advanceWeekProgression } from './services/progressionService';
+import { INITIAL_HEAD_COACH_PROFILE, createWeeklyAgenda } from './data/hc09Data';
 import { SCHEDULE_2027 } from './schedule';
-import { Sparkles, TrendingUp } from 'lucide-react';
+import { Sparkles, TrendingUp, Award, Crown } from 'lucide-react';
 
 const App: React.FC = () => {
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
@@ -78,6 +80,7 @@ const App: React.FC = () => {
   const [teamBudget, setTeamBudget] = useState(255.4); // Cap space in millions
   const [weeklyProgressionSummary, setWeeklyProgressionSummary] = useState<ProgressionWeekSummary | null>(null);
   const [inspectingPlayer, setInspectingPlayer] = useState<Player | null>(null);
+  const [coachProfile, setCoachProfile] = useState<HeadCoachProfile>(INITIAL_HEAD_COACH_PROFILE);
   const [leagueState, setLeagueState] = useState<LeagueState>({
     currentPhase: LeaguePhase.REGULAR_SEASON,
     week: 1,
@@ -101,6 +104,17 @@ const App: React.FC = () => {
       setWeeklyProgressionSummary(summary);
     }
 
+    // Refresh NFL Head Coach 2009 weekly agenda and award base coach progression points
+    const nextWk = leagueState.week + 1;
+    setCoachProfile(prev => ({
+      ...prev,
+      weeklyAgenda: createWeeklyAgenda(nextWk, 'Upcoming Opponent'),
+      completedAgendaDays: 0,
+      opponentPrepScore: 30,
+      coachPoints: prev.coachPoints + 75,
+      totalCpEarned: prev.totalCpEarned + 75
+    }));
+
     setLeagueState(prev => {
       if (prev.week >= 18) {
         return { ...prev, week: 1, currentPhase: LeaguePhase.PLAYOFFS };
@@ -115,6 +129,17 @@ const App: React.FC = () => {
     }
 
     switch (currentView) {
+      case AppView.COACH_OFFICE:
+        return (
+          <CoachOffice
+            selectedTeamId={selectedTeamId}
+            teams={teams}
+            coachProfile={coachProfile}
+            setCoachProfile={setCoachProfile}
+            currentWeek={leagueState.week}
+            onLaunchGame={() => setCurrentView(AppView.MATCH)}
+          />
+        );
       case AppView.DASHBOARD:
         return <Dashboard selectedTeamId={selectedTeamId} leaguePhase={leagueState.currentPhase} currentWeek={leagueState.week} teams={teams} allPlayers={allPlayers} />;
       case AppView.ROSTER:
@@ -153,6 +178,8 @@ const App: React.FC = () => {
             teams={teams}
             setTeams={setTeams}
             setView={setCurrentView}
+            coachProfile={coachProfile}
+            setCoachProfile={setCoachProfile}
           />
         );
       case AppView.DRAFT:
@@ -198,7 +225,7 @@ const App: React.FC = () => {
       <div className="absolute inset-0 grid-lines opacity-20 pointer-events-none"></div>
       <div className="scan-line"></div>
 
-      {selectedTeamId && <Navigation currentView={currentView} setView={setCurrentView} selectedTeamId={selectedTeamId} teams={teams} />}
+      {selectedTeamId && <Navigation currentView={currentView} setView={setCurrentView} selectedTeamId={selectedTeamId} teams={teams} coachProfile={coachProfile} />}
       <main className="flex-1 relative overflow-hidden flex flex-col z-10">
         {/* League Status Bar */}
         {selectedTeamId && (() => {
@@ -220,6 +247,15 @@ const App: React.FC = () => {
                   <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Week</span>
                   <span className="text-sm font-bold text-white">{leagueState.week}</span>
                 </div>
+
+                {/* NFL Head Coach 2009 Coach Office Quick Access */}
+                <button
+                  onClick={() => setCurrentView(AppView.COACH_OFFICE)}
+                  className="flex items-center gap-2 px-3 py-1 bg-amber-500/10 border border-amber-500/40 text-amber-400 text-xs font-mono font-bold hover:bg-amber-500/20 transition-all shadow-[0_0_10px_rgba(245,158,11,0.15)]"
+                >
+                  <Crown size={13} className="text-amber-400" />
+                  <span>{coachProfile.coachPoints} CP // {coachProfile.opponentPrepScore}% PREP</span>
+                </button>
 
                 {/* Skill Points Ready Notification */}
                 {playersWithSP.length > 0 && (

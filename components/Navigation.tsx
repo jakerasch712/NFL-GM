@@ -1,6 +1,6 @@
 import React from 'react';
-import { LayoutDashboard, Users, ClipboardList, Play, Briefcase, ShoppingBag, ArrowLeftRight, Shield, Zap, Microscope, LogOut, Award } from 'lucide-react';
-import { AppView } from '../types';
+import { LayoutDashboard, Users, ClipboardList, Play, Briefcase, ShoppingBag, ArrowLeftRight, Shield, Zap, Microscope, LogOut, Award, Crown, Calendar } from 'lucide-react';
+import { AppView, HeadCoachProfile } from '../types';
 import { TEAMS_DB } from '../constants';
 
 interface NavigationProps {
@@ -8,20 +8,22 @@ interface NavigationProps {
   setView: (view: AppView) => void;
   selectedTeamId: string;
   teams: Record<string, any>;
+  coachProfile?: HeadCoachProfile;
 }
 
-const Navigation: React.FC<NavigationProps> = ({ currentView, setView, selectedTeamId, teams }) => {
+const Navigation: React.FC<NavigationProps> = ({ currentView, setView, selectedTeamId, teams, coachProfile }) => {
   const team = teams[selectedTeamId] || TEAMS_DB[selectedTeamId];
   const navItems = [
+    { id: AppView.COACH_OFFICE, label: 'Coach Office & Agenda', icon: Crown, badge: coachProfile ? `${coachProfile.coachPoints} CP` : undefined },
     { id: AppView.DASHBOARD, label: 'HQ Dashboard', icon: LayoutDashboard },
+    { id: AppView.GAMEPLAN, label: 'Gameplan & Prep', icon: ClipboardList },
+    { id: AppView.MATCH, label: 'Gameday Sideline', icon: Play },
     { id: AppView.ROSTER, label: 'Roster & Depth', icon: Users },
+    { id: AppView.STAFF, label: 'Coaching Staff', icon: Zap },
+    { id: AppView.SCOUTING, label: 'Draft Scouting', icon: Microscope },
+    { id: AppView.DRAFT, label: 'Draft War Room', icon: Shield },
     { id: AppView.FREE_AGENCY, label: 'Free Agency', icon: ShoppingBag },
     { id: AppView.TRADE_CENTER, label: 'Trade Center', icon: ArrowLeftRight },
-    { id: AppView.GAMEPLAN, label: 'Gameplan', icon: ClipboardList },
-    { id: AppView.MATCH, label: 'Match Sim', icon: Play },
-    { id: AppView.DRAFT, label: 'War Room', icon: Shield },
-    { id: AppView.STAFF, label: 'Staff', icon: Zap },
-    { id: AppView.SCOUTING, label: 'Scouting', icon: Microscope },
     { id: AppView.HALL_OF_FAME, label: 'Hall of Fame', icon: Award },
   ];
 
@@ -49,8 +51,13 @@ const Navigation: React.FC<NavigationProps> = ({ currentView, setView, selectedT
             }`}
           >
             <item.icon size={18} className={currentView === item.id ? "text-cyan-400" : "text-slate-600 group-hover:text-cyan-400 transition-colors"} />
-            <span className={`text-[11px] uppercase tracking-[0.1em] font-bold ${currentView === item.id ? 'mono-font' : ''}`}>{item.label}</span>
-            {currentView === item.id && (
+            <span className={`text-[11px] uppercase tracking-[0.1em] font-bold ${currentView === item.id ? 'mono-font text-white' : ''}`}>{item.label}</span>
+            {item.badge && (
+              <span className="ml-auto text-[9px] px-1.5 py-0.5 bg-amber-500/10 border border-amber-500/30 text-amber-400 font-mono font-bold tracking-tight">
+                {item.badge}
+              </span>
+            )}
+            {currentView === item.id && !item.badge && (
                 <div className="ml-auto w-1 h-3 bg-cyan-400 shadow-[0_0_10px_rgba(0,209,255,1)] animate-pulse"></div>
             )}
           </button>
@@ -69,9 +76,16 @@ const Navigation: React.FC<NavigationProps> = ({ currentView, setView, selectedT
             <span className="tracking-widest">CAP_REFLOW</span>
             <span className="text-white">$14.2M</span>
         </div>
+        <div className="mt-3 p-2 bg-[#05070a] border border-cyan-500/20 flex items-center justify-between text-[9px] font-mono">
+          <span className="text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
+            AI ENGINE
+          </span>
+          <span className="text-cyan-400 font-bold">GEMINI 3.8 FLASH</span>
+        </div>
         <button 
           onClick={() => window.location.reload()} 
-          className="mt-6 w-full flex items-center justify-center gap-2 py-2 text-[9px] font-bold uppercase tracking-[0.2em] text-slate-600 hover:text-red-500 transition-all border border-[#1a222e] rounded-sm hover:bg-red-500/5 hover:border-red-500/30"
+          className="mt-4 w-full flex items-center justify-center gap-2 py-2 text-[9px] font-bold uppercase tracking-[0.2em] text-slate-600 hover:text-red-500 transition-all border border-[#1a222e] rounded-sm hover:bg-red-500/5 hover:border-red-500/30"
         >
           <LogOut size={12} />
           TERMINATE_SESSION

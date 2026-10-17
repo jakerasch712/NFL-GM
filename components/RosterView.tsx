@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { TEAMS_DB, MOCK_PLAYERS } from '../constants';
-import { Shield, TrendingUp, Battery, AlertCircle, Briefcase, Search, Filter, UserMinus, DollarSign, RefreshCw, CheckCircle2, Loader2, GripVertical, ChevronUp, ChevronDown, Activity, HeartPulse, ShieldAlert, FileText, X, Info, Calendar, Award, Sparkles, Heart, Zap } from 'lucide-react';
+import { Shield, TrendingUp, Battery, AlertCircle, Briefcase, Search, Filter, UserMinus, DollarSign, RefreshCw, CheckCircle2, Loader2, GripVertical, ChevronUp, ChevronDown, Activity, HeartPulse, ShieldAlert, FileText, X, Info, Calendar, Award, Sparkles, Heart, Zap, Flame } from 'lucide-react';
 import ContractNegotiation from './ContractNegotiation';
 import { RestructureModal, ReleasePlayerModal } from './CapModals';
 import DepthChartVisualizer from './DepthChartVisualizer';
 import PlayerProgressionModal from './PlayerProgressionModal';
+import FirecrawlRosterModal from './FirecrawlRosterModal';
 import { Player, Position, InjuryRecord } from '../types';
 import { syncTeamRoster } from '../services/geminiService';
 import { getTeamCapSpace, restructureContract } from '../services/financeService';
@@ -35,6 +36,7 @@ const RosterView: React.FC<RosterViewProps> = ({ selectedTeamId, allPlayers, set
   const [viewMode, setViewMode] = useState<'standard' | 'progression' | 'financial' | 'depth_chart'>('standard');
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncSuccess, setSyncSuccess] = useState(false);
+  const [isFirecrawlModalOpen, setIsFirecrawlModalOpen] = useState(false);
 
   const activeNegotiationPlayer = players.find(p => p.id === negotiatingPlayerId);
   const activeRestructurePlayer = players.find(p => p.id === restructuringPlayerId);
@@ -334,6 +336,14 @@ const RosterView: React.FC<RosterViewProps> = ({ selectedTeamId, allPlayers, set
           >
             {autoGenSuccess ? <CheckCircle2 size={16} /> : <Sparkles size={16} />}
             {autoGenSuccess ? 'DEPTH_CHART_OPTIMIZED' : 'AUTO_GENERATE_DEPTH_CHART'}
+          </button>
+
+          <button
+            onClick={() => setIsFirecrawlModalOpen(true)}
+            className="flex items-center gap-2.5 px-5 py-3 border border-orange-500/50 bg-orange-500/10 hover:bg-orange-500 hover:text-black text-orange-400 transition-all font-bold uppercase tracking-[0.2em] text-[10px] mono-font shadow-[0_0_15px_rgba(249,115,22,0.15)] group"
+          >
+            <Flame size={15} className="text-orange-400 group-hover:text-black animate-pulse" />
+            <span>FIRECRAWL ALEXANDRIA SYNC</span>
           </button>
 
           <button 
@@ -833,6 +843,21 @@ const RosterView: React.FC<RosterViewProps> = ({ selectedTeamId, allPlayers, set
           onClose={() => setReleasingPlayerId(null)}
         />
       )}
+
+      {/* Firecrawl Alexandria Roster Sync Modal */}
+      <FirecrawlRosterModal
+        isOpen={isFirecrawlModalOpen}
+        onClose={() => setIsFirecrawlModalOpen(false)}
+        selectedTeamId={selectedTeamId}
+        team={team}
+        onApplyRoster={(newPlayers) => {
+          const mapped = newPlayers.map(p => ({ ...p, teamId: selectedTeamId }));
+          setAllPlayers(prev => [
+            ...prev.filter(p => p.teamId !== selectedTeamId),
+            ...mapped
+          ]);
+        }}
+      />
     </div>
   );
 };

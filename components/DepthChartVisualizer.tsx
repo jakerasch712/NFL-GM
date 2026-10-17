@@ -481,9 +481,12 @@ export const DepthChartVisualizer: React.FC<DepthChartVisualizerProps> = ({
                 <CheckCircle2 size={10} />
                 SPOTRAC.COM/NFL VERIFIED
               </span>
+              <span className="text-[9px] px-2 py-0.5 bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 font-mono font-bold uppercase tracking-wider flex items-center gap-1">
+                GEMINI 3.8 FLASH GROUNDED
+              </span>
             </div>
             <p className="text-[10px] text-slate-500 font-mono tracking-wider mt-0.5">
-              Live salary cap hits, dead money, void years, and positional depth charts synced with Spotrac NFL databases.
+              Live salary cap hits, dead money, void years, and positional depth charts synced with Spotrac NFL databases via Gemini 3.8 Flash search grounding.
             </p>
           </div>
         </div>

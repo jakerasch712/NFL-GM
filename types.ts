@@ -353,6 +353,7 @@ export interface LeagueState {
 
 export enum AppView {
   TEAM_SELECTION = 'TEAM_SELECTION',
+  COACH_OFFICE = 'COACH_OFFICE',
   DASHBOARD = 'DASHBOARD',
   ROSTER = 'ROSTER',
   FREE_AGENCY = 'FREE_AGENCY',
@@ -479,5 +480,101 @@ export interface PlayerDevFocus {
   playerId: string;
   focusArea: string;
   progress: number;
+}
+
+// ==========================================
+// NFL HEAD COACH 2009 AUTHENTIC SYSTEM TYPES
+// ==========================================
+
+export type CoachSkillBranch = 'Tactician' | 'Motivator' | 'Scout' | 'Disciplinarian' | 'Strategist';
+
+export interface CoachSkill {
+  id: string;
+  name: string;
+  branch: CoachSkillBranch;
+  tier: 1 | 2 | 3;
+  cost: number; // In Coach Points (CP)
+  description: string;
+  perkDescription: string;
+  isUnlocked: boolean;
+  iconName: string;
+}
+
+export interface CoachPhilosophy {
+  runPassRatio: number; // 0 (100% Run) to 100 (100% Pass)
+  passDepth: 'Short' | 'Medium' | 'Deep';
+  blitzFrequency: number; // 0 to 100%
+  fourthDownAggressiveness: number; // 0 (conservative punt) to 100 (always go for it)
+  offensiveTempo: 'Chew Clock' | 'Normal' | 'No Huddle';
+  offensiveScheme: 'West Coast' | 'Air Coryell' | 'Smashmouth Power' | 'Spread Option' | 'Pistol';
+  defensiveScheme: 'Base 4-3' | '3-4 Under' | 'Cover 2 Tampa' | 'Cover 3 Press' | 'Aggressive 46';
+  qbDecisionMaking: 'Careful Checkdown' | 'Balanced' | 'Gunslinger';
+  playerRotationFatigueThreshold: number; // e.g. 75 fatigue
+}
+
+export type WeeklyDayType = 'MONDAY' | 'TUESDAY' | 'WEDNESDAY' | 'THURSDAY' | 'FRIDAY' | 'SATURDAY' | 'SUNDAY';
+
+export interface WeeklyAgendaActivity {
+  day: WeeklyDayType;
+  dayLabel: string;
+  title: string;
+  subtitle: string;
+  category: 'FILM_ROOM' | 'STAFF_MEETING' | 'OFFENSE_INSTALL' | 'DEFENSE_INSTALL' | 'SPECIAL_TEAMS' | 'PREGAME_SPEECH' | 'GAMEDAY';
+  isCompleted: boolean;
+  prepPoints: number; // Gained towards 100% preparedness
+  options: {
+    id: string;
+    label: string;
+    description: string;
+    prepBonus: number;
+    moraleBonus: number;
+    tacticalPerk: string;
+  }[];
+  selectedOptionId?: string;
+}
+
+export type PlayerComposureLevel = 'ICE_COLD' | 'RATTLED' | 'COMPOSED' | 'HOT' | 'ON_FIRE';
+
+export type SidelineReactionType = 'CHEW_OUT' | 'PRAISE' | 'CALM_DOWN' | 'PUMP_UP';
+
+export interface SidelineConferenceLog {
+  quarter: number;
+  timeLeft: string;
+  playerName: string;
+  position: Position;
+  reaction: SidelineReactionType;
+  resultMessage: string;
+  composureDelta: number;
+}
+
+export interface PressConferenceQuestion {
+  id: string;
+  reporter: string;
+  outlet: string;
+  question: string;
+  answers: {
+    text: string;
+    ownerDelta: number;
+    fanDelta: number;
+    lockerRoomDelta: number;
+    headline: string;
+  }[];
+}
+
+export interface HeadCoachProfile {
+  name: string;
+  title: string;
+  level: number;
+  coachPoints: number; // Current CP to spend
+  totalCpEarned: number;
+  ownerApproval: number; // 0-100
+  fanApproval: number; // 0-100
+  jobSecurity: 'Iconic Legend' | 'Contract Extension' | 'Secure' | 'Warm Seat' | 'Hot Seat';
+  unlockedSkillIds: string[];
+  philosophy: CoachPhilosophy;
+  weeklyAgenda: WeeklyAgendaActivity[];
+  opponentPrepScore: number; // 0 - 100%
+  completedAgendaDays: number;
+  gameplanKnowledge: number; // 0-100%
 }
 

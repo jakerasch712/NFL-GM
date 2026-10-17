@@ -27,8 +27,50 @@ const INITIAL_DECISION_IMPACTS: DecisionImpact[] = [
 ];
 
 const StaffView: React.FC<StaffViewProps> = ({ selectedTeamId, coaches, setCoaches, teams }) => {
-  const teamCoaches = coaches.filter(c => c.teamId === selectedTeamId);
   const team = teams[selectedTeamId] || TEAMS_DB[selectedTeamId];
+  const teamCoaches = coaches.filter(c => c.teamId === selectedTeamId).length > 0 
+    ? coaches.filter(c => c.teamId === selectedTeamId)
+    : [
+        {
+          id: `hc-${selectedTeamId}`,
+          name: `${team?.city || 'Franchise'} Head Coach`,
+          role: 'HC',
+          specialty: 'Strategy & Culture',
+          archetype: 'The Architect',
+          experience: 4,
+          scheme: 'Pro Style',
+          teamId: selectedTeamId,
+          traits: [
+            { name: 'Leader of Men', description: 'Boosts player morale and composure recovery', bonus: { stat: 'overall', value: 2 } }
+          ]
+        },
+        {
+          id: `oc-${selectedTeamId}`,
+          name: 'Offensive Coordinator',
+          role: 'OC',
+          specialty: 'Passing & Play Action',
+          archetype: 'The Innovator',
+          experience: 3,
+          scheme: 'West Coast Spread',
+          teamId: selectedTeamId,
+          traits: [
+            { name: 'QB Whisperer', description: 'Accelerates young QB development and accuracy', bonus: { stat: 'rating', value: 6 } }
+          ]
+        },
+        {
+          id: `dc-${selectedTeamId}`,
+          name: 'Defensive Coordinator',
+          role: 'DC',
+          specialty: 'Pressure & Blitz',
+          archetype: 'The Mercenary',
+          experience: 5,
+          scheme: 'Aggressive 4-3 Under',
+          teamId: selectedTeamId,
+          traits: [
+            { name: 'Iron Curtain', description: 'Reduces opponent big plays and boosts sacks', bonus: { stat: 'sacks', value: 4 } }
+          ]
+        }
+      ] as Coach[];
 
   const [activeTab, setActiveTab] = useState<'governance' | 'resume'>('governance');
 

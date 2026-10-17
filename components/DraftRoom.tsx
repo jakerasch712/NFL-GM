@@ -544,8 +544,13 @@ const DraftRoom: React.FC<DraftRoomProps> = ({ selectedTeamId, prospects, setPro
                       <Brain className="text-fuchsia-400" size={24} />
                     </div>
                     <div>
-                      <h3 className="text-2xl font-bold text-white header-font uppercase tracking-tighter italic">AI_WAR_ROOM_ANALYSIS</h3>
-                      <p className="text-[9px] text-fuchsia-500/60 uppercase font-bold mono-font tracking-[0.3em] mt-1 italic">ENCRYPTED_ADVISORY_DATA_STREAM</p>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-2xl font-bold text-white header-font uppercase tracking-tighter italic">AI_WAR_ROOM_ANALYSIS</h3>
+                        <span className="text-[9px] px-2 py-0.5 bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/40 font-mono font-bold uppercase tracking-wider">
+                          GEMINI 3.8 FLASH
+                        </span>
+                      </div>
+                      <p className="text-[9px] text-fuchsia-500/60 uppercase font-bold mono-font tracking-[0.3em] mt-1 italic">ENCRYPTED_ADVISORY_DATA_STREAM // REAL-TIME COGNITION</p>
                     </div>
                   </div>
                   <button onClick={() => setIsAiModalOpen(false)} className="text-slate-600 hover:text-white transition-all bg-[#05070a] border border-[#1a222e] p-2">
