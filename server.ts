@@ -3,6 +3,7 @@ import cors from 'cors';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
+import { createRosterRouter } from './server/routes/rosters';
 
 const app = express();
 const PORT = 3000;
@@ -103,158 +104,8 @@ Make sure all primary units (Offensive Line, Secondary, Pass Catchers, Defensive
   }
 });
 
-app.get('/api/firecrawl/status', async (req, res) => {
-  const envKey = process.env.FIRECRAWL_API_KEY;
-  res.json({
-    success: true,
-    installed: true,
-    cliVersion: 'v1.26.8',
-    hasKey: !!envKey,
-    keyMasked: envKey ? `${envKey.slice(0, 6)}...${envKey.slice(-4)}` : null,
-    integrations: {
-      chatgptPlugin: 'https://chatgpt.com/plugins/plugin_asdk_app_6a314a73f8ac819195b0d55e36b9c609?q=firecrawl',
-      claudeConnector: 'https://claude.ai/directory/connectors/firecrawl',
-      cliCommand: 'npx -y firecrawl-cli@latest init --all --browser',
-      signupUrl: 'https://www.firecrawl.dev/signin?view=signup',
-      onboardingDoc: 'https://www.firecrawl.dev/agent-onboarding/SKILL.md'
-    }
-  });
-});
-
-app.post('/api/rosters/firecrawl-sync', async (req, res) => {
-  try {
-    const { teamName, teamId, apiKey, customUrl } = req.body;
-    const effectiveKey = apiKey || process.env.FIRECRAWL_API_KEY;
-    const teamSlug = (teamName || teamId || '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
-    const targetUrl = customUrl || `https://www.spotrac.com/nfl/${teamSlug}/cap/`;
-
-    let scrapedMarkdown = '';
-    let usedProvider = 'gemini-fallback';
-
-    if (effectiveKey) {
-      try {
-        const firecrawlRes = await fetch('https://api.firecrawl.dev/v1/scrape', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${effectiveKey}`
-          },
-          body: JSON.stringify({
-            url: targetUrl,
-            formats: ['markdown'],
-            onlyMainContent: true
-          })
-        });
-
-        if (firecrawlRes.ok) {
-          const fcData = await firecrawlRes.json();
-          scrapedMarkdown = fcData.data?.markdown || '';
-          usedProvider = 'firecrawl-alexandria';
-        } else {
-          console.warn('Firecrawl API error response:', await firecrawlRes.text());
-        }
-      } catch (fcErr) {
-        console.warn('Direct Firecrawl scrape error:', fcErr);
-      }
-    }
-
-    const ai = getGenAI();
-    let prompt = '';
-
-    if (scrapedMarkdown && scrapedMarkdown.length > 100) {
-      prompt = `Extract the active NFL player roster, contract values, cap hits, and positions from this Firecrawl scraped page for the team "${teamName || teamId}".
-Source URL: ${targetUrl}
-
-Scraped Data Content:
-${scrapedMarkdown.slice(0, 15000)}
-
-Output strictly a JSON object with a "players" array formatted like this:
-{
-  "players": [
-    {
-      "name": "Player Name",
-      "position": "QB",
-      "age": 28,
-      "overall": 92,
-      "depth": 1,
-      "archetype": "Field General",
-      "salary": 38.0,
-      "bonus": 15.0,
-      "guaranteed": 90.0,
-      "yearsLeft": 3,
-      "totalValue": 120.0,
-      "capHit": 35.0,
-      "deadCap": 20.0,
-      "years": 4
-    }
-  ],
-  "provider": "firecrawl-alexandria"
-}
-Valid positions: QB, RB, WR, TE, OL, DL, LB, CB, S, K.
-Ensure depth charts and all major units (QB, RB, WR, TE, OL, DL, LB, CB, S, K) are populated. Return ONLY JSON.`;
-    } else {
-      prompt = `Perform a live web search on spotrac.com/nfl and current 2025/2026 NFL databases to fetch the complete active roster, depth chart, contracts, and cap hits for "${teamName || teamId}".
-Output strictly a JSON object with a "players" array:
-{
-  "players": [
-    {
-      "name": "Player Name",
-      "position": "QB",
-      "age": 27,
-      "overall": 88,
-      "depth": 1,
-      "archetype": "Improviser",
-      "salary": 25.0,
-      "bonus": 10.0,
-      "guaranteed": 50.0,
-      "yearsLeft": 2,
-      "totalValue": 75.0,
-      "capHit": 22.0,
-      "deadCap": 15.0,
-      "years": 3
-    }
-  ]
-}
-Valid positions: QB, RB, WR, TE, OL, DL, LB, CB, S, K. Return ONLY JSON.`;
-    }
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: prompt,
-      config: scrapedMarkdown ? {} : { tools: [{ googleSearch: {} }] }
-    });
-
-    const text = response.text || '';
-    let players = [];
-    try {
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        players = parsed.players || [];
-      } else {
-        const arrMatch = text.match(/\[[\s\S]*\]/);
-        if (arrMatch) players = JSON.parse(arrMatch[0]);
-      }
-    } catch (parseErr) {
-      console.warn('Error parsing JSON from Firecrawl roster extraction:', parseErr);
-    }
-
-    res.json({
-      success: true,
-      provider: usedProvider,
-      targetUrl,
-      hasFirecrawlKey: !!effectiveKey,
-      playersCount: players.length,
-      players
-    });
-  } catch (error: any) {
-    console.error('Error in Firecrawl roster sync:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message || 'Failed to sync rosters with Firecrawl'
-    });
-  }
-});
+// Live rosters: NFL.com via Firecrawl, with cache and snapshot fallback (see server/rosters).
+app.use('/api/rosters', createRosterRouter());
 
 app.post('/api/rosters/live-search', async (req, res) => {
   try {

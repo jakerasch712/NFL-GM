@@ -7,7 +7,6 @@ import DepthChartVisualizer from './DepthChartVisualizer';
 import PlayerProgressionModal from './PlayerProgressionModal';
 import FirecrawlRosterModal from './FirecrawlRosterModal';
 import { Player, Position, InjuryRecord } from '../types';
-import { syncTeamRoster } from '../services/geminiService';
 import { getTeamCapSpace, restructureContract } from '../services/financeService';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -182,23 +181,8 @@ const RosterView: React.FC<RosterViewProps> = ({ selectedTeamId, allPlayers, set
     setRestructuringPlayerId(null);
   };
 
-  const handleSyncRoster = async () => {
-    setIsSyncing(true);
-    setSyncSuccess(false);
-    try {
-      const syncedPlayers = await syncTeamRoster(`${team.city} ${team.name}`);
-      if (syncedPlayers.length > 0) {
-        const updatedPlayers = syncedPlayers.map(p => ({ ...p, teamId: selectedTeamId }));
-        setAllPlayers(updatedPlayers);
-        setSyncSuccess(true);
-        setTimeout(() => setSyncSuccess(false), 3000);
-      }
-    } catch (error) {
-      console.error("Sync failed", error);
-    } finally {
-      setIsSyncing(false);
-    }
-  };
+  // Roster sync goes through the live roster pipeline, which previews a diff before anything changes.
+  const handleSyncRoster = () => setIsFirecrawlModalOpen(true);
 
   const getPlayerTrendInfo = (player: Player) => {
     const focus = player.trainingFocus || (
@@ -850,13 +834,8 @@ const RosterView: React.FC<RosterViewProps> = ({ selectedTeamId, allPlayers, set
         onClose={() => setIsFirecrawlModalOpen(false)}
         selectedTeamId={selectedTeamId}
         team={team}
-        onApplyRoster={(newPlayers) => {
-          const mapped = newPlayers.map(p => ({ ...p, teamId: selectedTeamId }));
-          setAllPlayers(prev => [
-            ...prev.filter(p => p.teamId !== selectedTeamId),
-            ...mapped
-          ]);
-        }}
+        allPlayers={allPlayers}
+        onApplyRoster={setAllPlayers}
       />
     </div>
   );
