@@ -270,6 +270,8 @@ export interface Player {
   weightLb?: number;
   experience?: number; // Accrued NFL seasons
   dataSource?: 'curated' | 'live' | 'generated';
+  /** 'cap_hit': real current season cap hit with modelled structure. 'modelled': fully modelled. */
+  contractSource?: 'cap_hit' | 'curated' | 'modelled';
 }
 
 export interface Team {

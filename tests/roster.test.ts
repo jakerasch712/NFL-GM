@@ -2,15 +2,20 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { Player, Position } from '../types';
-import { TeamRosterSnapshot } from '../engine/rosterTypes';
+import { TeamContractSnapshot, TeamRosterSnapshot } from '../engine/rosterTypes';
 import { mergeTeamRoster, seedLeagueRosters } from '../engine/rosterMerge';
 import { normalizeTeamRoster } from '../server/rosters/normalize';
-import { ageForSeason, buildTeamPlayers } from '../server/rosters/ratings';
+import { ageForSeason, buildTeamPlayers, modelOverall } from '../server/rosters/ratings';
 import { modelContract } from '../server/rosters/contracts';
-import { CONTRACT_CONFIG, RATINGS_CONFIG } from '../server/rosters/config';
+import { CONTRACT_CONFIG, PRODUCTION_CONFIG, RATINGS_CONFIG, spotracCapUrl } from '../server/rosters/config';
+import { contractFromCapHit } from '../server/rosters/contracts';
+import { buildRatingInputs, latestDepthRanks, seasonProduction } from '../server/rosters/performance';
+import { createCapLookup, parseSpotracCap } from '../server/rosters/spotrac';
+import { calculateCapHit } from '../services/financeService';
 import { createRosterService, RosterUnavailableError } from '../server/rosters/service';
 import { createFirecrawlClient, FirecrawlError } from '../server/providers/firecrawl';
 
+const capMarkdown = readFileSync(new URL('./fixtures/atl-cap.sample.md', import.meta.url), 'utf8');
 const fixture = JSON.parse(readFileSync(new URL('./fixtures/atl-roster.sample.json', import.meta.url), 'utf8'));
 const snapshot = () => normalizeTeamRoster('ATL', fixture, '2026-01-01T00:00:00.000Z');
 const build = (curated: Player[] = []) => buildTeamPlayers(snapshot(), { season: 2026, curated });
@@ -207,16 +212,20 @@ test('seed replaces covered teams, drops duplicates elsewhere and leaves other t
 
 // ---------- service fallback chain ----------
 
-const memoryStore = (initial: TeamRosterSnapshot | null = null) => {
+const memoryStore = <T = TeamRosterSnapshot>(initial: T | null = null) => {
   let value = initial;
-  return { read: async () => value, write: async (s: TeamRosterSnapshot) => { value = s; }, get: () => value };
+  return { read: async () => value, write: async (_teamId: string, s: T) => { value = s; }, get: () => value };
 };
 const NOW = new Date('2026-11-15T00:00:00.000Z');
 const service = (overrides: Record<string, unknown>) => createRosterService({
-  client: null, cache: memoryStore(), snapshot: memoryStore(), curated: [], cacheTtlMs: 7 * 24 * 3_600_000, now: () => NOW, ...overrides
+  client: null, cache: memoryStore(), snapshot: memoryStore(), contractCache: memoryStore<TeamContractSnapshot>(), contractSnapshot: memoryStore<TeamContractSnapshot>(),
+  contractsEnabled: false, curated: [], cacheTtlMs: 7 * 24 * 3_600_000, now: () => NOW, ...overrides
 } as any);
-const liveClient = (calls: { n: number }) => ({ runBatch: async () => { calls.n++; return [{ data: fixture, error: null }]; }, getCreditsUsed: () => 0 });
-const failingClient = { runBatch: async () => { throw new Error('down'); }, getCreditsUsed: () => 0 };
+const liveClient = (calls: { n: number; pages?: number }) => ({
+  runBatch: async () => { calls.n++; return [{ data: fixture, error: null }]; },
+  scrapeTables: async () => { calls.pages = (calls.pages ?? 0) + 1; return capMarkdown; }
+});
+const failingClient = { runBatch: async () => { throw new Error('down'); }, scrapeTables: async () => { throw new Error('down'); } };
 const aged = (days: number): TeamRosterSnapshot => ({ ...snapshot(), fetchedAt: new Date(NOW.getTime() - days * 86_400_000).toISOString() });
 
 test('service: fresh cache is served without a provider call', async () => {
@@ -247,7 +256,7 @@ test('service: live failure falls back to stale cache, then snapshot, then error
 
 test('service: Arizona is requested with the provider code AZ', async () => {
   let sent: any;
-  const client = { runBatch: async (calls: any[]) => { sent = calls[0]; return [{ data: fixture, error: null }]; }, getCreditsUsed: () => 0 };
+  const client = { runBatch: async (calls: any[]) => { sent = calls[0]; return [{ data: fixture, error: null }]; }, scrapeTables: async () => '' };
   await service({ client, season: 2026 }).getTeamRoster('ARI');
   assert.deepEqual(sent, { provider: 'nfl-com', capability: 'sports-league-data/team_roster', options: { team: 'AZ', season: 2026 } });
 });
@@ -296,3 +305,161 @@ test('service: stored league returns cache or snapshot teams without calling the
   assert.equal(teams[0].source, 'snapshot');
 });
 
+
+// ---------- production and depth inputs ----------
+
+const statRow = (id: string, position: string, games: number, extra: Record<string, number>) =>
+  ({ player_id: id, position, games: String(games), ...Object.fromEntries(Object.entries(extra).map(([k, v]) => [k, String(v)])) });
+
+test('production: percentile ranks players within the position and applies qualifiers', () => {
+  const rows = [
+    statRow('a', 'WR', 9, { targets: 80, receiving_yards: 900, receiving_tds: 6 }),
+    statRow('b', 'WR', 9, { targets: 50, receiving_yards: 450, receiving_tds: 2 }),
+    statRow('c', 'WR', 9, { targets: 30, receiving_yards: 180, receiving_tds: 0 }),
+    statRow('d', 'WR', 9, { targets: 4, receiving_yards: 60, receiving_tds: 1 }), // below the target qualifier
+    statRow('e', 'WR', 2, { targets: 30, receiving_yards: 300, receiving_tds: 3 }), // below minimum games
+    statRow('f', 'G', 9, {}), // no production metric for OL
+    statRow('k', 'K', 9, { fg_made: 18, fg_att: 20 }),
+    statRow('q', 'SAF', 9, { def_tackles_solo: 40, def_interceptions: 3 })
+  ];
+  const result = seasonProduction(rows);
+  assert.deepEqual([...result.keys()].sort(), ['a', 'b', 'c', 'k', 'q']);
+  assert.ok(result.get('a')!.percentile > result.get('b')!.percentile);
+  assert.ok(result.get('b')!.percentile > result.get('c')!.percentile);
+  assert.equal(result.get('b')!.percentile, 0.5); // middle of three, mid rank method
+  assert.equal(result.get('k')!.percentile, 0.5); // alone at the position
+});
+
+test('production: bad game counts are capped and seasons are weighted by games', () => {
+  const current = [statRow('a', 'RB', 137, { carries: 100, rushing_yards: 500 }), statRow('b', 'RB', 4, { carries: 60, rushing_yards: 400 })];
+  const previous = [statRow('b', 'RB', 16, { carries: 200, rushing_yards: 600 }), statRow('z', 'RB', 16, { carries: 250, rushing_yards: 1400 })];
+  assert.equal(seasonProduction(current).get('a')!.games, PRODUCTION_CONFIG.maxGamesPerSeason);
+  const inputs = buildRatingInputs([current, previous], new Map([['b', 2], ['line', 1]]));
+  // b: 0.75 this season over 4 games (weight 1), 0.25 last season over 16 games (weight 0.5) → (0.75×4 + 0.25×8) ÷ 12
+  assert.equal(inputs.b.p, 0.417);
+  assert.equal(inputs.b.s, 1);
+  assert.equal(inputs.b.d, 2);
+  assert.deepEqual(inputs.line, { d: 1 }); // depth only, e.g. an offensive lineman
+  assert.equal(inputs.z.s, 1); // 16 games × 0.5 = 8 weighted games
+});
+
+test('depth: only the newest snapshot counts, special teams slots are ignored, best rank wins', () => {
+  const rows = [
+    { dt: '2026-11-01T00:00:00Z', gsis_id: 'a', pos_abb: 'QB', pos_rank: '1' },
+    { dt: '2026-11-14T00:00:00Z', gsis_id: 'a', pos_abb: 'QB', pos_rank: '2' },
+    { dt: '2026-11-14T00:00:00Z', gsis_id: 'b', pos_abb: 'KR', pos_rank: '1' },
+    { dt: '2026-11-14T00:00:00Z', gsis_id: 'c', pos_abb: 'NB', pos_rank: '1' },
+    { dt: '2026-11-14T00:00:00Z', gsis_id: 'c', pos_abb: 'LCB', pos_rank: '2' }
+  ];
+  const { asOf, ranks } = latestDepthRanks(rows);
+  assert.equal(asOf, '2026-11-14T00:00:00Z');
+  assert.deepEqual([...ranks], [['a', 2], ['c', 1]]);
+});
+
+test('ratings: production and depth move the rating, and the cap lifts only with data', () => {
+  const record = snapshot().records.find(r => r.name === 'Drake London')!;
+  const baseline = modelOverall(record, 25, 2026);
+  const star = modelOverall(record, 25, 2026, { p: 0.99, s: 1, d: 1 });
+  const poor = modelOverall(record, 25, 2026, { p: 0.05, s: 1, d: 4 });
+  const smallSample = modelOverall(record, 25, 2026, { p: 0.99, s: 0.25, d: 1 });
+  assert.ok(baseline <= RATINGS_CONFIG.maxModelledOverall);
+  assert.ok(star >= 92 && star <= PRODUCTION_CONFIG.maxOverall, `star ${star}`);
+  assert.ok(poor < baseline, `poor ${poor} < baseline ${baseline}`);
+  assert.ok(smallSample < star && smallSample > baseline);
+  assert.equal(modelOverall(record, 25, 2026, { p: 0.99, s: 1, d: 1 }), star); // deterministic
+});
+
+test('ratings: depth chart rank drives depth order and lifts linemen without stats', () => {
+  const s = snapshot();
+  const penix = s.records.find(r => r.name === 'Michael Penix Jr.')!.gsisId;
+  const dalton = s.records.find(r => r.name === 'Andy Dalton')!.gsisId;
+  const bergeron = s.records.find(r => r.name === 'Matthew Bergeron')!;
+  const players = buildTeamPlayers(s, { season: 2026, ratingInputs: { [dalton]: { d: 1 }, [penix]: { d: 2 }, [bergeron.gsisId]: { d: 1 } } });
+  assert.equal(players.find(p => p.id === dalton)!.depth, 1);
+  assert.equal(players.find(p => p.id === penix)!.depth, 2);
+  const withDepth = players.find(p => p.id === bergeron.gsisId)!.overall;
+  const without = build().find(p => p.id === bergeron.gsisId)!.overall;
+  assert.equal(withDepth - without, PRODUCTION_CONFIG.depthAdjustment.withoutProduction[0]);
+});
+
+// ---------- contracts from cap pages ----------
+
+test('spotrac: parses roster tables, drops the dead money table, reads the league cap', () => {
+  const page = parseSpotracCap(capMarkdown);
+  assert.equal(page.salaryCapM, 301.2);
+  assert.equal(page.entries.length, 18); // 14 active + 2 IR + 1 PUP + 1 practice squad
+  assert.deepEqual(page.entries[0], { sourceId: '47610', name: 'A.J. Terrell', capHitM: 13.51 });
+  assert.ok(!page.entries.some(e => e.name === 'Kirk Cousins' || e.name === 'Nick Folk'));
+  assert.equal(page.entries.find(e => e.name === 'Vinny Anthony')!.capHitM, 0.25); // practice squad row, not the dead money row
+  assert.equal(page.entries.find(e => e.name === 'JD Bertrand')!.capHitM, 1.17);
+  assert.deepEqual(parseSpotracCap('nothing here'), { salaryCapM: null, entries: [] });
+});
+
+test('spotrac: name matching handles suffixes, nicknames and never reuses an entry', () => {
+  const find = createCapLookup(parseSpotracCap(capMarkdown).entries);
+  assert.equal(find('Gervon Dexter Sr.')!.name, 'Gervon Dexter'); // suffix
+  assert.equal(find('Mike Ford')!.name, 'Michael Ford'); // first initial + last name
+  assert.equal(find("Za'Darius Smith")!.capHitM, 5.29);
+  assert.equal(find('Mike Ford'), undefined); // already used
+  assert.equal(find('Somebody Else'), undefined);
+  // Ambiguous initial keys are refused.
+  const ambiguous = createCapLookup([{ sourceId: '1', name: 'Josh Allen', capHitM: 1 }, { sourceId: '2', name: 'Jonathan Allen', capHitM: 2 }]);
+  assert.equal(ambiguous('Jalen Allen'), undefined);
+  assert.equal(ambiguous('Josh Allen')!.sourceId, '1');
+});
+
+test('contracts: a real cap hit is reproduced exactly by the game cap formula', () => {
+  const input = { gsisId: '00-1', position: Position.CB, overall: 88, age: 28, experience: 7, season: 2026 };
+  const c = contractFromCapHit(input, 13.51);
+  assert.equal(c.capHit, 13.51);
+  assert.ok(Math.abs(calculateCapHit(c) - 13.51) < 0.011);
+  assert.ok(Math.abs(c.salary * c.years + c.bonus - c.totalValue) < 0.05);
+  assert.ok(c.yearsLeft >= 1 && c.yearsLeft <= c.years);
+  assert.equal(contractFromCapHit(input, -0.2).capHit, 0);
+});
+
+test('build: cap hits win over curated and modelled contracts and are flagged', () => {
+  const entries = parseSpotracCap(capMarkdown).entries;
+  const base = build().find(p => p.name === 'Bijan Robinson')!;
+  const curated: Player = { ...base, id: 'atl_x', gsisId: undefined, teamId: 'ATL', contract: { ...base.contract, capHit: 99 } };
+  const players = buildTeamPlayers(snapshot(), { season: 2026, curated: [curated], capEntries: entries });
+  const bijan = players.find(p => p.name === 'Bijan Robinson')!;
+  assert.equal(bijan.contract.capHit, 10.05);
+  assert.equal(bijan.contractSource, 'cap_hit');
+  assert.equal(players.find(p => p.name === 'Mike Ford')!.contract.capHit, 2.16);
+  assert.equal(players.find(p => p.name === 'Kyle Pitts')!.contractSource, 'cap_hit');
+  assert.equal(players.find(p => p.name === 'Jake Moody')!.contractSource, 'modelled'); // not on the trimmed cap fixture
+  assert.equal(players.filter(p => p.contractSource === 'cap_hit').length, 17);
+  assert.equal(build([curated]).find(p => p.name === 'Bijan Robinson')!.contractSource, 'curated');
+});
+
+test('service: contracts are fetched once, cached, and reported with the league cap', async () => {
+  const calls = { n: 0, pages: 0 };
+  const contractCache = memoryStore<TeamContractSnapshot>();
+  const svc = service({ client: liveClient(calls), contractsEnabled: true, contractCache, season: 2026 });
+  const first = await svc.getTeamRoster('ATL');
+  assert.equal(first.salaryCapM, 301.2);
+  assert.deepEqual({ matched: first.contracts.matched, total: first.contracts.total }, { matched: 17, total: 18 });
+  assert.equal(contractCache.get()!.sourceUrl, spotracCapUrl('ATL', 2026));
+  assert.equal(spotracCapUrl('ATL', 2026), 'https://www.spotrac.com/nfl/atlanta-falcons/cap/_/year/2026');
+  await svc.getTeamRoster('ATL');
+  assert.equal(calls.pages, 1); // second request is served from cache
+});
+
+test('service: a failed contract fetch never fails the roster', async () => {
+  const client = { runBatch: async () => [{ data: fixture, error: null }], scrapeTables: async () => { throw new Error('blocked'); } };
+  const res = await service({ client, contractsEnabled: true }).getTeamRoster('ATL');
+  assert.equal(res.players.length, 18);
+  assert.equal(res.salaryCapM, null);
+  assert.equal(res.contracts.matched, 0);
+  const stale = await service({ client, contractsEnabled: true, season: 2026, contractSnapshot: memoryStore<TeamContractSnapshot>({ teamId: 'ATL', season: 2026, fetchedAt: 'x', sourceUrl: 'x', salaryCapM: 301.2, entries: parseSpotracCap(capMarkdown).entries }) }).getTeamRoster('ATL');
+  assert.equal(stale.contracts.matched, 17); // falls back to the committed snapshot
+});
+
+test('client: scrapeTables posts the URL for tables only and returns markdown', async () => {
+  let sent: any;
+  const client = createFirecrawlClient({ apiKey: 'k', fetchImpl: (async (_url: string, init: any) => { sent = JSON.parse(init.body); return jsonResponse(200, { data: { markdown: '| a |', metadata: { creditsUsed: 1 } } }); }) as any });
+  assert.equal(await client.scrapeTables('https://www.spotrac.com/nfl/atlanta-falcons/cap/_/year/2026'), '| a |');
+  assert.deepEqual(sent, { url: 'https://www.spotrac.com/nfl/atlanta-falcons/cap/_/year/2026', formats: ['markdown'], includeTags: ['table'] });
+  assert.equal(client.getCreditsUsed(), 1);
+});

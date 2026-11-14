@@ -6,6 +6,8 @@ export interface RosterPipelineStatus {
   season: number | null;
   cacheTtlHours: number;
   provider: string;
+  contractSource: string;
+  ratingInputs: { generatedAt: string; seasons: number[]; depthChartAsOf: string | null } | null;
 }
 
 /** Single client entry point for live rosters. The server owns keys, caching and ratings. */

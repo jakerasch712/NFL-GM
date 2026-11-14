@@ -38,11 +38,8 @@ export function createFirecrawlClient(options: FirecrawlClientOptions) {
   const { apiKey, timeoutMs = 30_000, maxRetries = 2, fetchImpl = fetch, sleep = defaultSleep } = options;
   let creditsUsed = 0;
 
-  /** Runs up to ALEXANDRIA_MAX_BATCH calls in one request. Results come back in call order. */
-  async function runBatch<T>(calls: AlexandriaCall[]): Promise<AlexandriaResult<T>[]> {
-    if (calls.length === 0) return [];
-    if (calls.length > ALEXANDRIA_MAX_BATCH) throw new FirecrawlError(`Batch of ${calls.length} exceeds ${ALEXANDRIA_MAX_BATCH}`);
-
+  /** POST with timeout and retry on 429 and 5xx. Returns the parsed JSON body. */
+  async function post(payload: unknown): Promise<any> {
     let lastError: FirecrawlError = new FirecrawlError('Firecrawl request failed');
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       if (attempt > 0) await sleep(500 * 2 ** (attempt - 1));
@@ -52,7 +49,7 @@ export function createFirecrawlClient(options: FirecrawlClientOptions) {
         const res = await fetchImpl(ENDPOINT, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-          body: JSON.stringify({ alexandria: calls }),
+          body: JSON.stringify(payload),
           signal: controller.signal
         });
         if (res.status === 429 || res.status >= 500) {
@@ -60,17 +57,7 @@ export function createFirecrawlClient(options: FirecrawlClientOptions) {
           continue; // retryable
         }
         if (!res.ok) throw new FirecrawlError(`Firecrawl returned ${res.status}`, res.status);
-
-        const body: any = await res.json();
-        const results: any[] = body?.data?.alexandria;
-        if (!Array.isArray(results) || results.length !== calls.length) {
-          throw new FirecrawlError('Unexpected Firecrawl response shape');
-        }
-        if (typeof body?.data?.creditsCost === 'number') creditsUsed += body.data.creditsCost;
-        return results.map(r => ({
-          data: (r?.data ?? null) as T | null,
-          error: r?.error ? (typeof r.error === 'string' ? r.error : r.error.message || r.error.code || 'Provider error') : null
-        }));
+        return await res.json();
       } catch (err: any) {
         if (err instanceof FirecrawlError) throw err;
         lastError = new FirecrawlError(err?.name === 'AbortError' ? 'Firecrawl request timed out' : `Firecrawl request failed: ${err?.message ?? err}`);
@@ -81,7 +68,31 @@ export function createFirecrawlClient(options: FirecrawlClientOptions) {
     throw lastError;
   }
 
-  return { runBatch, getCreditsUsed: () => creditsUsed };
+  /** Runs up to ALEXANDRIA_MAX_BATCH calls in one request. Results come back in call order. */
+  async function runBatch<T>(calls: AlexandriaCall[]): Promise<AlexandriaResult<T>[]> {
+    if (calls.length === 0) return [];
+    if (calls.length > ALEXANDRIA_MAX_BATCH) throw new FirecrawlError(`Batch of ${calls.length} exceeds ${ALEXANDRIA_MAX_BATCH}`);
+    const body = await post({ alexandria: calls });
+    const results: any[] = body?.data?.alexandria;
+    if (!Array.isArray(results) || results.length !== calls.length) throw new FirecrawlError('Unexpected Firecrawl response shape');
+    if (typeof body?.data?.creditsCost === 'number') creditsUsed += body.data.creditsCost;
+    return results.map(r => ({
+      data: (r?.data ?? null) as T | null,
+      error: r?.error ? (typeof r.error === 'string' ? r.error : r.error.message || r.error.code || 'Provider error') : null
+    }));
+  }
+
+  /** Fetches one page as markdown, limited to its tables. The URL must come from server side config. */
+  async function scrapeTables(url: string): Promise<string> {
+    const body = await post({ url, formats: ['markdown'], includeTags: ['table'] });
+    const markdown = body?.data?.markdown;
+    if (typeof markdown !== 'string' || markdown.length === 0) throw new FirecrawlError('Firecrawl returned no markdown');
+    const credits = body?.data?.metadata?.creditsUsed;
+    if (typeof credits === 'number') creditsUsed += credits;
+    return markdown;
+  }
+
+  return { runBatch, scrapeTables, getCreditsUsed: () => creditsUsed };
 }
 
 export type FirecrawlClient = ReturnType<typeof createFirecrawlClient>;

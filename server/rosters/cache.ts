@@ -1,42 +1,41 @@
 import { promises as fs } from 'fs';
 import path from 'path';
-import { TeamRosterSnapshot } from '../../engine/rosterTypes';
 
-/** Storage for normalized team rosters. Ratings are never cached, so model changes need no refetch. */
-export interface RosterStore {
-  read(teamId: string): Promise<TeamRosterSnapshot | null>;
-  write(snapshot: TeamRosterSnapshot): Promise<void>;
+/** Storage for one JSON document per team. Ratings are never cached, so model changes need no refetch. */
+export interface TeamStore<T> {
+  read(teamId: string): Promise<T | null>;
+  write(teamId: string, value: T): Promise<void>;
 }
 
 /** One JSON file per team. MVP storage: fine for one server process, not for several. */
-export function createFileRosterStore(directory: string): RosterStore {
+export function createFileStore<T>(directory: string): TeamStore<T> {
   const fileFor = (teamId: string) => path.join(directory, `${teamId}.json`);
   return {
     async read(teamId) {
       try {
-        return JSON.parse(await fs.readFile(fileFor(teamId), 'utf8')) as TeamRosterSnapshot;
+        return JSON.parse(await fs.readFile(fileFor(teamId), 'utf8')) as T;
       } catch {
         return null;
       }
     },
-    async write(snapshot) {
+    async write(teamId, value) {
       await fs.mkdir(directory, { recursive: true });
-      const target = fileFor(snapshot.teamId);
+      const target = fileFor(teamId);
       const temp = `${target}.${process.pid}.tmp`;
-      await fs.writeFile(temp, JSON.stringify(snapshot));
+      await fs.writeFile(temp, JSON.stringify(value));
       await fs.rename(temp, target); // atomic replace, so a crash never leaves a half written file
     }
   };
 }
 
-/** Read only store backed by the committed league snapshot file. */
-export function createSnapshotFileStore(filePath: string): Pick<RosterStore, 'read'> {
-  let loaded: Record<string, TeamRosterSnapshot> | null | undefined;
+/** Read only store backed by one section (`teams` or `contracts`) of the committed league snapshot file. */
+export function createSnapshotSectionStore<T>(filePath: string, section: string): Pick<TeamStore<T>, 'read'> {
+  let loaded: Record<string, T> | null | undefined;
   return {
     async read(teamId) {
       if (loaded === undefined) {
         try {
-          loaded = JSON.parse(await fs.readFile(filePath, 'utf8')).teams ?? null;
+          loaded = JSON.parse(await fs.readFile(filePath, 'utf8'))[section] ?? null;
         } catch {
           loaded = null;
         }

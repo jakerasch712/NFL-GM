@@ -170,13 +170,16 @@ Done when: a production build contains no secret, and `npm ci` passes.
 
 ### Phase 1: Live rosters (MVP)
 
-Status, 14 November 2026: pipeline, routes, merge, sync modal and 22 tests are built. Still open from this list:
+Status, 14 November 2026: pipeline, routes, merge, sync modal, nflverse ratings inputs, Spotrac cap hits and 34 tests are built (PR #12). Still open:
 
 - League snapshot not generated (needs a Firecrawl key in the environment: `npm run rosters:snapshot`).
 - Curated file not rekeyed to `gsis_id`. Overrides match by normalized name, and merge falls back to name plus position.
 - Depth chart screen still uses the Gemini based Spotrac sync.
-- Ratings use position, experience and age only. nflverse stats and depth charts are not wired in yet.
-- 31 provider team codes are unverified until the snapshot script runs (only `ATL` and `AZ` are confirmed).
+- Provider team codes and Spotrac slugs are verified for Atlanta only until the snapshot script runs.
+- Contract length, bonus and guarantees are still modelled. Spotrac's contracts page would supply them and needs its own parser.
+- Ratings gaps: no production metric for offensive line, box score only defence, kickers and punters share a position.
+
+Contract source decision (14 November 2026): Spotrac through Firecrawl. The nflverse contracts file was checked and rejected: its newest signing year is 2022. Firecrawl has no structured contract provider, so the cap page is fetched as a page and parsed with a fixed pattern. Risk: Spotrac's terms restrict automated collection, and a page redesign breaks the parser (the roster still loads, with modelled contracts).
 
 - Build `providers/firecrawl.ts`, `rosters/normalize.ts`, `rosters/ratings.ts`, `rosters/cache.ts`.
 - Add `GET /api/rosters/:team` and a league wide refresh.

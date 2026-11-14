@@ -144,8 +144,13 @@ const FirecrawlRosterModal: React.FC<FirecrawlRosterModalProps> = ({ isOpen, onC
               </div>
 
               <div className="p-3 bg-amber-500/10 border border-amber-500/30 text-amber-200 text-[11px] leading-relaxed">
-                Names, positions and roster status are real. Ratings and contracts for new players are modelled by the game, not league data.
-                Players already in your save keep their ratings, contracts and progression.
+                Names, positions and roster status are real. Ratings are modelled
+                {status?.ratingInputs ? ` from nflverse production and depth charts (${new Date(status.ratingInputs.generatedAt).toLocaleDateString()})` : ' from position, experience and age only'}.
+                {roster.contracts.matched > 0
+                  ? ` Cap hits are real for ${roster.contracts.matched} of ${roster.contracts.total} players (Spotrac); contract length, bonus and guarantees are modelled.`
+                  : ' Contracts are fully modelled.'}
+                {roster.salaryCapM ? ` League cap: $${roster.salaryCapM}M.` : ''}
+                {' '}Players already in your save keep their ratings, contracts and progression.
                 {skippedCount > 0 && ` ${skippedCount} listed players were skipped because their position or status code is not mapped yet.`}
               </div>
 

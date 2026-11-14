@@ -74,6 +74,9 @@ const App: React.FC = () => {
         // Teams with a stored live roster (server cache or snapshot) replace their base roster.
         const storedLeague = await rosterService.fetchStoredLeague();
         setAllPlayers(ensureFullTeamRosters(seedLeagueRosters(basePlayers, storedLeague)));
+        // Use the real league salary cap when the contract source reported one.
+        const liveCap = storedLeague.find(t => t.salaryCapM)?.salaryCapM;
+        if (liveCap) setLeagueState(prev => ({ ...prev, salaryCap: liveCap }));
       } catch (err) {
         console.warn('Initialization using default local databases:', err);
       } finally {

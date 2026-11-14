@@ -7,7 +7,7 @@ import { isTeamId, RosterUnavailableError } from '../rosters/service';
 /** Live roster routes. Mounted at /api/rosters. */
 export function createRosterRouter() {
   const router = Router();
-  const { service, settings } = createRosterServiceFromEnv();
+  const { service, settings, ratingInputs } = createRosterServiceFromEnv();
   const adminOnly = requireAdminToken(() => settings.adminToken);
 
   router.use(rateLimit({ windowMs: 60_000, max: 60 }));
@@ -19,7 +19,9 @@ export function createRosterRouter() {
       snapshotAvailable: existsSync(settings.snapshotFile),
       season: settings.season ?? null,
       cacheTtlHours: settings.cacheTtlHours,
-      provider: 'NFL.com via Firecrawl'
+      provider: 'NFL.com via Firecrawl',
+      contractSource: settings.contractsEnabled ? 'Spotrac cap pages via Firecrawl' : 'modelled',
+      ratingInputs: ratingInputs ? { generatedAt: ratingInputs.generatedAt, seasons: ratingInputs.seasons, depthChartAsOf: ratingInputs.depthChartAsOf } : null
     });
   });
 
@@ -36,8 +38,8 @@ export function createRosterRouter() {
   // League wide refresh spends provider credits (one call per team), so it is admin only.
   router.post('/refresh', adminOnly, async (_req, res) => {
     try {
-      const { snapshots, errors } = await service.refreshLeague();
-      res.json({ success: true, refreshed: snapshots.map(s => s.teamId), errors });
+      const { snapshots, contracts, errors } = await service.refreshLeague();
+      res.json({ success: true, refreshed: snapshots.map(s => s.teamId), contractsRefreshed: contracts.map(c => c.teamId), errors });
     } catch (err: any) {
       res.status(502).json({ success: false, error: err.message || 'League refresh failed' });
     }

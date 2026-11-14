@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "lint": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
-    "rosters:snapshot": "tsx scripts/buildRosterSnapshot.ts"
+    "rosters:snapshot": "tsx scripts/buildRosterSnapshot.ts",
+    "ratings:inputs": "tsx scripts/buildRatingsInputs.ts"
   },
   "dependencies": {
     "@google/genai": "^1.46.0",
