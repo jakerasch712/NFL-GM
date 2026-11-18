@@ -4,7 +4,7 @@ An analytics driven NFL franchise simulation. You act as head coach and general 
 
 The interface follows a war room style: dense, data rich, closer to a trading terminal than a consumer game.
 
-> Status: prototype. Game state lives in memory and resets on page reload. See [Known limitations](#known-limitations).
+> Status: prototype. Live rosters, ratings and cap hits are wired in (PR #12, merged 18 November 2026). Game state still lives in memory and resets on page reload. See [Project status](#project-status) and [Known limitations](#known-limitations).
 
 ## Features
 
@@ -12,7 +12,7 @@ The interface follows a war room style: dense, data rich, closer to a trading te
 |---|---|---|
 | Team selection | Pick one of 32 franchises | `components/TeamSelection.tsx` |
 | Dashboard | Franchise overview, standings, schedule | `components/Dashboard.tsx` |
-| Roster and depth chart | Roster table, depth chart visualizer, roster sync | `components/RosterView.tsx`, `components/DepthChartVisualizer.tsx` |
+| Roster and depth chart | Roster table, depth chart visualizer, live roster sync with a change preview | `components/RosterView.tsx`, `components/DepthChartVisualizer.tsx`, `components/FirecrawlRosterModal.tsx` |
 | Salary cap | Cap hits, dead cap, restructures, releases | `services/financeService.ts`, `utils/capUtils.ts`, `components/CapModals.tsx` |
 | Free agency and contracts | Market, negotiation, player demands | `components/FreeAgency.tsx`, `components/ContractNegotiation.tsx` |
 | Trades | Trade builder and history | `components/TradeCenter.tsx` |
@@ -29,8 +29,9 @@ The interface follows a war room style: dense, data rich, closer to a trading te
 - Vite 6 for the client build
 - Express 5 server (`server.ts`) that serves the app and hosts the `/api` routes
 - Google Gemini through `@google/genai` for AI features
-- Firecrawl (NFL.com provider) for live rosters (optional)
-- nflverse public CSV releases for teams and rosters
+- Firecrawl for live data (optional): the NFL.com provider for rosters, page fetches for Spotrac cap tables
+- nflverse public CSV releases for teams, season stats and depth charts
+- Node's built in test runner through `tsx --test`
 - recharts, lucide-react, motion
 
 ## Getting started
@@ -42,10 +43,14 @@ git clone https://github.com/jakerasch712/NFL-GM.git
 cd NFL-GM
 npm install
 cp .env.example .env.local   # then fill in the keys below
-npm run dev
+npx tsx --env-file=.env.local server.ts
 ```
 
 The app runs at http://localhost:3000. Express and Vite share that one port in development.
+
+> Server keys must be loaded with `--env-file` (or exported in your shell). The server does not read `.env.local` on its own yet, so plain `npm run dev` starts with no Gemini or Firecrawl key. The same applies to the scripts below. A code fix is planned; see [Known limitations](#known-limitations).
+
+Without any keys, `npm run dev` still runs the game on curated and generated rosters.
 
 ### Environment variables
 
@@ -58,7 +63,7 @@ The app runs at http://localhost:3000. Express and Vite share that one port in d
 | `ROSTER_ADMIN_TOKEN` | Optional | Enables `POST /api/rosters/refresh` when set |
 | `ROSTER_CONTRACT_SOURCE` | Optional | `spotrac` (default) or `none` for fully modelled contracts |
 
-The app loads and plays without either key. AI panels return errors until `GEMINI_API_KEY` is set. Live roster sync needs `FIRECRAWL_API_KEY` or a snapshot file.
+The app loads and plays without any key. AI panels return errors until `GEMINI_API_KEY` is set. Live roster sync needs `FIRECRAWL_API_KEY` or a snapshot file.
 
 Never commit real keys. `*.local` files are ignored by git.
 
@@ -66,12 +71,12 @@ Never commit real keys. `*.local` files are ignored by git.
 
 | Command | What it does |
 |---|---|
-| `npm run dev` | Starts Express with Vite middleware on port 3000 |
+| `npm run dev` | Starts Express with Vite middleware on port 3000 (no env file loaded) |
 | `npm run build` | Builds the client to `dist/` and bundles the server to `dist/server.cjs` |
-| `npm start` | Runs the production server from `dist/` |
+| `npm start` | Runs the production server from `dist/`. With keys: `node --env-file=.env.local dist/server.cjs` |
 | `npm run lint` | Type checks with `tsc --noEmit` |
-| `npm test` | Runs the roster pipeline tests |
-| `npm run rosters:snapshot` | Fetches all 32 rosters and cap pages and writes `data/snapshots/rosters.json` (32 roster calls plus 32 page fetches) |
+| `npm test` | Runs the roster pipeline tests (34 tests) |
+| `npm run rosters:snapshot` | Fetches all 32 rosters and cap pages and writes `data/snapshots/rosters.json`. Needs the key: `npx tsx --env-file=.env.local scripts/buildRosterSnapshot.ts` |
 | `npm run ratings:inputs` | Rebuilds `data/snapshots/ratings-inputs.json` from nflverse (free, no key) |
 
 ## Project structure
@@ -81,16 +86,17 @@ App.tsx                 App shell, global state, view routing
 index.tsx, index.html   Client entry
 server.ts               Express server and AI routes
 server/                 Live roster pipeline: provider client, normalizer, ratings, contracts, cache, routes
-engine/                 Pure game logic shared by client and server (roster merge)
-tests/                  Roster pipeline tests and a real provider fixture
-scripts/                Snapshot builder
+engine/                 Pure game logic shared by client and server (roster merge, roster types)
+tests/                  Roster pipeline tests with trimmed real NFL.com and Spotrac fixtures
+scripts/                Roster snapshot and ratings inputs builders
+data/snapshots/         Committed offline data: ratings inputs (and the roster snapshot once generated)
 types.ts                Shared domain types (Player, Contract, LeagueState, ...)
 constants.ts            Teams, coaches, draft class, picks, plays
 schedule.ts             Season schedule
 components/             One file per screen or modal
 services/               Progression, finance, history, AI, nflverse clients
 utils/                  Cap math helpers
-data/                   Curated rosters and coach office data
+data/                   Curated rosters, coach office data and snapshots
 documentation/          Game design notes and roadmap
 ```
 
@@ -141,14 +147,40 @@ At startup the app seeds teams from whatever the server has stored (cache or sna
 
 Spotrac's terms of use restrict automated collection. The server fetches at most one cap page per team per cache period, but review their terms before any public or commercial deployment. Set `ROSTER_CONTRACT_SOURCE=none` to turn the fetch off.
 
+## Data refresh
+
+| Data | Command | Cost | When |
+|---|---|---|---|
+| Ratings inputs (nflverse stats and depth charts) | `npm run ratings:inputs` | Free | Weekly in season |
+| League roster and cap snapshot | `npx tsx --env-file=.env.local scripts/buildRosterSnapshot.ts` | About 192 Firecrawl credits (32 roster calls at 5 credits, 32 cap pages at about 1 credit) | Start of season, after the trade deadline, or whenever the offline fallback should be current |
+| One team, live | Sync button on the roster screen | 6 credits on a cache miss, free on a cache hit | Any time |
+
+Commit the updated files in `data/snapshots/` so the game starts offline with current data.
+
+## Project status
+
+| Phase | Scope | Status |
+|---|---|---|
+| 0 | Remove exposed keys, lock down the AI routes, add CI | Not started |
+| 1 | Live rosters, nflverse ratings, real cap hits, roster merge | Built and merged. League snapshot not generated yet |
+| 2 | Save system | Not started |
+| 3 | Move simulation and cap rules into a seeded engine | Not started |
+| 4 | CPU teams, full calendar, mobile layout | Not started |
+
+Details and the full findings list are in the [roadmap](documentation/ROADMAP.md).
+
 ## Known limitations
 
 - No save system. All franchise state is React state and is lost on reload.
 - The nflverse roster fetch is pinned to the 2024 season.
-- Simulation and game rules live inside UI components, and there are no automated tests.
+- Simulation and game rules live inside UI components. Tests cover the roster pipeline only; there is no CI yet.
 - The AI `/api` routes have no authentication or rate limiting, and the Gemini key is still injected into the client build. Do not deploy publicly as is.
 - Two lockfiles are committed (`package-lock.json` and `bun.lock`).
-- No league snapshot is committed yet. Run `npm run rosters:snapshot` with a Firecrawl key to create it.
+- No league snapshot is committed yet, so a fresh install without a Firecrawl key has no live rosters.
+- The server and scripts do not load `.env.local` (use `--env-file` as shown above).
+- The roster cache is keyed by team, not season. After changing `ROSTER_SEASON`, delete `.cache/rosters` or the old season is served until the cache expires.
+- A failed team during `rosters:snapshot` overwrites the existing snapshot without that team. Check the command output before committing the file.
+- NFL.com team codes and Spotrac page addresses are verified for Atlanta only; the first full snapshot run will confirm the rest.
 - The depth chart screen still has the older Gemini based Spotrac sync.
 
 ## Documentation
