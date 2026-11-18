@@ -18,6 +18,8 @@ import { AppView, DraftProspect, DraftPick, Scout, LeagueState, LeaguePhase, Pla
 import { DRAFT_CLASS, INITIAL_PICKS, MOCK_SCOUTS, TEAMS_DB, MOCK_PLAYERS, MOCK_COACHES } from './constants';
 import { ensureFullTeamRosters, REAL_NFL_PLAYERS } from './data/nflRosters';
 import { nflverseService } from './services/nflverseService';
+import { rosterService } from './services/rosterService';
+import { seedLeagueRosters } from './engine/rosterMerge';
 import { advanceWeekProgression } from './services/progressionService';
 import { INITIAL_HEAD_COACH_PROFILE, createWeeklyAgenda } from './data/hc09Data';
 import { SCHEDULE_2027 } from './schedule';
@@ -63,13 +65,18 @@ const App: React.FC = () => {
           });
         }
 
+        let basePlayers: Player[] = REAL_NFL_PLAYERS;
         if (nflPlayers && nflPlayers.length > 0) {
           const curatedNames = new Set(REAL_NFL_PLAYERS.map(p => p.name.toLowerCase()));
           const nonCurated = nflPlayers.filter(p => !curatedNames.has(p.name.toLowerCase()));
-          setAllPlayers(ensureFullTeamRosters([...REAL_NFL_PLAYERS, ...nonCurated]));
-        } else {
-          setAllPlayers(ensureFullTeamRosters(REAL_NFL_PLAYERS));
+          basePlayers = [...REAL_NFL_PLAYERS, ...nonCurated];
         }
+        // Teams with a stored live roster (server cache or snapshot) replace their base roster.
+        const storedLeague = await rosterService.fetchStoredLeague();
+        setAllPlayers(ensureFullTeamRosters(seedLeagueRosters(basePlayers, storedLeague)));
+        // Use the real league salary cap when the contract source reported one.
+        const liveCap = storedLeague.find(t => t.salaryCapM)?.salaryCapM;
+        if (liveCap) setLeagueState(prev => ({ ...prev, salaryCap: liveCap }));
       } catch (err) {
         console.warn('Initialization using default local databases:', err);
       } finally {

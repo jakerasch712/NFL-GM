@@ -260,6 +260,18 @@ export interface Player {
   breakoutOpportunity?: BreakoutOpportunity;
   recentPerformanceRating?: number; // 0-100 based on game impact
   careerPhase?: 'Ascending' | 'Prime' | 'Veteran' | 'Declining';
+  // Live roster identity (set by the roster pipeline, see engine/rosterTypes.ts)
+  gsisId?: string; // Stable league wide player ID shared by NFL.com and nflverse
+  jerseyNumber?: string;
+  rosterStatus?: 'active' | 'reserve' | 'practice_squad';
+  headshotUrl?: string;
+  college?: string;
+  heightIn?: number;
+  weightLb?: number;
+  experience?: number; // Accrued NFL seasons
+  dataSource?: 'curated' | 'live' | 'generated';
+  /** 'cap_hit': real current season cap hit with modelled structure. 'modelled': fully modelled. */
+  contractSource?: 'cap_hit' | 'curated' | 'modelled';
 }
 
 export interface Team {
